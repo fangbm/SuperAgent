@@ -1,0 +1,5 @@
+{
+  "name": "@superagent/connector-discord", "version": "0.1.0", "private": true, "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "dependencies": { "@superagent/plugin-sdk": "workspace:*" }
+}

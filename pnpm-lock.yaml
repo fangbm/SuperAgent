@@ -14,6 +14,9 @@ importers:
       '@superagent/agent-workers':
         specifier: workspace:*
         version: link:packages/agent-workers
+      '@superagent/connector-discord':
+        specifier: workspace:*
+        version: link:packages/connectors/discord
       '@superagent/connector-steam-reviews':
         specifier: workspace:*
         version: link:packages/connectors/steam-reviews
@@ -98,6 +101,12 @@ importers:
       '@superagent/persistence':
         specifier: workspace:*
         version: link:../persistence
+
+  packages/connectors/discord:
+    dependencies:
+      '@superagent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../plugin-sdk
 
   packages/connectors/steam-reviews:
     dependencies:

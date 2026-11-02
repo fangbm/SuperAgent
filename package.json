@@ -37,6 +37,7 @@
     "@superagent/domain": "workspace:*",
     "@superagent/agent-workers": "workspace:*",
     "@superagent/issue-tracker": "workspace:*",
-    "@superagent/connector-steam-reviews": "workspace:*"
+    "@superagent/connector-steam-reviews": "workspace:*",
+    "@superagent/connector-discord": "workspace:*"
   }
 }

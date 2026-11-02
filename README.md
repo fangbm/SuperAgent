@@ -61,7 +61,7 @@ Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源�
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
 
-M4 已交付 Steam Reviews Source 插件，接入现有 M1 Host。独立运行、配置 Schema、能力限制见 [M4 文档](docs/M4-CONNECTORS.md)，实际验证见 [M4 验收](docs/M4-ACCEPTANCE.md)。其他连接器在后续独立 PR 中交付。
+M4 已交付 Steam Reviews 与 Discord Source 插件，接入现有 M1 Host。独立运行、配置 Schema、能力限制见 [M4 文档](docs/M4-CONNECTORS.md)，实际验证见 [M4 验收](docs/M4-ACCEPTANCE.md)。其他连接器在后续独立 PR 中交付。
 
 ## 运行 M3
 
