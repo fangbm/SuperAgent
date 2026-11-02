@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/agent-task-v1.schema.json",
+  "title": "agent-task-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "projectId",
+    "kind",
+    "payload",
+    "idempotencyKey",
+    "priority",
+    "createdAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "feedback.admit",
+        "feedback.segment.flush",
+        "feedback.batch.triage",
+        "feedback.audit",
+        "feedback.triage",
+        "feedback.extract.v2",
+        "suggestion.retrieve",
+        "suggestion.match",
+        "suggestion.github.sync",
+        "suggestion.action",
+        "feedback.link_issue",
+        "issue.reprioritize",
+        "issue.github.sync",
+        "issue.action",
+        "report.generate",
+        "report.deliver",
+        "notification.p0.evaluate",
+        "notification.p0.deliver"
+      ]
+    },
+    "payload": {},
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "priority": {
+      "type": "integer"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

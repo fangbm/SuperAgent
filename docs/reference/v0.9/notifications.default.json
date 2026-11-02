@@ -1,0 +1,45 @@
+{
+  "notifications": {
+    "policyVersion": "p0-digest-v1",
+    "timezone": "Asia/Shanghai",
+    "defaultRoute": "digest_only",
+    "allowedRealtime": {
+      "kind": "defect",
+      "severity": "P0"
+    },
+    "digest": {
+      "scheduleTimes": [
+        "00:00",
+        "18:00"
+      ],
+      "includeP0": true,
+      "includeBugs": true,
+      "includeSuggestions": true,
+      "includeSteamNegativeReviews": true,
+      "markPreviouslyAlertedP0": true
+    },
+    "p0": {
+      "queue": "p0-alert",
+      "evaluateUrgentCandidates": true,
+      "minimumEvidenceRequired": true,
+      "sendTo": "approved_developer_qq_c2c",
+      "dedupe": "incidentId+alertGeneration+recipientRef",
+      "newAlertGenerationOn": [
+        "new_critical_impact",
+        "confirmed_regression",
+        "explicit_developer_realert"
+      ],
+      "sameIncidentDuplicateFeedback": "update_evidence_without_push",
+      "priorityOverDigestJobs": true
+    },
+    "delivery": {
+      "unknownResult": "no_automatic_resend",
+      "permissionDenied": "mark_blocked_and_archive",
+      "alwaysArchiveToWeb": true
+    },
+    "nonP0": {
+      "individualImmediatePush": false,
+      "githubSyncMayProceedWithoutQQNotification": true
+    }
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/triage-result-v2.schema.json",
+  "title": "TriageResultV2",
+  "description": "Multi-intent Agent extraction; source event envelope remains v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "batchId",
+    "pipelineVersion",
+    "revision",
+    "items",
+    "requiresHumanReview"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "batchId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pipelineVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "requiresHumanReview": {
+      "type": "boolean"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/defectItem"
+          },
+          {
+            "$ref": "#/$defs/suggestionItem"
+          }
+        ]
+      }
+    },
+    "nonActionableReason": {
+      "enum": [
+        "question_only",
+        "ordinary_chat",
+        "insufficient_context"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "items": {
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "then": {
+        "required": [
+          "nonActionableReason"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "evidenceAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "role"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quote": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "context",
+            "corroboration"
+          ]
+        }
+      },
+      "dependentRequired": {
+        "start": [
+          "end"
+        ],
+        "end": [
+          "start"
+        ]
+      }
+    },
+    "defectItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "defect"
+        },
+        "category": {
+          "enum": [
+            "bug",
+            "performance",
+            "usability"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidenceAnchor"
+          }
+        },
+        "productVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedBehavior": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expectedBehavior": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reproductionSteps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "errorSignature": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "category",
+        "title",
+        "description",
+        "confidence",
+        "evidence",
+        "observedBehavior"
+      ]
+    },
+    "suggestionItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "suggestion"
+        },
+        "category": {
+          "enum": [
+            "feature_request",
+            "improvement",
+            "performance",
+            "usability"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidenceAnchor"
+          }
+        },
+        "productVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requestedOutcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetFeature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "motivation": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "category",
+        "title",
+        "description",
+        "confidence",
+        "evidence",
+        "requestedOutcome"
+      ]
+    }
+  }
+}

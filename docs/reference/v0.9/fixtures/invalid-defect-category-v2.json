@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "2.0",
+  "batchId": "bat-20261102-001",
+  "pipelineVersion": "triage-v2.0",
+  "revision": 1,
+  "requiresHumanReview": false,
+  "items": [
+    {
+      "kind": "defect",
+      "category": "feature_request",
+      "title": "联机进入房间时闪退",
+      "description": "玩家进入朋友房间时游戏崩溃，原因尚未确认",
+      "confidence": 0.84,
+      "observedBehavior": "进入房间时进程退出",
+      "expectedBehavior": "成功进入房间",
+      "evidence": [
+        {
+          "eventId": "host-event-01",
+          "quote": "联机一进房间就闪退",
+          "role": "primary"
+        }
+      ]
+    }
+  ]
+}

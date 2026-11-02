@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "alertId": "p0-alert-01",
+  "incidentId": "incident-42",
+  "issueId": "BUG-0042",
+  "projectId": "game-a",
+  "severity": "P0",
+  "alertGeneration": 1,
+  "title": "广泛存档丢失",
+  "summary": "多个用户报告升级后存档不可恢复",
+  "evidence": [
+    {
+      "eventId": "host-event-01"
+    }
+  ],
+  "detectedAt": "2026-11-02T09:25:00Z",
+  "policyVersion": "p0-digest-v1",
+  "deliveryRequested": true
+}

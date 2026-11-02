@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "kind": "report_summary",
+  "format": "markdown",
+  "reportId": "report-20261102-1800",
+  "revision": 1,
+  "actions": [
+    {
+      "kind": "report.open_section",
+      "section": "bugs",
+      "label": "查看 Bug"
+    },
+    {
+      "kind": "report.open_section",
+      "section": "suggestions",
+      "label": "查看建议"
+    },
+    {
+      "kind": "report.open_section",
+      "section": "steam_negative_reviews",
+      "label": "查看 Steam 差评"
+    }
+  ]
+}

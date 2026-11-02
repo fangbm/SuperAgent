@@ -1,0 +1,32 @@
+{
+  "specversion": "1.0",
+  "id": "ev-29f8b1",
+  "source": "urn:superagent:source:qq-group-01",
+  "type": "com.superagent.source.coverage.changed.v1",
+  "time": "2026-11-02T12:41:20Z",
+  "subject": "message/msg-12345",
+  "datacontenttype": "application/json",
+  "data": {
+    "schemaVersion": "1.0",
+    "projectId": "game-01",
+    "sourceId": "qq-group-01",
+    "platform": "qq-official",
+    "object": {
+      "kind": "message",
+      "externalId": "msg-12345",
+      "revision": "original"
+    },
+    "actor": {
+      "opaqueId": "member-token-01",
+      "isBot": false
+    },
+    "content": {
+      "text": "多人联机加载到 90% 会闪退",
+      "language": "zh-CN",
+      "attachments": []
+    },
+    "origin": {
+      "locale": "zh-CN"
+    }
+  }
+}

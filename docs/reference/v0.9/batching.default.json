@@ -1,0 +1,24 @@
+{
+  "feedbackBatching": {
+    "enabled": true,
+    "policyVersion": "admission-and-batching-v1",
+    "quietWindowMs": 60000,
+    "maxWaitMs": 120000,
+    "maxCandidateMessages": 30,
+    "maxContextMessages": 50,
+    "urgentMaxDelayMs": 5000,
+    "auditSampleRate": 0.02,
+    "maxConcurrentFullAgentJobs": 3,
+    "queueLanes": [
+      "ingress",
+      "admission",
+      "full_agent",
+      "report",
+      "delivery"
+    ],
+    "requireDurableSegments": true,
+    "reprocessOnEdits": true,
+    "doNotDropRawEventsUnderBackpressure": true,
+    "reportPendingAnalysis": true
+  }
+}

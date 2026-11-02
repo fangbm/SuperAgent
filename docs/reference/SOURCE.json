@@ -1,0 +1,7 @@
+{
+  "sourceArchive": "SuperAgent_Architecture_Contracts_v0.9 (3).zip",
+  "sha256": "0cefaa7cd0aa43bca5e0b6039fd2547f940cf197822e104f824200663629936d",
+  "baseline": "v0.9",
+  "note": "Imported source is reference material. Original stale SHA256SUMS.json is excluded; canonical M0 assets are frozen separately.",
+  "referenceTextNormalization": "UTF-8 text with LF line endings; document content otherwise preserved."
+}

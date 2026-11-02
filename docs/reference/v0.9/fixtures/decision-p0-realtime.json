@@ -1,0 +1,8 @@
+{
+  "route": "p0_realtime",
+  "projectId": "game-a",
+  "issueId": "BUG-0042",
+  "severity": "P0",
+  "policyVersion": "p0-digest-v1",
+  "reason": "verified critical incident"
+}

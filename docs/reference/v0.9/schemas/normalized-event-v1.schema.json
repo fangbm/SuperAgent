@@ -1,0 +1,689 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/normalized-event-v1.schema.json",
+  "title": "SuperAgent NormalizedEventV1 discriminated union (v0.4)",
+  "type": "object",
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "format": "uri-reference"
+    },
+    "type": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "specversion",
+    "id",
+    "source",
+    "type",
+    "time",
+    "datacontenttype",
+    "data"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coverage": {
+          "enum": [
+            "full",
+            "partial",
+            "unknown",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectId",
+        "sourceId",
+        "platform",
+        "coverage"
+      ],
+      "additionalProperties": false
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "message",
+                "review",
+                "thread",
+                "comment"
+              ]
+            },
+            "externalId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parentExternalId": {
+              "type": "string"
+            },
+            "threadExternalId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "externalId",
+            "revision"
+          ],
+          "additionalProperties": false
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "opaqueId": {
+              "type": "string"
+            },
+            "isBot": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "language": {
+              "type": "string"
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "image",
+                      "video",
+                      "file",
+                      "link"
+                    ]
+                  },
+                  "assetRef": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "permalink": {
+              "type": "string",
+              "format": "uri"
+            },
+            "locale": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectId",
+        "sourceId",
+        "platform",
+        "object"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.message.created.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "message"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.message.updated.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "message"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.message.deleted.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "message"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.review.created.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "review"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.review.updated.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "review"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.review.deleted.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "review"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.thread.created.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "thread"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.thread.updated.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "thread"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.thread.deleted.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "thread"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.comment.created.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "comment"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.comment.updated.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "comment"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.feedback.comment.deleted.v1"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/feedback"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "comment"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              "required": [
+                "object"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "com.superagent.source.coverage.changed.v1"
+        },
+        "data": {
+          "$ref": "#/$defs/coverage"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/report-v2.1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "window",
+    "generatedAt",
+    "coverage",
+    "counts",
+    "issueIds",
+    "suggestionIds",
+    "uniqueSourceEventCount",
+    "markdown",
+    "revision",
+    "snapshotCutoffAt",
+    "steamNegativeReviews"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.1"
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "startInclusive",
+        "endExclusive",
+        "timezone"
+      ],
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startInclusive": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endExclusive": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceId",
+          "status"
+        ],
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "full",
+              "partial",
+              "unknown",
+              "unavailable"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "newFeedbackItems",
+        "newDefectItems",
+        "newSuggestionItems",
+        "uniqueDefects",
+        "uniqueSuggestions",
+        "pendingAnalysis"
+      ],
+      "properties": {
+        "newFeedbackItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "newDefectItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "newSuggestionItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uniqueDefects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uniqueSuggestions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pendingAnalysis": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "issueIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "suggestionIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "uniqueSourceEventCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "markdown": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "snapshotCutoffAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "supersedesRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "steamNegativeReviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceId",
+          "reviewExternalId",
+          "evidenceEventId",
+          "triggerEventIds",
+          "observedAt",
+          "occurredAt",
+          "updatedInWindow",
+          "sentimentAtSnapshot"
+        ],
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewExternalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceEventId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "triggerEventIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedInWindow": {
+            "type": "boolean"
+          },
+          "sentimentAtSnapshot": {
+            "const": "negative"
+          },
+          "originalUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    }
+  },
+  "description": "v0.8 immutable report revision. Legacy 2.0 is read-only. Host validates referential integrity and review membership uniqueness; JSON Schema validates shape.",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "revision": {
+            "const": 1
+          }
+        },
+        "required": [
+          "revision"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "supersedesRevision"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "revision": {
+            "minimum": 2
+          }
+        },
+        "required": [
+          "revision"
+        ]
+      },
+      "then": {
+        "required": [
+          "supersedesRevision"
+        ]
+      }
+    }
+  ]
+}

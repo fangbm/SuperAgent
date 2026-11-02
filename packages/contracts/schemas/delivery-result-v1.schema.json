@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/delivery-result-v1.schema.json",
+  "title": "delivery-result-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "accepted",
+        "rejected",
+        "retryable",
+        "blocked",
+        "unknown"
+      ]
+    },
+    "providerMessageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "errorCode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retryAfterMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "detail": {
+      "type": "string"
+    },
+    "providerRequestId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

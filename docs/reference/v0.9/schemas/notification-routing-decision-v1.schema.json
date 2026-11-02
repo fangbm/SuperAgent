@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/notification-routing-decision-v1.schema.json",
+  "title": "NotificationRoutingDecisionV1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route",
+        "issueId",
+        "projectId",
+        "severity",
+        "policyVersion",
+        "reason"
+      ],
+      "properties": {
+        "route": {
+          "const": "p0_realtime"
+        },
+        "issueId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "const": "P0"
+        },
+        "policyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route",
+        "projectId",
+        "policyVersion",
+        "reason"
+      ],
+      "properties": {
+        "route": {
+          "const": "digest_only"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "non_p0_defect",
+            "steam_review",
+            "suggestion",
+            "not_confirmed_p0"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "batchId": "batch-qq-1-seg-04-v1",
+  "projectId": "game-01",
+  "sourceId": "qq-group-01",
+  "segmentIds": [
+    "seg-04"
+  ],
+  "candidateEventIds": [
+    "ev-29f8b1",
+    "ev-feb9c2"
+  ],
+  "contextEventIds": [
+    "ev-093af0"
+  ],
+  "policyVersion": "admission-and-batching-v1",
+  "revision": 1,
+  "reason": "quiet_timeout",
+  "createdAt": "2026-11-02T12:42:20Z"
+}

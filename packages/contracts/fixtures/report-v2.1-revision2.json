@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "2.1",
+  "reportId": "report-20261102-1800",
+  "revision": 2,
+  "window": {
+    "projectId": "game-a",
+    "startInclusive": "2026-11-01T16:00:00Z",
+    "endExclusive": "2026-11-02T10:00:00Z",
+    "timezone": "Asia/Shanghai"
+  },
+  "generatedAt": "2026-11-02T10:25:00Z",
+  "snapshotCutoffAt": "2026-11-02T10:24:00Z",
+  "coverage": [
+    {
+      "sourceId": "steam-main",
+      "status": "full"
+    }
+  ],
+  "counts": {
+    "newFeedbackItems": 2,
+    "newDefectItems": 1,
+    "newSuggestionItems": 1,
+    "uniqueDefects": 1,
+    "uniqueSuggestions": 1,
+    "pendingAnalysis": 0
+  },
+  "issueIds": [
+    "BUG-42"
+  ],
+  "suggestionIds": [
+    "REQ-8"
+  ],
+  "uniqueSourceEventCount": 2,
+  "steamNegativeReviews": [],
+  "markdown": "# 半日报\n",
+  "supersedesRevision": 1
+}

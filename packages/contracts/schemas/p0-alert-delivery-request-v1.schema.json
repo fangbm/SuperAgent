@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/p0-alert-delivery-request-v1.schema.json",
+  "title": "p0-alert-delivery-request-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "deliveryId",
+    "idempotencyKey",
+    "projectId",
+    "alertId",
+    "recipientRef",
+    "title",
+    "markdown",
+    "requestedAt"
+  ],
+  "properties": {
+    "deliveryId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "alertId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recipientRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "markdown": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

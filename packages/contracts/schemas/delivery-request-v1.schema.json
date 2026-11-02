@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/delivery-request-v1.schema.json",
+  "title": "delivery-request-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "deliveryId",
+    "idempotencyKey",
+    "projectId",
+    "reportId",
+    "recipientRef",
+    "title",
+    "text",
+    "requestedAt"
+  ],
+  "properties": {
+    "deliveryId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recipientRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string"
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reportRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "presentation": {
+      "$ref": "https://superagent.local/schemas/report-presentation-v1.schema.json"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "presentation"
+        ]
+      },
+      "then": {
+        "required": [
+          "reportRevision"
+        ]
+      }
+    }
+  ]
+}

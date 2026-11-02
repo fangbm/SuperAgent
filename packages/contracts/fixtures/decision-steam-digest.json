@@ -1,0 +1,6 @@
+{
+  "route": "digest_only",
+  "projectId": "game-a",
+  "policyVersion": "p0-digest-v1",
+  "reason": "steam_review"
+}

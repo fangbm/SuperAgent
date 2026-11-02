@@ -1,0 +1,35 @@
+{
+  "deliveryId": "delivery-01",
+  "idempotencyKey": "report-01:1:qq-c2c:developer-01",
+  "projectId": "game-01",
+  "reportId": "report-20261102-1800",
+  "reportRevision": 1,
+  "recipientRef": "developer-01",
+  "title": "游戏反馈报告",
+  "text": "新增 Bug 和建议已归档",
+  "requestedAt": "2026-11-02T10:03:00Z",
+  "presentation": {
+    "schemaVersion": "1.0",
+    "kind": "report_summary",
+    "format": "markdown",
+    "reportId": "report-20261102-1800",
+    "revision": 1,
+    "actions": [
+      {
+        "kind": "report.open_section",
+        "section": "bugs",
+        "label": "查看 Bug"
+      },
+      {
+        "kind": "report.open_section",
+        "section": "suggestions",
+        "label": "查看建议"
+      },
+      {
+        "kind": "report.open_section",
+        "section": "steam_negative_reviews",
+        "label": "查看 Steam 差评"
+      }
+    ]
+  }
+}

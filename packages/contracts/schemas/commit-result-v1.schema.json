@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/commit-result-v1.schema.json",
+  "title": "commit-result-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "accepted",
+    "duplicates",
+    "transactionId",
+    "refs"
+  ],
+  "properties": {
+    "accepted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicates": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transactionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "source",
+          "id",
+          "inserted"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "format": "uri-reference",
+            "minLength": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inserted": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

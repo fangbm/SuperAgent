@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.venv/
+__pycache__/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+.pnpm-store/
+.artifacts/

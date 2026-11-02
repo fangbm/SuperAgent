@@ -1,0 +1,10 @@
+{
+  "deliveryId": "p0-delivery-01",
+  "idempotencyKey": "incident-01:1:developer-01",
+  "projectId": "game-01",
+  "alertId": "alert-01",
+  "recipientRef": "developer-01",
+  "title": "严重 Bug 告警",
+  "markdown": "# P0\n证据已留档。",
+  "requestedAt": "2026-11-02T09:00:00Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "job-01",
+  "projectId": "game-01",
+  "kind": "feedback.batch.triage",
+  "payload": {
+    "batchId": "batch-qq-1-seg-04-v1"
+  },
+  "idempotencyKey": "triage:batch-qq-1-seg-04-v1:1",
+  "priority": 0,
+  "createdAt": "2026-11-02T10:00:00Z"
+}

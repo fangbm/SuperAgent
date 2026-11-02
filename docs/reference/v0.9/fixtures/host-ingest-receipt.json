@@ -1,0 +1,13 @@
+{
+  "accepted": 1,
+  "duplicates": 0,
+  "transactionId": "tx-001",
+  "refs": [
+    {
+      "eventId": "019a1111-0f0f-7000-8000-111111111111",
+      "source": "urn:superagent:source:qq-group-01",
+      "id": "ev-29f8b1",
+      "inserted": true
+    }
+  ]
+}

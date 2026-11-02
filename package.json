@@ -1,0 +1,24 @@
+{
+  "name": "superagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.8",
+  "engines": { "node": ">=24.4.0 <25" },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -p tests/types/tsconfig.json",
+    "test": "node --test tests/contract/*.test.mjs tests/tooling/*.test.mjs",
+    "test:reference": "uv run --no-project --with-requirements requirements-contracts.txt python -X utf8 scripts/validate-reference.py",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:freeze": "node scripts/check-contract-freeze.mjs",
+    "check": "pnpm check:boundaries && pnpm check:freeze && pnpm build && pnpm typecheck && pnpm test && pnpm test:reference"
+  },
+  "devDependencies": {
+    "@superagent/contracts": "workspace:*",
+    "@superagent/plugin-sdk": "workspace:*",
+    "@superagent/contract-validation": "workspace:*",
+    "@types/node": "24.0.15",
+    "typescript": "5.9.3"
+  }
+}

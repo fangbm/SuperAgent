@@ -1,0 +1,20 @@
+{
+  "apiVersion": "superagent.io/plugin/v1",
+  "id": "com.superagent.source.qq-official",
+  "version": "0.1.0",
+  "displayName": "QQ Official Source",
+  "kind": "source",
+  "engine": { "sdk": "^0.1.0" },
+  "permissions": {
+    "networkHosts": ["api.bot.qq.com"],
+    "secretKeys": ["QQ_APP_ID", "QQ_APP_SECRET"],
+    "eventPublish": true,
+    "deliverySend": false
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": { "sourceId": { "type": "string" } },
+    "required": ["sourceId"],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/plugin-manifest-v1.schema.json",
+  "title": "SuperAgent plugin manifest v1",
+  "type": "object",
+  "properties": {
+    "apiVersion": { "const": "superagent.io/plugin/v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]+$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.+-]+)?$" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["source", "delivery"] },
+    "engine": {
+      "type": "object",
+      "properties": { "sdk": { "type": "string", "minLength": 1 } },
+      "required": ["sdk"],
+      "additionalProperties": false
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "networkHosts": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "secretKeys": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "eventPublish": { "type": "boolean" },
+        "deliverySend": { "type": "boolean" }
+      },
+      "required": ["networkHosts", "secretKeys"],
+      "additionalProperties": false
+    },
+    "configSchema": { "type": "object" }
+  },
+  "required": ["apiVersion", "id", "version", "displayName", "kind", "engine", "permissions", "configSchema"],
+  "additionalProperties": false
+}

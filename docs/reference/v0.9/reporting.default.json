@@ -1,0 +1,50 @@
+{
+  "reporting": {
+    "timezone": "Asia/Shanghai",
+    "schedule": {
+      "type": "daily_times",
+      "times": [
+        "00:00",
+        "18:00"
+      ]
+    },
+    "window": {
+      "type": "since_previous_scheduled_time",
+      "boundary": "[start,end)",
+      "timeField": "received_at"
+    },
+    "generation": {
+      "gracePeriodSeconds": 180,
+      "recoverMissedWindows": true
+    },
+    "delivery": {
+      "primary": "qq-c2c",
+      "archiveToWeb": true,
+      "onPermissionDenied": "mark_blocked_and_archive",
+      "presentation": {
+        "primaryFormat": "markdown",
+        "interactiveKeyboard": true,
+        "navigationActions": [
+          {
+            "kind": "report.open_section",
+            "section": "bugs",
+            "label": "查看 Bug"
+          },
+          {
+            "kind": "report.open_section",
+            "section": "suggestions",
+            "label": "查看建议"
+          },
+          {
+            "kind": "report.open_section",
+            "section": "steam_negative_reviews",
+            "label": "查看 Steam 差评"
+          }
+        ],
+        "pageSize": 3,
+        "onKeyboardUnsupported": "markdown_with_commands",
+        "onMarkdownUnsupported": "plain_with_commands"
+      }
+    }
+  }
+}

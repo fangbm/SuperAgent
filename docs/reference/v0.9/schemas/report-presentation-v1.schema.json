@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://superagent.local/schemas/report-presentation-v1.schema.json",
+  "title": "ReportPresentationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "format",
+    "reportId",
+    "revision",
+    "actions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "report_summary"
+    },
+    "format": {
+      "const": "markdown"
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/actionBugs"
+        },
+        {
+          "$ref": "#/$defs/actionSuggestions"
+        },
+        {
+          "$ref": "#/$defs/actionSteam"
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "actionBugs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "section",
+        "label"
+      ],
+      "properties": {
+        "kind": {
+          "const": "report.open_section"
+        },
+        "section": {
+          "const": "bugs"
+        },
+        "label": {
+          "const": "查看 Bug"
+        }
+      }
+    },
+    "actionSuggestions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "section",
+        "label"
+      ],
+      "properties": {
+        "kind": {
+          "const": "report.open_section"
+        },
+        "section": {
+          "const": "suggestions"
+        },
+        "label": {
+          "const": "查看建议"
+        }
+      }
+    },
+    "actionSteam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "section",
+        "label"
+      ],
+      "properties": {
+        "kind": {
+          "const": "report.open_section"
+        },
+        "section": {
+          "const": "steam_negative_reviews"
+        },
+        "label": {
+          "const": "查看 Steam 差评"
+        }
+      }
+    }
+  }
+}
