@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../plugin-sdk"
+    },
+    {
+      "path": "../contract-validation"
+    },
+    {
+      "path": "../persistence"
+    },
+    {
+      "path": "../job-queue"
+    }
+  ],
+  "include": [
+    "src/**/*.ts"
+  ]
+}

@@ -1,8 +1,29 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/contracts" },
-    { "path": "packages/plugin-sdk" },
-    { "path": "packages/contract-validation" }
+    {
+      "path": "packages/contracts"
+    },
+    {
+      "path": "packages/plugin-sdk"
+    },
+    {
+      "path": "packages/contract-validation"
+    },
+    {
+      "path": "packages/persistence"
+    },
+    {
+      "path": "packages/job-queue"
+    },
+    {
+      "path": "packages/ingress"
+    },
+    {
+      "path": "packages/feedback-buffer"
+    },
+    {
+      "path": "packages/agent-core"
+    }
   ]
 }

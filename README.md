@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。当前完成 **M0 契约基线**，基于用户提供的 v0.9 设计包；尚未实现采集服务、Agent 分析、Web 或对外投递。
+跨平台游戏社区反馈系统。当前完成 **M0 契约基线与 M1 本地持久化处理链路**，基于用户提供的 v0.9 设计包。平台采集器、完整 Agent 分析、Web 和外部投递尚未接入。
 
 仓库只在本地维护，所有 workspace 包均为 `private`。没有配置远端，也没有发布或部署流程。以后托管须使用私有仓库。
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、三个包的构建、类型正反例、Node 契约测试，以及六个 Python/SQLite 参考验证脚本。Python 验证由 uv 使用 `requirements-contracts.txt` 中的精确版本创建隔离环境，不修改系统 Python 环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、八个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止和 10,000 条合成消息。Python 验证由 uv 使用 `requirements-contracts.txt` 中的精确版本创建隔离环境，不修改系统 Python 环境。
 
 单独运行：
 
@@ -31,10 +31,30 @@ pnpm test:reference
 | `packages/contracts` | 无业务依赖的公共类型、13 份 JSON Schema、22 份正反例 |
 | `packages/plugin-sdk` | Source/Delivery 插件类型入口，只导出类型 |
 | `packages/contract-validation` | Host 使用的 JSON Schema 2020-12 校验器 |
+| `packages/persistence` | WAL SQLite、迁移账本、校验和及同步事务 |
+| `packages/ingress` | 绑定来源、原子入库/游标/outbox、当前投影和 Source Host |
+| `packages/job-queue` | 分逻辑队列、租约令牌、重试预算、恢复与取消 |
+| `packages/feedback-buffer` | 可逆规则筛选、持久分段、合批、上下文和超时恢复 |
+| `packages/agent-core` | M1 轻量 admission worker 与持久调度扫描 |
 | `config` | 报告、批处理和通知默认配置 |
 | `tests` | 编译期反例、运行时契约与依赖边界验证 |
 | `docs/reference/v0.9` | 导入的原始设计和参考 SQL，不是生产迁移执行器 |
 | `contracts.freeze.json` | M0 冻结文件清单及 SHA-256 |
+
+## 运行 M1 本地链路
+
+```powershell
+pnpm build
+pnpm demo:m1
+pnpm worker:m1 --database .artifacts/local.sqlite --once
+pnpm worker:m1 --database .artifacts/local.sqlite
+```
+
+demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭/重新打开，以及注入时钟推进后的 batch 恢复；不会访问平台。worker 只处理已有的 outbox/admission 和超时分段；无消息来源时保持空闲，Ctrl+C 关闭连接。示例数据库放在 Git 忽略的 `.artifacts` 中。
+
+Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。M1 只生成持久化的 `feedback.batch.triage` 任务，完整 Agent 任务保持 pending，后续 M3 安装模型 worker 后再执行。
+
+Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
 
 当前源文件以 `packages/contracts` 为权威。原压缩包的旧校验清单不作为工程输入；原包身份记录在 `docs/reference/SOURCE.json`。
 

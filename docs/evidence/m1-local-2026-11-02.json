@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-02",
+  "environment": {
+    "os": "Windows",
+    "node": "24.4.0",
+    "sqlite": "3.50.2",
+    "pnpm": "11.0.8"
+  },
+  "scope": "Local TypeScript implementation with file-backed SQLite and synthetic inputs; no external platforms or LLM calls.",
+  "validation": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "nodeTestsPassed": 81,
+    "nodeTestsFailed": 0,
+    "referenceSuitesPassed": 6,
+    "typecheckEntrypoints": [
+      "tests/types/tsconfig.json",
+      "tests/types-node/tsconfig.json"
+    ],
+    "frozenM0AssetsUnchanged": 45
+  },
+  "forcedProcessTerminationScenarios": [
+    "uncommitted transaction rollback",
+    "committed event and outbox recovery",
+    "persisted unflushed segment recovery",
+    "expired local job lease recovery"
+  ],
+  "timingBoundary": "Batch deadlines use an injected clock; bulk timing measures local ingress/admission/batching only, not inference or delivery.",
+  "bulk": {
+    "scenario": "synthetic-file-backed-10000-events",
+    "ingressMs": 635,
+    "totalMs": 4352,
+    "sourceEventsIngested": 10000,
+    "pendingReconciliations": 0,
+    "pendingOutbox": 0,
+    "admissionDecisions": 10000,
+    "archivedEvents": 9696,
+    "archivedEventsAudited": 204,
+    "openSegments": 0,
+    "feedbackBatches": 11,
+    "fullAgentJobs": 11,
+    "pendingAnalysis": 304,
+    "oldestPendingSeconds": 121,
+    "queue": [
+      {
+        "lane": "admission",
+        "status": "completed",
+        "count": 10000
+      },
+      {
+        "lane": "full_agent",
+        "status": "pending",
+        "count": 11
+      }
+    ],
+    "batchFlushReasons": [
+      {
+        "reason": "max_wait",
+        "count": 1
+      },
+      {
+        "reason": "size_limit",
+        "count": 10
+      }
+    ],
+    "sources": [
+      {
+        "project_id": "game-test",
+        "source_id": "qq-main",
+        "coverage": "unknown",
+        "health_reason": null
+      }
+    ]
+  },
+  "demo": {
+    "accepted": 1,
+    "replayDuplicates": 1,
+    "stableEventId": true,
+    "recoveredFlushes": 1,
+    "checkpoint": {
+      "lastId": "demo-message-1"
+    },
+    "feedbackBatches": 1,
+    "pendingFullAgentJobs": 1,
+    "workerOnceExitCode": 0
+  },
+  "fullyActionableBurst": {
+    "sourceEvents": 1000,
+    "candidateEvents": 1000,
+    "computeBatches": 34,
+    "executedFullAgentJobs": 0
+  }
+}
