@@ -11,21 +11,36 @@ importers:
       '@superagent/agent-core':
         specifier: workspace:*
         version: link:packages/agent-core
+      '@superagent/agent-workers':
+        specifier: workspace:*
+        version: link:packages/agent-workers
       '@superagent/contract-validation':
         specifier: workspace:*
         version: link:packages/contract-validation
       '@superagent/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@superagent/domain':
+        specifier: workspace:*
+        version: link:packages/domain
       '@superagent/feedback-buffer':
         specifier: workspace:*
         version: link:packages/feedback-buffer
       '@superagent/ingress':
         specifier: workspace:*
         version: link:packages/ingress
+      '@superagent/issue-tracker':
+        specifier: workspace:*
+        version: link:packages/issue-tracker
       '@superagent/job-queue':
         specifier: workspace:*
         version: link:packages/job-queue
+      '@superagent/llm':
+        specifier: workspace:*
+        version: link:packages/llm
+      '@superagent/memory':
+        specifier: workspace:*
+        version: link:packages/memory
       '@superagent/persistence':
         specifier: workspace:*
         version: link:packages/persistence
@@ -57,6 +72,30 @@ importers:
         specifier: workspace:*
         version: link:../persistence
 
+  packages/agent-workers:
+    dependencies:
+      '@superagent/contract-validation':
+        specifier: workspace:*
+        version: link:../contract-validation
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@superagent/job-queue':
+        specifier: workspace:*
+        version: link:../job-queue
+      '@superagent/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@superagent/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+
   packages/contract-validation:
     dependencies:
       '@superagent/contracts':
@@ -70,6 +109,21 @@ importers:
         version: 3.0.1(ajv@8.20.0)
 
   packages/contracts: {}
+
+  packages/domain:
+    dependencies:
+      '@superagent/contract-validation':
+        specifier: workspace:*
+        version: link:../contract-validation
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
 
   packages/feedback-buffer:
     dependencies:
@@ -104,11 +158,44 @@ importers:
         specifier: workspace:*
         version: link:../plugin-sdk
 
+  packages/issue-tracker:
+    dependencies:
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+
   packages/job-queue:
     dependencies:
       '@superagent/contract-validation':
         specifier: workspace:*
         version: link:../contract-validation
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+
+  packages/llm:
+    dependencies:
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
+
+  packages/memory:
+    dependencies:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:../contracts

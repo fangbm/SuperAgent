@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-02",
+  "milestone": "M3",
+  "sourceInputs": "synthetic QQ/Discord events via Source Host, not live platform collection",
+  "model": {
+    "providerBaseURL": "https://api.deepseek.com",
+    "modelId": "deepseek-flash",
+    "successfulAnalyses": 2,
+    "successfulCalls": { "extract": 2, "bugMatch": 1 },
+    "successfulPathUsage": { "inputTokens": 3384, "outputTokens": 927 },
+    "usageScope": "successful path only; earlier rejected trials excluded; no cost estimate",
+    "retrievalMode": "lexical",
+    "liveEmbeddingTested": false,
+    "works": [
+      { "kind": "defect", "title": "Multiplayer loading crashes at 90%", "distinctSourceObjectCount": 2, "reviewRequired": false },
+      { "kind": "suggestion", "title": "Automatic reconnect after disconnection", "distinctSourceObjectCount": 1, "reviewRequired": false }
+    ]
+  },
+  "github": {
+    "repository": "fangbm/sa-test",
+    "visibilityVerified": "private",
+    "transport": "connected GitHub plugin via explicit stdio bridge",
+    "userAuthorizedWrites": "two test Issues and one Bug statistics comment",
+    "issues": [
+      { "number": 1, "kind": "suggestion", "url": "https://github.com/fangbm/sa-test/issues/1", "readBack": true },
+      { "number": 2, "kind": "defect", "url": "https://github.com/fangbm/sa-test/issues/2", "readBack": true }
+    ],
+    "statisticsComment": { "id": "6577591919", "issueNumber": 2, "distinctSourceObjectCount": 2, "url": "https://github.com/fangbm/sa-test/issues/2#issuecomment-6577591919", "readBack": true },
+    "persistedOperationStates": ["succeeded", "succeeded", "succeeded"],
+    "bridgeExitCode": 0,
+    "liveUnknownRecoveryTested": false,
+    "liveCommentPatchTested": false
+  },
+  "verification": {
+    "platform": "Windows / Node 24.4.0 / pnpm 11.0.8",
+    "frozenLockfileInstall": "passed",
+    "check": "passed",
+    "nodeTestsPassed": 109,
+    "referenceSuitesPassed": 6,
+    "unchangedFrozenFiles": 45,
+    "workspacePackageCount": 13,
+    "allWorkspacePackagesPrivate": true,
+    "modelCredentialFoundInRepositoryFiles": false,
+    "codeRemoteConfigured": false
+  },
+  "rawArtifactsIgnoredByGit": [
+    ".artifacts/m3-live-ZlSyv7/state.sqlite",
+    ".artifacts/m3-live-ZlSyv7/result.json",
+    ".artifacts/m3-live-github-result.json",
+    ".artifacts/m3-github-drafts.json"
+  ],
+  "notAccepted": ["M2 live platform collection", "QQ delivery", "Web/report UI", "deployed webhook", "real embedding quality", "production-scale model quality", "Linux CI"]
+}

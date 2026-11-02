@@ -9,12 +9,12 @@ import { fixture, binding, scope, event, count } from './helpers.mjs';
 test('file-backed store applies checksummed migrations once, enables WAL/FK and closes cleanly', t => {
   const f = fixture(t);
   const { store } = f.runtime;
-  assert.equal(count(store, 'schema_migrations'), 6);
+  assert.equal(count(store, 'schema_migrations'), bundledMigrations().length);
   assert.equal(store.get('PRAGMA journal_mode').journal_mode, 'wal');
   assert.equal(store.get('PRAGMA foreign_keys').foreign_keys, 1);
   assert.equal(store.get('PRAGMA busy_timeout').timeout, 5_000);
   f.runtime.close();
-  assert.equal(count(f.open().store, 'schema_migrations'), 6);
+  assert.equal(count(f.open().store, 'schema_migrations'), bundledMigrations().length);
 });
 
 test('production copies of frozen reference migrations remain identical', () => {
@@ -42,7 +42,7 @@ test('failed migration rolls back both DDL and ledger; changed applied SQL is re
   assert.throws(() => new SqliteStore(f.filename, { migrations: [...migrations, { name: '007_failure.sql', sql: 'CREATE TABLE failed_marker(id TEXT); INSERT INTO nonexistent VALUES(1);' }] }));
   const reopened = f.open();
   assert.equal(reopened.store.get("SELECT name FROM sqlite_master WHERE name='failed_marker'"), undefined);
-  assert.equal(count(reopened.store, 'schema_migrations'), 6);
+  assert.equal(count(reopened.store, 'schema_migrations'), bundledMigrations().length);
   reopened.close();
   assert.throws(() => new SqliteStore(f.filename, { migrations: migrations.map((m, i) => i ? m : { ...m, sql: m.sql + '\n-- changed' }) }), /MIGRATION_HISTORY_MISMATCH/);
 });

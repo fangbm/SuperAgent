@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../contract-validation"
+    },
+    {
+      "path": "../persistence"
+    },
+    {
+      "path": "../memory"
+    }
+  ],
+  "include": [
+    "src/**/*.ts"
+  ]
+}

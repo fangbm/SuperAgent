@@ -16,7 +16,9 @@
     "check:freeze": "node scripts/check-contract-freeze.mjs",
     "check": "pnpm check:boundaries && pnpm check:freeze && pnpm build && pnpm typecheck && pnpm test && pnpm test:reference",
     "demo:m1": "node scripts/m1-demo.mjs",
-    "worker:m1": "node scripts/m1-worker.mjs"
+    "worker:m1": "node scripts/m1-worker.mjs",
+    "demo:m3": "node scripts/m3-demo.mjs",
+    "worker:m3": "node scripts/m3-worker.mjs"
   },
   "devDependencies": {
     "@superagent/contracts": "workspace:*",
@@ -28,6 +30,11 @@
     "@superagent/job-queue": "workspace:*",
     "@superagent/ingress": "workspace:*",
     "@superagent/feedback-buffer": "workspace:*",
-    "@superagent/agent-core": "workspace:*"
+    "@superagent/agent-core": "workspace:*",
+    "@superagent/llm": "workspace:*",
+    "@superagent/memory": "workspace:*",
+    "@superagent/domain": "workspace:*",
+    "@superagent/agent-workers": "workspace:*",
+    "@superagent/issue-tracker": "workspace:*"
   }
 }

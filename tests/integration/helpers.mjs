@@ -34,6 +34,6 @@ export function fixture(t, policyOverrides = {}) {
   t.after(() => { for (const runtime of runtimes) runtime.close(); rmSync(directory, { recursive: true, force: true }); });
   const runtime = open();
   runtime.ingress.registerSource(binding);
-  return { runtime, filename, directory, policy, open, setTime: value => { now = new Date(value).toISOString(); }, advance: ms => { now = new Date(Date.parse(now) + ms).toISOString(); } };
+  return { runtime, filename, directory, policy, open, clock: () => now, setTime: value => { now = new Date(value).toISOString(); }, advance: ms => { now = new Date(Date.parse(now) + ms).toISOString(); } };
 }
 export const count = (store, table) => store.get(`SELECT count(*) n FROM ${table}`).n;

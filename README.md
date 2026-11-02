@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。当前完成 **M0 契约基线与 M1 本地持久化处理链路**，基于用户提供的 v0.9 设计包。平台采集器、完整 Agent 分析、Web 和外部投递尚未接入。
+跨平台游戏社区反馈系统。已完成 **M0 契约、M1 持久化与 M3 批次分析/领域/GitHub 同步主链路**，基于用户提供的 v0.9 设计包。按用户要求先做 M3；M2 真实 QQ 能力验证、其他平台采集、Web 与报告投递仍未交付。
 
 仓库只在本地维护，所有 workspace 包均为 `private`。没有配置远端，也没有发布或部署流程。以后托管须使用私有仓库。
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、八个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止和 10,000 条合成消息。Python 验证由 uv 使用 `requirements-contracts.txt` 中的精确版本创建隔离环境，不修改系统 Python 环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、十三个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
 
 单独运行：
 
@@ -36,6 +36,11 @@ pnpm test:reference
 | `packages/job-queue` | 分逻辑队列、租约令牌、重试预算、恢复与取消 |
 | `packages/feedback-buffer` | 可逆规则筛选、持久分段、合批、上下文和超时恢复 |
 | `packages/agent-core` | M1 轻量 admission worker 与持久调度扫描 |
+| `packages/agent-workers` | 有界批次抽取、候选检索、证据匹配与分析运行轨迹 |
+| `packages/domain` | Bug/建议、证据校验、原子提案提交、重分析与人工纠错 |
+| `packages/memory` | 分项目/种类 FTS5/BM25，以及可选的版本化向量检索 |
+| `packages/llm` | 兼容 Chat/Embedding HTTP provider、JSON Schema 与超时限制 |
+| `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
 | `config` | 报告、批处理和通知默认配置 |
 | `tests` | 编译期反例、运行时契约与依赖边界验证 |
 | `docs/reference/v0.9` | 导入的原始设计和参考 SQL，不是生产迁移执行器 |
@@ -52,9 +57,24 @@ pnpm worker:m1 --database .artifacts/local.sqlite
 
 demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭/重新打开，以及注入时钟推进后的 batch 恢复；不会访问平台。worker 只处理已有的 outbox/admission 和超时分段；无消息来源时保持空闲，Ctrl+C 关闭连接。示例数据库放在 Git 忽略的 `.artifacts` 中。
 
-Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。M1 只生成持久化的 `feedback.batch.triage` 任务，完整 Agent 任务保持 pending，后续 M3 安装模型 worker 后再执行。
+Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务，由显式配置的 `worker:m3` 消费。
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
+
+## 运行 M3
+
+```powershell
+pnpm build
+pnpm demo:m3
+# 在当前进程环境设置 SA_LLM_BASE_URL、SA_LLM_MODEL、SA_LLM_API_KEY 后：
+pnpm worker:m3 --database .artifacts/local.sqlite --once
+```
+
+`demo:m3` 是确定性适配器示例，没有真实推理；正常 worker 使用配置的模型 HTTP 接口。环境变量名称见 [.env.example](.env.example)，应用不会自动读取 `.env` 文件或保存凭据。
+
+GitHub 同步是可选项：配置 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` 并指定 `--project`。默认不执行外部写入；只有追加 `--github-write` 且目标实际为私有仓库时才允许发送。后续统计写在机器人评论中，开发者 Issue 正文不会被 PATCH。
+
+本轮已用真实 `deepseek-flash` 分析合成 QQ/Discord 反馈，并经用户批准在私有测试仓库创建两个 Issue、读回一条统计评论。平台原始消息接入仍未验收。详见 [M3 设计与运行边界](docs/M3-ANALYSIS.md) 和 [M3 验收记录](docs/M3-ACCEPTANCE.md)。
 
 当前源文件以 `packages/contracts` 为权威。原压缩包的旧校验清单不作为工程输入；原包身份记录在 `docs/reference/SOURCE.json`。
 
@@ -73,4 +93,4 @@ if (!result.valid) {
 
 JSON 校验只能证明结构符合约定。Host 仍须验证项目/来源归属、证据存在、内部 ID 的来源、权限、报告成员一致性和状态变更合法性。类型品牌和非空字符串都不能代替数据库验证。
 
-报告按北京时间 18:00、00:00 的固定窗口生成。只有证据确认的 P0 Bug 允许即时通知；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
+报告设计为北京时间 18:00、00:00 的固定窗口，当前尚未安装报告生成与投递。契约只允许证据确认的 P0 Bug 即时通知；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。

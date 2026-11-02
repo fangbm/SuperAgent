@@ -24,6 +24,21 @@
     },
     {
       "path": "packages/agent-core"
+    },
+    {
+      "path": "packages/llm"
+    },
+    {
+      "path": "packages/memory"
+    },
+    {
+      "path": "packages/domain"
+    },
+    {
+      "path": "packages/agent-workers"
+    },
+    {
+      "path": "packages/issue-tracker"
     }
   ]
 }
