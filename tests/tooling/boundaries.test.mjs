@@ -48,3 +48,9 @@ test('boundary checker enforces private workspace packages', t => {
   const root = workspace(t, [['contracts', { name: '@superagent/contracts', private: false }, '']]);
   assert.ok(checkBoundaries(root).some(e => e.includes('private')));
 });
+test('platform connectors may depend only on the plugin SDK within the workspace', t => {
+  const root = workspace(t, [['connectors/qq', { name: '@superagent/qq', dependencies: { '@superagent/job-queue': 'workspace:*', '@superagent/memory': 'workspace:*' } }, "import { x } from '@superagent/memory';"]]);
+  const errors = checkBoundaries(root);
+  assert.ok(errors.some(e => e.includes('forbidden dependency @superagent/job-queue')));
+  assert.ok(errors.some(e => e.includes('forbidden import @superagent/memory')));
+});

@@ -1,0 +1,70 @@
+import type { DeliveryPluginHostV1, DeliveryPluginV1, DeliveryRequestV1, DeliveryResultV1, PluginManifestV1 } from '@superagent/plugin-sdk';
+import { QQAPI, QQError, text } from './protocol.js';
+import type { QQAPIOptions } from './protocol.js';
+
+export const deliveryManifest: PluginManifestV1 = {
+  apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-c2c-delivery', version: '0.1.0', displayName: 'QQ Official C2C Delivery', kind: 'delivery', engine: { sdk: '^0.1.0' },
+  permissions: { networkHosts: ['api.bot.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_RECIPIENT_OPENID'], deliverySend: true },
+  configSchema: { type: 'object', additionalProperties: false, properties: { projectId: { type: 'string' }, recipientRef: { type: 'string' }, format: { enum: ['markdown', 'text'] } }, required: ['projectId', 'recipientRef'] },
+};
+export interface QQDeliveryOptions {
+  projectId: string;
+  recipientRef: string;
+  format?: 'markdown' | 'text';
+  api?: QQAPIOptions;
+  /** Host-issued opaque, authenticated navigation tokens; report actions arrive in M5. */
+  navigationTokens?: (request: DeliveryRequestV1) => Promise<readonly string[]>;
+}
+export class QQC2CDelivery implements DeliveryPluginV1 {
+  readonly manifest = deliveryManifest;
+  private readonly clients = new WeakMap<DeliveryPluginHostV1, QQAPI>();
+  constructor(private readonly options: QQDeliveryOptions) {
+    text(options.projectId); text(options.recipientRef);
+  }
+  private client(host: DeliveryPluginHostV1): QQAPI {
+    let client = this.clients.get(host);
+    if (!client) { client = new QQAPI(key => host.getSecret(key), this.options.api); this.clients.set(host, client); }
+    return client;
+  }
+  async probe(): Promise<{ available: boolean; reason?: string }> {
+    // No non-mutating QQ endpoint proves active C2C/Markdown entitlement.
+    return { available: false, reason: 'QQ_C2C_PERMISSION_REQUIRES_EXPLICIT_SEND_PROBE' };
+  }
+  async probeAuthentication(host: DeliveryPluginHostV1): Promise<{ authenticated: boolean; activeSend: 'unverified' }> {
+    try { await this.client(host).identity(); return { authenticated: true, activeSend: 'unverified' }; }
+    catch { return { authenticated: false, activeSend: 'unverified' }; }
+  }
+  async send(request: DeliveryRequestV1, host: DeliveryPluginHostV1): Promise<DeliveryResultV1> {
+    if (request.projectId !== this.options.projectId || request.recipientRef !== this.options.recipientRef) return { status: 'blocked', errorCode: 'QQ_RECIPIENT_NOT_AUTHORIZED' };
+    let dispatched = false;
+    try {
+      const content = `${request.title}\n\n${request.text}`;
+      // Never silently truncate a report or split it into an untracked set of sends.
+      if (!content.trim() || content.length > 3500) return { status: 'rejected', errorCode: 'QQ_CONTENT_LIMIT' };
+      const markdown = this.options.format !== 'text';
+      const payload: Record<string, unknown> = markdown ? { msg_type: 2, markdown: { content } } : { msg_type: 0, content };
+      if (request.presentation) {
+        if (request.reportRevision !== request.presentation.revision || request.reportId !== request.presentation.reportId || request.presentation.kind !== 'report_summary') return { status: 'rejected', errorCode: 'QQ_REPORT_SNAPSHOT_MISMATCH' };
+        const expected = ['bugs', 'suggestions', 'steam_negative_reviews'];
+        if (request.presentation.actions.length !== 3 || request.presentation.actions.some((a, i) => a.kind !== 'report.open_section' || a.section !== expected[i])) return { status: 'rejected', errorCode: 'QQ_NAVIGATION_ACTIONS_INVALID' };
+        if (markdown && this.options.navigationTokens) {
+          const tokens = await this.options.navigationTokens(request);
+          if (tokens.length !== 3 || tokens.some(t => !/^[A-Za-z0-9_-]{16,128}$/.test(t))) return { status: 'rejected', errorCode: 'QQ_NAVIGATION_TOKEN_INVALID' };
+          const openid = text(await host.getSecret('QQ_RECIPIENT_OPENID'), 256);
+          payload.keyboard = { content: { rows: [{ buttons: request.presentation.actions.map((action, i) => ({ id: String(i + 1), render_data: { label: action.label, visited_label: action.label, style: 1 }, action: { type: 1, permission: { type: 0, specify_user_ids: [openid] }, data: tokens[i] } })) }] } };
+        }
+        // No handler means no dead or unauthenticated buttons. The text remains explicit.
+        else if (markdown) (payload.markdown as { content: string }).content += '\n\n当前未启用报告交互导航。';
+      }
+      const recipient = text(await host.getSecret('QQ_RECIPIENT_OPENID'), 256);
+      // Authentication occurs before dispatch; failure is known to precede message POST.
+      await this.client(host).accessToken();
+      dispatched = true;
+      const providerMessageId = await this.client(host).sendC2C(recipient, payload);
+      return { status: 'accepted', providerMessageId };
+    } catch (error) {
+      const status = error instanceof QQError ? (dispatched && error.code === 'QQ_INVALID_FIELD' ? 'unknown' : error.outcome) : dispatched ? 'unknown' : 'blocked';
+      return { status, errorCode: error instanceof QQError ? error.code : 'QQ_DELIVERY_FAILED' };
+    }
+  }
+}

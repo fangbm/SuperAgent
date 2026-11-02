@@ -39,6 +39,12 @@
     },
     {
       "path": "packages/issue-tracker"
+    },
+    {
+      "path": "packages/connectors/qq-official"
+    },
+    {
+      "path": "packages/plugin-host"
     }
   ]
 }
