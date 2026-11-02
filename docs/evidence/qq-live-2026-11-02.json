@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-11-02T15:32:04.832Z",
+  "scope": "official QQ group mentions and one approved developer C2C message",
+  "authentication": {
+    "realTokenAPI": true,
+    "realIdentityAPI": true,
+    "gatewayHost": "api.sgroup.qq.com",
+    "webSocketLogin": true
+  },
+  "binding": {
+    "groupOpenidFromChallengeEvent": true,
+    "developerOpenidFromChallengeEvent": true,
+    "credentialsStorage": "Windows DPAPI CurrentUser, ignored .artifacts/qq-config.dpapi",
+    "rawIdentifiersIncluded": false
+  },
+  "ingress": {
+    "transport": "websocket",
+    "projectId": "game-qq-live",
+    "sourceId": "qq-live-group-01",
+    "expectedMessageMatched": true,
+    "eventCount": 1,
+    "observedEventType": "GROUP_AT_MESSAGE_CREATE",
+    "coverage": "partial",
+    "reason": "QQ_MENTIONS_ONLY_OBSERVED_NO_HISTORY_OR_EDITS",
+    "committedSequence": 2,
+    "batches": [
+      {
+        "reason": "quiet_timeout",
+        "count": 1
+      }
+    ],
+    "jobs": [
+      {
+        "kind": "feedback.admit",
+        "status": "completed",
+        "count": 1
+      },
+      {
+        "kind": "feedback.batch.triage",
+        "status": "pending",
+        "count": 1
+      }
+    ],
+    "modelCalls": 0
+  },
+  "delivery": {
+    "format": "markdown",
+    "approvedMessageCount": 1,
+    "state": "succeeded",
+    "attempts": 1,
+    "apiAccepted": true,
+    "clientReceiptConfirmedByUser": true,
+    "readReceiptNotAsserted": true
+  },
+  "localChecks": {
+    "command": "pnpm check",
+    "nodeTestsPassed": 138,
+    "referenceSuitesPassed": 6,
+    "frozenFilesUnchanged": 45,
+    "workspacePackagesPrivate": true
+  },
+  "databaseQuickCheck": "ok",
+  "remaining": [
+    "full-group message permission",
+    "live Webhook",
+    "history/edit reconciliation",
+    "attachments download",
+    "M5 report/actions and P0 scheduler",
+    "real QQ fault injection"
+  ]
+}

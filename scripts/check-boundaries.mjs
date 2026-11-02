@@ -31,7 +31,7 @@ export function checkBoundaries(root = defaultRoot) {
     const forbidden = target =>
       (contracts && true) ||
       (sdk && target !== '@superagent/contracts') ||
-      (connector && /(?:persistence|domain|agent-core|plugin-host)/.test(target)) ||
+      (connector && target.startsWith('@superagent/') && target !== '@superagent/plugin-sdk') ||
       (core && /(?:connectors|delivery-plugins|qq|discord|steam)/.test(target)) ||
       (domain && /(?:connectors|delivery-plugins|qq|discord|steam)/.test(target));
     for (const dependency of dependencies) if (forbidden(dependency)) errors.push(`${name}: forbidden dependency ${dependency}`);

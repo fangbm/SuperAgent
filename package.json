@@ -19,6 +19,9 @@
     "worker:m1": "node scripts/m1-worker.mjs",
     "demo:m3": "node scripts/m3-demo.mjs",
     "worker:m3": "node scripts/m3-worker.mjs",
+    "qq:source": "node scripts/qq-source.mjs",
+    "qq:probe": "node scripts/qq-probe.mjs",
+    "qq:send-test": "node scripts/qq-send-test.mjs",
     "source:m4": "node scripts/m4-source.mjs"
   },
   "devDependencies": {
@@ -37,6 +40,8 @@
     "@superagent/domain": "workspace:*",
     "@superagent/agent-workers": "workspace:*",
     "@superagent/issue-tracker": "workspace:*",
+    "@superagent/qq-official": "workspace:*",
+    "@superagent/plugin-host": "workspace:*",
     "@superagent/connector-steam-reviews": "workspace:*"
   }
 }
