@@ -20,6 +20,9 @@ importers:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@superagent/control-plane':
+        specifier: workspace:*
+        version: link:packages/control-plane
       '@superagent/domain':
         specifier: workspace:*
         version: link:packages/domain
@@ -53,6 +56,12 @@ importers:
       '@superagent/qq-official':
         specifier: workspace:*
         version: link:packages/connectors/qq-official
+      '@superagent/reporting':
+        specifier: workspace:*
+        version: link:packages/reporting
+      '@superagent/web-console':
+        specifier: workspace:*
+        version: link:packages/web-console
       '@types/node':
         specifier: 24.0.15
         version: 24.0.15
@@ -121,6 +130,24 @@ importers:
         version: 3.0.1(ajv@8.20.0)
 
   packages/contracts: {}
+
+  packages/control-plane:
+    dependencies:
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@superagent/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+      '@superagent/reporting':
+        specifier: workspace:*
+        version: link:../reporting
 
   packages/domain:
     dependencies:
@@ -241,6 +268,36 @@ importers:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:../contracts
+
+  packages/reporting:
+    dependencies:
+      '@superagent/contract-validation':
+        specifier: workspace:*
+        version: link:../contract-validation
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@superagent/job-queue':
+        specifier: workspace:*
+        version: link:../job-queue
+      '@superagent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+
+  packages/web-console:
+    dependencies:
+      '@superagent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@superagent/control-plane':
+        specifier: workspace:*
+        version: link:../control-plane
+      '@superagent/reporting':
+        specifier: workspace:*
+        version: link:../reporting
 
 packages:
 

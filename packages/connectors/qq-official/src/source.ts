@@ -7,7 +7,7 @@ import type { QQGatewayOptions, QQSession } from './gateway.js';
 
 export const sourceManifest: PluginManifestV1 = {
   apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-source', version: '0.1.0', displayName: 'QQ Official Source', kind: 'source', engine: { sdk: '^0.1.0' },
-  permissions: { networkHosts: ['api.bot.qq.com', 'api.sgroup.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_SCOPE_ID', 'QQ_PSEUDONYM_KEY'], eventPublish: true },
+  permissions: { networkHosts: ['api.bot.qq.com', 'api.sgroup.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_SCOPE_ID', 'QQ_PSEUDONYM_KEY', 'QQ_OPERATOR_OPENID'], eventPublish: true },
   configSchema: { type: 'object', additionalProperties: false, properties: { kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] } }, required: ['kind', 'sourceUri'] },
 };
 export interface QQSourceOptions {
@@ -18,6 +18,7 @@ export interface QQSourceOptions {
   api?: QQAPIOptions;
   now?: () => number;
   maxClockSkewMs?: number;
+  operator?: { interactions?:boolean; receive: (request: {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}) => Promise<{accepted:boolean;duplicate:boolean}> };
 }
 export interface WebhookResponse { statusCode: number; body: object }
 function coverageReason(eventType: unknown): string {
@@ -27,7 +28,7 @@ function coverageReason(eventType: unknown): string {
 }
 export class QQSource implements SourcePluginV1 {
   readonly manifest = sourceManifest;
-  private active: { host: SourcePluginHostV1; signal: AbortSignal; appId: string; secret: string; scopeId: string; pseudonymKey: string; binding: string; api: QQAPI } | undefined;
+  private active: { host: SourcePluginHostV1; signal: AbortSignal; appId: string; secret: string; scopeId: string; pseudonymKey: string; binding: string; api: QQAPI; operatorOpenid?:string } | undefined;
   private gatewayController: AbortController | undefined;
   private gatewayTask: Promise<void> | undefined;
   constructor(private readonly options: QQSourceOptions) {
@@ -43,20 +44,21 @@ export class QQSource implements SourcePluginV1 {
     const binding = createHmac('sha256', pseudonymKey).update(JSON.stringify([host.projectId, host.sourceId, this.options.kind, appId, scopeId])).digest('hex');
     this.gatewayController = new AbortController();
     const activeSignal = AbortSignal.any([signal, this.gatewayController.signal]);
-    this.active = { host, signal: activeSignal, appId, secret, scopeId, pseudonymKey, binding, api: new QQAPI(key => host.getSecret(key), this.options.api) };
+    this.active = { host, signal: activeSignal, appId, secret, scopeId, pseudonymKey, binding, api: new QQAPI(key => host.getSecret(key), this.options.api),...(this.options.operator?{operatorOpenid:text(await host.getSecret('QQ_OPERATOR_OPENID'),256)}:{}) };
     try {
       const cp = await host.getCheckpoint(); signal.throwIfAborted();
       if (cp !== null && (typeof cp !== 'object' || Array.isArray(cp) || cp.kind !== 'qq-webhook-v1' || cp.binding !== binding)) throw new QQError('QQ_SOURCE_BINDING_CHANGED', 'blocked');
       if (cp === null) await host.commitBatch([], { sourceId: host.sourceId, cursor: { kind: 'qq-webhook-v1', binding, observed: false } });
       await this.sync(host, signal);
       if (this.options.transport === 'websocket') {
+        const intents=(this.options.kind==='channel'?(1<<9)|(1<<30):1<<25)|(this.options.operator&&this.options.operator.interactions!==false?1<<26:0);
         const gateway = new QQGateway(this.active.api, {
           ...this.options.gateway,
-          intents: this.options.kind === 'channel' ? (1 << 9) | (1 << 30) : 1 << 25,
+          intents,
           loadSession: async () => {
             const cp = await host.getCheckpoint();
             if (!cp || typeof cp !== 'object' || Array.isArray(cp) || !cp.gateway || typeof cp.gateway !== 'object' || Array.isArray(cp.gateway)) return null;
-            return typeof cp.gateway.sessionId === 'string' && Number.isSafeInteger(cp.gateway.seq) ? { sessionId: cp.gateway.sessionId, seq: Number(cp.gateway.seq) } : null;
+            return cp.gateway.intents===intents&&typeof cp.gateway.sessionId === 'string' && Number.isSafeInteger(cp.gateway.seq) ? { sessionId: cp.gateway.sessionId, seq: Number(cp.gateway.seq) } : null;
           },
           dispatch: (payload, session) => this.commitDispatch(payload, session),
           invalidateSession: async () => {
@@ -136,16 +138,37 @@ export class QQSource implements SourcePluginV1 {
   private async commitDispatch(payload: QQObject, gateway?: QQSession): Promise<void> {
     const state = this.active;
     if (!state || state.signal.aborted) throw new QQError('QQ_SOURCE_UNAVAILABLE');
-    const event = this.normalize(String(payload.t), payload.d);
+    const handled = await this.operatorDispatch(payload);
+    const event = handled ? null : this.normalize(String(payload.t), payload.d);
     const old = await state.host.getCheckpoint();
     const previous = old && typeof old === 'object' && !Array.isArray(old) ? old : {};
     state.signal.throwIfAborted();
     await state.host.commitBatch(event ? [event] : [], { sourceId: state.host.sourceId, cursor: {
       ...previous, kind: 'qq-webhook-v1', binding: state.binding,
       ...(event ? { observed: true, lastEventId: event.id, lastEventAt: event.time, lastCallbackAt: new Date(this.now()).toISOString(), observedEventType: String(payload.t) } : {}),
-      ...(gateway ? { gateway: { sessionId: gateway.sessionId, seq: gateway.seq } } : {}),
+      ...(gateway ? { gateway: { sessionId: gateway.sessionId, seq: gateway.seq, intents:(this.options.kind==='channel'?(1<<9)|(1<<30):1<<25)|(this.options.operator&&this.options.operator.interactions!==false?1<<26:0) } } : {}),
     } });
     if (event) await state.host.reportHealth({ coverage: 'partial', reason: coverageReason(payload.t), checkedAt: new Date(this.now()).toISOString() }).catch(() => {});
+  }
+  private async operatorDispatch(payload:QQObject):Promise<boolean>{
+    const state=this.active!;if(!this.options.operator||!state.operatorOpenid)return false;
+    if(payload.t==='C2C_MESSAGE_CREATE'){
+      const data=object(payload.d),author=object(data.author);
+      if((author.user_openid??author.id)!==state.operatorOpenid)return false;
+      const content=typeof data.content==='string'?data.content.trim():'';
+      if(content.length<=512&&content.startsWith('/'))await this.options.operator.receive({interactionId:`command:${text(data.id,512)}`,kind:'command',content,reply:{messageId:text(data.id,512)}});
+      return true;
+    }
+    if(payload.t==='INTERACTION_CREATE'){
+      const data=object(payload.d);if(data.user_openid!==state.operatorOpenid||!(data.scene==='c2c'||data.chat_type===2)||data.group_openid||data.guild_id)return true;
+      if(data.application_id!==undefined&&data.application_id!==state.appId)return true;
+      const body=object(data.data);if(Number(body.type??data.type)!==11)return true;const resolved=object(body.resolved);
+      const token=typeof resolved.button_data==='string'?resolved.button_data:'';if(!/^[A-Za-z0-9_-]{43}$/.test(token))return true;
+      const id=text(data.id,512);const result=await this.options.operator.receive({interactionId:`button:${id}`,kind:'button',content:token,reply:{eventId:id}});
+      if(result.accepted)await state.api.acknowledgeInteraction(id).catch(()=>{state.host.logger.warn('QQ_INTERACTION_ACK_UNCONFIRMED');});
+      return true;
+    }
+    return false;
   }
   async handleWebhook(headers: Record<string, string | undefined>, rawBody: Uint8Array): Promise<WebhookResponse> {
     const state = this.active;

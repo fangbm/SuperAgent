@@ -12,8 +12,9 @@ export interface QQDeliveryOptions {
   recipientRef: string;
   format?: 'markdown' | 'text';
   api?: QQAPIOptions;
-  /** Host-issued opaque, authenticated navigation tokens; report actions arrive in M5. */
+  /** Host-issued opaque, authenticated navigation tokens. */
   navigationTokens?: (request: DeliveryRequestV1) => Promise<readonly string[]>;
+  messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text'}>;
 }
 export class QQC2CDelivery implements DeliveryPluginV1 {
   readonly manifest = deliveryManifest;
@@ -41,8 +42,10 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
       const content = `${request.title}\n\n${request.text}`;
       // Never silently truncate a report or split it into an untracked set of sends.
       if (!content.trim() || content.length > 3500) return { status: 'rejected', errorCode: 'QQ_CONTENT_LIMIT' };
-      const markdown = this.options.format !== 'text';
+      const custom = this.options.messageOptions ? await this.options.messageOptions(request) : {};
+      const markdown = (custom.format ?? this.options.format) !== 'text';
       const payload: Record<string, unknown> = markdown ? { msg_type: 2, markdown: { content } } : { msg_type: 0, content };
+      if(custom.replyTo){const r=custom.replyTo;if(Boolean(r.messageId)===Boolean(r.eventId)||!Number.isSafeInteger(r.sequence)||r.sequence<1)return{status:'rejected',errorCode:'QQ_REPLY_CONTEXT_INVALID'};if(r.messageId)payload.msg_id=text(r.messageId,512);else payload.event_id=text(r.eventId,512);payload.msg_seq=r.sequence;}
       if (request.presentation) {
         if (request.reportRevision !== request.presentation.revision || request.reportId !== request.presentation.reportId || request.presentation.kind !== 'report_summary') return { status: 'rejected', errorCode: 'QQ_REPORT_SNAPSHOT_MISMATCH' };
         const expected = ['bugs', 'suggestions', 'steam_negative_reviews'];
@@ -51,11 +54,19 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
           const tokens = await this.options.navigationTokens(request);
           if (tokens.length !== 3 || tokens.some(t => !/^[A-Za-z0-9_-]{16,128}$/.test(t))) return { status: 'rejected', errorCode: 'QQ_NAVIGATION_TOKEN_INVALID' };
           const openid = text(await host.getSecret('QQ_RECIPIENT_OPENID'), 256);
-          payload.keyboard = { content: { rows: [{ buttons: request.presentation.actions.map((action, i) => ({ id: String(i + 1), render_data: { label: action.label, visited_label: action.label, style: 1 }, action: { type: 1, permission: { type: 0, specify_user_ids: [openid] }, data: tokens[i] } })) }] } };
+          payload.keyboard = { content: { rows: [{ buttons: request.presentation.actions.map((action, i) => ({ id: String(i + 1), render_data: { label: buttonLabel(action.label), visited_label: buttonLabel(action.label), style: 1 }, action: { type: 1, permission: { type: 0, specify_user_ids: [openid] }, data: tokens[i] } })) }] } };
         }
         // No handler means no dead or unauthenticated buttons. The text remains explicit.
         else if (markdown) (payload.markdown as { content: string }).content += '\n\n当前未启用报告交互导航。';
       }
+      if(custom.buttons?.length){
+        if(custom.buttons.length>9||custom.buttons.some(b=>!b.label||b.label.length>20||!/^[A-Za-z0-9_-]{43}$/.test(b.token)))return{status:'rejected',errorCode:'QQ_OPERATOR_BUTTON_INVALID'};
+        const openid=text(await host.getSecret('QQ_RECIPIENT_OPENID'),256);
+        if(markdown){const rows=[];for(let i=0;i<custom.buttons.length;i+=3)rows.push({buttons:custom.buttons.slice(i,i+3).map((b,n)=>({id:String(i+n+1),render_data:{label:buttonLabel(b.label),visited_label:buttonLabel(b.label),style:1},action:{type:1,permission:{type:0,specify_user_ids:[openid]},data:b.token}}))});payload.keyboard={content:{rows}};}
+        else {const commands=custom.buttons.map(b=>`${b.label}: /open ${b.token}`).join('\n');payload.content=String(payload.content)+'\n\n操作命令：\n'+commands;}
+      }
+      const rendered=markdown?String((payload.markdown as {content:string}).content):String(payload.content);
+      if(rendered.length>3500)return{status:'rejected',errorCode:'QQ_CONTENT_LIMIT'};
       const recipient = text(await host.getSecret('QQ_RECIPIENT_OPENID'), 256);
       // Authentication occurs before dispatch; failure is known to precede message POST.
       await this.client(host).accessToken();
@@ -68,3 +79,4 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
     }
   }
 }
+function buttonLabel(label:string):string{return ({'查看 Steam 差评':'Steam 差评','Investigating':'开始调查','Implemented':'标记已实现'} as Record<string,string>)[label]??Array.from(label).slice(0,10).join('');}

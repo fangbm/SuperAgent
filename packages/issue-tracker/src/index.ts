@@ -11,6 +11,7 @@ export interface GitHubPort {
   inspect():Promise<{private:boolean;authorId:string}>;
   createIssue(title:string,body:string):Promise<RemoteIssue>;
   issue(number:string):Promise<RemoteIssue>;
+  updateIssueState?(number:string,state:'open'|'closed',reason:'completed'|'not_planned'|null):Promise<RemoteIssue>;
   issues(page:number):Promise<{items:RemoteIssue[];next:boolean}>;
   createComment(number:string,body:string):Promise<RemoteComment>;
   comment(id:string):Promise<RemoteComment>;
@@ -41,11 +42,69 @@ export class GitHubREST implements GitHubPort {
   async inspect():Promise<{private:boolean;authorId:string}>{const repo=(await this.request(this.path())).data as {private?:boolean};const user=(await this.request('/user')).data as {id?:number};if(!Number.isSafeInteger(user.id))throw new GitHubError('GITHUB_AUTHOR_NOT_VERIFIED','blocked');return{private:repo.private===true,authorId:String(user.id)};}
   async createIssue(title:string,body:string):Promise<RemoteIssue>{return this.issueData((await this.request(this.path('/issues'),'POST',{title,body})).data);}
   async issue(number:string):Promise<RemoteIssue>{if(!/^\d+$/.test(number))throw new GitHubError('INVALID_ISSUE_ID','blocked');return this.issueData((await this.request(this.path(`/issues/${number}`))).data);}
+  async updateIssueState(number:string,state:'open'|'closed',reason:'completed'|'not_planned'|null):Promise<RemoteIssue>{if(!/^\d+$/.test(number))throw new GitHubError('INVALID_ISSUE_ID','blocked');return this.issueData((await this.request(this.path(`/issues/${number}`),'PATCH',{state,...(state==='closed'&&reason?{state_reason:reason}:{})})).data);}
   async issues(page:number):Promise<{items:RemoteIssue[];next:boolean}>{const r=await this.request(this.path(`/issues?state=all&sort=created&direction=asc&per_page=100&page=${page}`));if(!Array.isArray(r.data))throw new GitHubError('GITHUB_INVALID_LIST');return{items:r.data.map(v=>this.issueData(v)),next:r.next};}
   async createComment(number:string,body:string):Promise<RemoteComment>{return this.commentData((await this.request(this.path(`/issues/${number}/comments`),'POST',{body})).data);}
   async comment(id:string):Promise<RemoteComment>{return this.commentData((await this.request(this.path(`/issues/comments/${id}`))).data);}
   async updateComment(id:string,body:string):Promise<RemoteComment>{return this.commentData((await this.request(this.path(`/issues/comments/${id}`),'PATCH',{body})).data);}
   async comments(number:string,page:number):Promise<{items:RemoteComment[];next:boolean}>{const r=await this.request(this.path(`/issues/${number}/comments?per_page=100&page=${page}`));if(!Array.isArray(r.data))throw new GitHubError('GITHUB_INVALID_LIST');return{items:r.data.map(v=>this.commentData(v)),next:r.next};}
+}
+
+interface StatusOperation {operation_id:string;command_id:string;project_id:string;issue_id:string;repository:string;issue_number:string;expected_version:number;action:string;desired_state:'open'|'closed';desired_reason:'completed'|'not_planned'|null;state:string;attempt:number;actor_ref:string;request_json:string}
+/** Status-only PATCH, independent of the statistics-comment worker. Never patches body/title/labels. */
+export class GitHubActionWorker {
+  constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly port:GitHubPort,private readonly options:{authorize:(actor:string,projectId:string)=>void;allowWrites?:boolean;clock?:Clock;leaseMs?:number}){}
+  private now():string{return timestamp((this.options.clock??systemClock)());}
+  private authorize(row:StatusOperation):void{try{this.options.authorize(row.actor_ref,row.project_id);}catch{throw new GitHubError('ACTION_ACTOR_NOT_AUTHORIZED','blocked');}}
+  async tick():Promise<{processed:boolean;state?:string}>{
+    this.store.run("UPDATE external_operations SET state='unknown',lease_owner=NULL,lease_until=NULL,last_error='ACTION_SEND_WINDOW_EXPIRED' WHERE state IN ('in_flight','reconciling') AND lease_until<=? AND operation_id IN (SELECT operation_id FROM github_action_operations WHERE repository=?)",this.now(),this.port.repository);
+    const row=this.store.get<StatusOperation>(`SELECT a.*,o.state,o.attempt,c.actor_ref,c.request_json FROM github_action_operations a JOIN external_operations o USING(operation_id) JOIN operator_commands c USING(command_id) WHERE a.repository=? AND c.state='pending_remote' AND o.state IN ('prepared','unknown','safe_retry') AND a.next_attempt_at<=? ORDER BY o.created_at LIMIT 1`,this.port.repository,this.now());
+    if(!row)return{processed:false};if(!this.options.allowWrites&&row.state!=='unknown')return{processed:false,state:'write_disabled'};
+    const token=randomUUID();
+    const n=this.store.transaction(()=>{const changed=Number(this.store.run("UPDATE external_operations SET state=?,attempt=attempt+1,lease_owner=?,lease_until=?,updated_at=? WHERE operation_id=? AND state=?",row.state==='unknown'?'reconciling':'in_flight',token,addMilliseconds(this.now(),this.options.leaseMs??120_000),this.now(),row.operation_id,row.state).changes);if(changed)this.store.run('INSERT INTO external_operation_attempts(attempt_id,operation_id,attempt_number,started_at) VALUES(?,?,?,?)',stableId('attempt',row.operation_id,String(row.attempt+1)),row.operation_id,row.attempt+1,this.now());return changed;});
+    if(!n)return{processed:false};
+    try{
+      this.authorize(row);
+      if(!(await this.port.inspect()).private)throw new GitHubError('PUBLIC_REPOSITORY_NOT_AUTHORIZED','blocked');
+      const work=this.domain.getWork(row.project_id,'defect',row.issue_id);if(!work||work.version!==row.expected_version)throw new GitHubError('ACTION_VERSION_CONFLICT','manual_review');
+      let remote=await this.port.issue(row.issue_number);
+      const matches=(r:RemoteIssue)=>!r.pullRequest&&r.state===row.desired_state&&(r.state==='open'||r.stateReason===row.desired_reason);
+      if(!matches(remote)){
+        // A read that does not match cannot prove that an uncertain PATCH was never applied.
+        // Keep reconciliation read-only rather than overwrite a later human status change.
+        if(row.state==='unknown')return this.release(row,token,row.attempt>=3?'manual_review':'unknown','REMOTE_STATUS_NOT_CONFIRMED');
+        if(remote.pullRequest)throw new GitHubError('REMOTE_OBJECT_IS_PR','manual_review');
+        const expectedReason=work.status==='dismissed'?'not_planned':'completed';
+        if(row.desired_state==='closed'&&remote.state!=='open'||row.desired_state==='open'&&(remote.state!=='closed'||remote.stateReason!==expectedReason))throw new GitHubError('REMOTE_STATUS_CONFLICT','manual_review');
+        if(!this.options.allowWrites)return this.release(row,token,'unknown','WRITE_DISABLED_DURING_RECONCILIATION');
+        if(row.attempt>=3)throw new GitHubError('ACTION_RETRY_BUDGET','manual_review');
+        if(!this.port.updateIssueState)throw new GitHubError('STATUS_PROVIDER_UNAVAILABLE','blocked');
+        this.authorize(row);
+        await this.port.updateIssueState(row.issue_number,row.desired_state,row.desired_reason);
+        remote=await this.port.issue(row.issue_number);
+      }
+      if(!matches(remote))throw new GitHubError('REMOTE_STATUS_NOT_CONFIRMED');
+      this.store.transaction(()=>{
+        if(!this.store.get("SELECT 1 FROM external_operations WHERE operation_id=? AND lease_owner=? AND lease_until>? AND state IN ('in_flight','reconciling')",row.operation_id,token,this.now()))throw new GitHubError('EXTERNAL_LEASE_LOST');
+        this.authorize(row);
+        const latest=this.domain.getWork(row.project_id,'defect',row.issue_id);
+        this.store.run("UPDATE external_operations SET state='succeeded',provider_object_id=?,lease_owner=NULL,lease_until=NULL,updated_at=? WHERE operation_id=?",remote.number,this.now(),row.operation_id);
+        let result:JSONValue;
+        if(latest?.version!==row.expected_version)result={state:'manual_review',remoteConfirmed:true,message:'GitHub 已更新，本地版本已变化，需要复核。'};
+        else{
+          this.store.run('UPDATE work_metadata SET remote_state=?,remote_state_reason=? WHERE work_kind=? AND work_id=?',remote.state,remote.stateReason,'defect',row.issue_id);
+          const request=JSON.parse(row.request_json) as {rationale?:string};
+          const updated=this.domain.applyStatusAction(row.project_id,'defect',row.issue_id,row.action,row.expected_version,row.actor_ref,row.command_id,request.rationale,row.operation_id);
+          result={state:'succeeded',status:updated.status,version:updated.version,remoteConfirmed:true};
+        }
+        this.store.run('UPDATE operator_commands SET state=?,result_json=? WHERE command_id=?',(result as {state:string}).state,canonicalJSON(result),row.command_id);
+        this.store.run("UPDATE external_operation_attempts SET finished_at=?,transport_outcome='succeeded' WHERE operation_id=? AND attempt_number=?",this.now(),row.operation_id,row.attempt+1);
+      });return{processed:true,state:'succeeded'};
+    }catch(error){const state=error instanceof GitHubError?error.outcome:'unknown';return this.release(row,token,state,error instanceof GitHubError?error.code:'ACTION_FAILED');}
+  }
+  private release(row:StatusOperation,token:string,state:string,code:string):{processed:boolean;state:string}{
+    this.store.transaction(()=>{const changed=this.store.run('UPDATE external_operations SET state=?,last_error=?,lease_owner=NULL,lease_until=NULL,updated_at=? WHERE operation_id=? AND lease_owner=?',state,code,this.now(),row.operation_id,token);if(!changed.changes)return;this.store.run('UPDATE github_action_operations SET next_attempt_at=? WHERE operation_id=?',addMilliseconds(this.now(),30_000),row.operation_id);this.store.run('UPDATE external_operation_attempts SET finished_at=?,transport_outcome=? WHERE operation_id=? AND attempt_number=?',this.now(),state,row.operation_id,row.attempt+1);if(['manual_review','blocked'].includes(state))this.store.run("UPDATE operator_commands SET state='manual_review',result_json=? WHERE command_id=?",canonicalJSON({state:'manual_review',errorCode:code}),row.command_id);});return{processed:true,state};
+  }
 }
 
 interface OperationRow {operation_id:string;kind:string;state:string;attempt:number;lease_owner:string|null;lease_until:string|null;project_id:string;work_kind:'defect'|'suggestion';work_id:string;repository:string;work_version:number;payload_json:string;reconcile_attempt:number;next_attempt_at:string}

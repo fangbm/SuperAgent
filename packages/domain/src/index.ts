@@ -189,10 +189,39 @@ export class DomainService {
       this.history(projectId,kind,toId,'manual_merge',actor,{fromId,toId,reason});this.store.run('INSERT INTO manual_work_commands VALUES(?,?,?)',requestId,payload,json(toId));
     });
   }
+  statusActions(projectId:string,kind:WorkKind,id:string):string[]{
+    const work=this.getWork(projectId,kind,id);if(!work)return [];
+    const transitions=kind==='defect'?{
+      investigate:['candidate','open'],fix:['open','investigating'],verify:['fixed'],reopen:['fixed','verified','dismissed'],dismiss:['candidate','open','investigating'],
+    }:{review:['candidate'],accept:['candidate','reviewing'],plan:['accepted'],start:['planned'],implement:['planned','in_progress'],verify:['implemented'],decline:['candidate','reviewing','accepted','planned','in_progress'],archive:['implemented','verified','declined'],reopen:['declined','archived']};
+    return Object.entries(transitions).filter(([,states])=>states.includes(work.status)).map(([action])=>action);
+  }
+  applyStatusAction(projectId:string,kind:WorkKind,id:string,action:string,expectedVersion:number,actor:string,commandId:string,rationale?:string,confirmedOperationId?:string):WorkSnapshot{
+    if(!this.options.authorizedActors?.includes(actor))throw new Error('DEVELOPER_NOT_AUTHORIZED');
+    return this.store.transaction(()=>{
+      const work=this.getWork(projectId,kind,id);if(!work)throw new Error('WORK_NOT_FOUND');if(work.version!==expectedVersion)throw new Error('WORK_VERSION_CONFLICT');
+      if(!this.statusActions(projectId,kind,id).includes(action))throw new Error('STATUS_TRANSITION_NOT_ALLOWED');
+      if(kind==='defect'&&['fix','reopen','dismiss'].includes(action)&&this.store.get('SELECT 1 FROM external_work_links WHERE work_kind=? AND work_id=? AND provider=?',kind,id,'github')){
+        const proof=this.store.get(`SELECT 1 FROM external_operations o JOIN github_action_operations a USING(operation_id) WHERE o.operation_id=? AND o.state='succeeded' AND a.project_id=? AND a.issue_id=? AND a.action=? AND a.expected_version=?`,confirmedOperationId??'',projectId,id,action,expectedVersion);
+        if(!proof)throw new Error('GITHUB_STATUS_CONFIRMATION_REQUIRED');
+      }
+      const to:Record<string,string>=kind==='defect'?{investigate:'investigating',fix:'fixed',verify:'verified',reopen:'open',dismiss:'dismissed'}:{review:'reviewing',accept:'accepted',plan:'planned',start:'in_progress',implement:'implemented',verify:'verified',decline:'declined',archive:'archived',reopen:'reviewing'};
+      const table=kind==='defect'?'issues':'suggestions',key=kind==='defect'?'issue_id':'suggestion_id';
+      const changed=this.store.run(`UPDATE ${table} SET status=?,version=version+1,updated_at=? WHERE ${key}=? AND project_id=? AND version=?`,to[action]!,this.now(),id,projectId,expectedVersion);if(!changed.changes)throw new Error('WORK_VERSION_CONFLICT');
+      if(kind==='suggestion')this.store.run('INSERT INTO suggestion_status_history VALUES(?,?,?,?,?,?,?,?,?)',commandId,id,work.status,to[action]!,actor,'operator',commandId,rationale??null,this.now());
+      this.history(projectId,kind,id,'developer_status',actor,{commandId,action,from:work.status,to:to[action]!,rationale:rationale??null});
+      const updated=this.refresh(projectId,kind,id);this.schedule(updated);return updated;
+    });
+  }
   remoteStatus(projectId:string,kind:WorkKind,id:string,state:'open'|'closed',reason:string|null):void{
     this.store.transaction(()=>{const work=this.getWork(projectId,kind,id);if(!work)throw new Error('WORK_NOT_FOUND');
+      const prior=this.store.get<{remote_state:string|null;remote_state_reason:string|null;review_required:number}>('SELECT remote_state,remote_state_reason,review_required FROM work_metadata WHERE work_kind=? AND work_id=?',kind,id)!;
+      const ambiguous=state==='closed'&&!['completed','not_planned'].includes(reason??'');
+      const next=kind==='defect'?(state==='open'?(work.status==='investigating'?'investigating':'open'):reason==='not_planned'?'dismissed':reason==='completed'?(work.status==='verified'&&prior.remote_state==='closed'&&prior.remote_state_reason==='completed'?'verified':'fixed'):work.status):work.status;
+      const review=work.reviewRequired||ambiguous||kind==='suggestion'&&state==='closed';
+      if(prior.remote_state===state&&prior.remote_state_reason===reason&&next===work.status&&review===work.reviewRequired)return;
       this.store.run('UPDATE work_metadata SET remote_state=?,remote_state_reason=? WHERE work_kind=? AND work_id=?',state,reason,kind,id);
-      if(kind==='defect'){const status=state==='open'?'open':reason==='not_planned'?'dismissed':reason==='completed'?'fixed':work.status;if(state==='closed'&&!['completed','not_planned'].includes(reason??''))this.store.run('UPDATE work_metadata SET review_required=1 WHERE work_kind=? AND work_id=?',kind,id);this.store.run('UPDATE issues SET status=?,version=version+1,updated_at=? WHERE issue_id=?',status,this.now(),id);}
+      if(kind==='defect'){if(ambiguous)this.store.run('UPDATE work_metadata SET review_required=1 WHERE work_kind=? AND work_id=?',kind,id);this.store.run('UPDATE issues SET status=?,version=version+1,updated_at=? WHERE issue_id=?',next,this.now(),id);}
       else if(state==='closed')this.store.run('UPDATE work_metadata SET review_required=1 WHERE work_kind=? AND work_id=?',kind,id);
       this.refresh(projectId,kind,id);this.history(projectId,kind,id,'remote_status','github',{state,reason});});
   }

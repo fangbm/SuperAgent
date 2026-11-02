@@ -21,7 +21,10 @@
     "worker:m3": "node scripts/m3-worker.mjs",
     "qq:source": "node scripts/qq-source.mjs",
     "qq:probe": "node scripts/qq-probe.mjs",
-    "qq:send-test": "node scripts/qq-send-test.mjs"
+    "qq:send-test": "node scripts/qq-send-test.mjs",
+    "demo:m5": "node scripts/m5-demo.mjs",
+    "start:m5": "node scripts/m5-run.mjs",
+    "m5:key": "node scripts/m5-access.mjs"
   },
   "devDependencies": {
     "@superagent/contracts": "workspace:*",
@@ -40,6 +43,9 @@
     "@superagent/agent-workers": "workspace:*",
     "@superagent/issue-tracker": "workspace:*",
     "@superagent/qq-official": "workspace:*",
-    "@superagent/plugin-host": "workspace:*"
+    "@superagent/plugin-host": "workspace:*",
+    "@superagent/reporting": "workspace:*",
+    "@superagent/control-plane": "workspace:*",
+    "@superagent/web-console": "workspace:*"
   }
 }

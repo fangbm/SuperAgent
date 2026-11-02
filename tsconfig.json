@@ -45,6 +45,15 @@
     },
     {
       "path": "packages/plugin-host"
+    },
+    {
+      "path": "packages/reporting"
+    },
+    {
+      "path": "packages/control-plane"
+    },
+    {
+      "path": "packages/web-console"
     }
   ]
 }

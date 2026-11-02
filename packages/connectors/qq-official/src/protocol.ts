@@ -62,13 +62,14 @@ export class QQAPI {
     this.base = endpoint(options.baseURL ?? 'https://api.bot.qq.com', options.allowLoopbackHTTP);
     this.tokenURL = endpoint(options.tokenURL ?? new URL('/app/getAppAccessToken', this.base).href, options.allowLoopbackHTTP);
   }
-  private async request(url: URL, init: RequestInit, beforeSend: boolean): Promise<QQObject> {
+  private async request(url: URL, init: RequestInit, beforeSend: boolean, allowEmpty = false): Promise<QQObject> {
     try {
       const response = await (this.options.fetch ?? fetch)(url, { ...init, redirect: 'error', signal: AbortSignal.any([...(init.signal ? [init.signal] : []), AbortSignal.timeout(this.options.timeoutMs ?? 15_000)]) });
       if (!response.ok) {
         await response.body?.cancel();
         throw new QQError(`QQ_HTTP_${response.status}`, beforeSend ? ([400, 401, 403, 404].includes(response.status) ? 'blocked' : 'retryable') : ([401, 403].includes(response.status) ? 'blocked' : response.status === 400 ? 'rejected' : 'unknown'));
       }
+      if (allowEmpty && response.status === 204) return {};
       let data: QQObject;
       try { data = await responseJSON(response); }
       catch { throw new QQError('QQ_INVALID_RESPONSE', beforeSend ? 'retryable' : 'unknown'); }
@@ -117,5 +118,9 @@ export class QQAPI {
     const token = await this.accessToken();
     const data = await this.request(new URL(`/v2/users/${encodeURIComponent(text(openid, 256))}/messages`, this.base), { method: 'POST', headers: { Authorization: `QQBot ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, false);
     return text(data.id);
+  }
+  async acknowledgeInteraction(id: string, code = 0): Promise<void> {
+    const token = await this.accessToken();
+    await this.request(new URL(`/interactions/${encodeURIComponent(text(id,512))}`, this.base), { method:'PUT', headers:{ Authorization:`QQBot ${token}`,'Content-Type':'application/json' }, body:JSON.stringify({code}),signal:AbortSignal.timeout(1500) }, true, true);
   }
 }
