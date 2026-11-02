@@ -2,7 +2,7 @@
 
 跨平台游戏社区反馈系统。已完成 **M0 契约、M1 持久化与 M3 批次分析/领域/GitHub 同步主链路**，基于用户提供的 v0.9 设计包。按用户要求先做 M3；M2 真实 QQ 能力验证、其他平台采集、Web 与报告投递仍未交付。
 
-仓库只在本地维护，所有 workspace 包均为 `private`。没有配置远端，也没有发布或部署流程。以后托管须使用私有仓库。
+代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
 ## 本地验证
 
