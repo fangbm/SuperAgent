@@ -18,7 +18,8 @@
     "demo:m1": "node scripts/m1-demo.mjs",
     "worker:m1": "node scripts/m1-worker.mjs",
     "demo:m3": "node scripts/m3-demo.mjs",
-    "worker:m3": "node scripts/m3-worker.mjs"
+    "worker:m3": "node scripts/m3-worker.mjs",
+    "source:m4": "node scripts/m4-source.mjs"
   },
   "devDependencies": {
     "@superagent/contracts": "workspace:*",
@@ -35,6 +36,7 @@
     "@superagent/memory": "workspace:*",
     "@superagent/domain": "workspace:*",
     "@superagent/agent-workers": "workspace:*",
-    "@superagent/issue-tracker": "workspace:*"
+    "@superagent/issue-tracker": "workspace:*",
+    "@superagent/connector-steam-reviews": "workspace:*"
   }
 }

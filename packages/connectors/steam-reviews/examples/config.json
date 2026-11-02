@@ -1,0 +1,4 @@
+{
+  "sourceUri": "urn:superagent:source:steam-reviews-demo", "appId": 570,
+  "pageSize": 100, "maxPagesPerSync": 10, "overlapSeconds": 600, "pollIntervalMs": 60000
+}

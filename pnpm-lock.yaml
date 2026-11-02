@@ -14,6 +14,9 @@ importers:
       '@superagent/agent-workers':
         specifier: workspace:*
         version: link:packages/agent-workers
+      '@superagent/connector-steam-reviews':
+        specifier: workspace:*
+        version: link:packages/connectors/steam-reviews
       '@superagent/contract-validation':
         specifier: workspace:*
         version: link:packages/contract-validation
@@ -95,6 +98,12 @@ importers:
       '@superagent/persistence':
         specifier: workspace:*
         version: link:../persistence
+
+  packages/connectors/steam-reviews:
+    dependencies:
+      '@superagent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../plugin-sdk
 
   packages/contract-validation:
     dependencies:

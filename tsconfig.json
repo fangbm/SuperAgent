@@ -39,6 +39,9 @@
     },
     {
       "path": "packages/issue-tracker"
+    },
+    {
+      "path": "packages/connectors/steam-reviews"
     }
   ]
 }
