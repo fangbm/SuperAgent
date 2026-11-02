@@ -17,14 +17,17 @@
     "check": "pnpm check:boundaries && pnpm check:freeze && pnpm build && pnpm typecheck && pnpm test && pnpm test:reference",
     "demo:m1": "node scripts/m1-demo.mjs",
     "worker:m1": "node scripts/m1-worker.mjs",
+    "source:m4": "node scripts/m4-source.mjs",
     "demo:m3": "node scripts/m3-demo.mjs",
     "worker:m3": "node scripts/m3-worker.mjs",
     "qq:source": "node scripts/qq-source.mjs",
     "qq:probe": "node scripts/qq-probe.mjs",
-    "qq:send-test": "node scripts/qq-send-test.mjs",
-    "source:m4": "node scripts/m4-source.mjs"
+    "qq:send-test": "node scripts/qq-send-test.mjs"
   },
   "devDependencies": {
+    "@superagent/connector-steam-reviews": "workspace:*",
+    "@superagent/connector-discord": "workspace:*",
+    "@superagent/connector-steam-discussions": "workspace:*",
     "@superagent/contracts": "workspace:*",
     "@superagent/plugin-sdk": "workspace:*",
     "@superagent/contract-validation": "workspace:*",
@@ -41,8 +44,6 @@
     "@superagent/agent-workers": "workspace:*",
     "@superagent/issue-tracker": "workspace:*",
     "@superagent/qq-official": "workspace:*",
-    "@superagent/plugin-host": "workspace:*",
-    "@superagent/connector-steam-reviews": "workspace:*",
-    "@superagent/connector-discord": "workspace:*"
+    "@superagent/plugin-host": "workspace:*"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0", "appId": 570,
+  "records": [
+    { "kind": "thread", "id": "1001", "threadId": "1001", "title": "联机崩溃", "body": "加载到 90% 时崩溃。", "createdAt": "2026-11-02T00:00:00Z", "authorId": "76561198000000001", "permalink": "https://steamcommunity.com/app/570/discussions/0/1001/" },
+    { "kind": "comment", "id": "2001", "threadId": "1001", "body": "我也遇到同样问题。", "createdAt": "2026-11-02T00:01:00Z" },
+    { "kind": "comment", "id": "2002", "threadId": "1001", "parentCommentId": "2001", "body": "切换服务器后仍然崩溃。", "createdAt": "2026-11-02T00:02:00Z" },
+    { "kind": "thread", "id": "1002", "threadId": "1002", "title": "加入键位设置", "body": "希望支持自定义键位。", "createdAt": "2026-11-02T00:01:00Z" }
+  ]
+}

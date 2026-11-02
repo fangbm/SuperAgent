@@ -17,6 +17,9 @@ importers:
       '@superagent/connector-discord':
         specifier: workspace:*
         version: link:packages/connectors/discord
+      '@superagent/connector-steam-discussions':
+        specifier: workspace:*
+        version: link:packages/connectors/steam-discussions
       '@superagent/connector-steam-reviews':
         specifier: workspace:*
         version: link:packages/connectors/steam-reviews
@@ -115,6 +118,12 @@ importers:
         version: link:../../plugin-sdk
 
   packages/connectors/qq-official:
+    dependencies:
+      '@superagent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../plugin-sdk
+
+  packages/connectors/steam-discussions:
     dependencies:
       '@superagent/plugin-sdk':
         specifier: workspace:*
