@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。已完成 **M0 契约、M1 持久化与 M3 批次分析/领域/GitHub 同步主链路**，基于用户提供的 v0.9 设计包。按用户要求先做 M3；M2 真实 QQ 能力验证、其他平台采集、Web 与报告投递仍未交付。
+跨平台游戏社区反馈系统。已完成 **M0 契约、M1 持久化与 M3 批次分析/领域/GitHub 同步主链路**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 已完成真实群 @ 接入与私聊送达验证；M4 新增 Steam Reviews 与 Discord 适配器，真实平台验收范围见下文。Steam Discussions、Web、报告生成与交互仍未交付。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、十三个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、十七个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
 
 单独运行：
 
@@ -41,6 +41,8 @@ pnpm test:reference
 | `packages/memory` | 分项目/种类 FTS5/BM25，以及可选的版本化向量检索 |
 | `packages/llm` | 兼容 Chat/Embedding HTTP provider、JSON Schema 与超时限制 |
 | `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
+| `packages/connectors/qq-official` | 官方 WebSocket/签名回调 Source 与独立开发者私聊 Delivery |
+| `packages/plugin-host` | 批准收件人、私聊持久操作与 unknown 屏障 |
 | `config` | 报告、批处理和通知默认配置 |
 | `tests` | 编译期反例、运行时契约与依赖边界验证 |
 | `docs/reference/v0.9` | 导入的原始设计和参考 SQL，不是生产迁移执行器 |
@@ -81,6 +83,8 @@ GitHub 同步是可选项：配置 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` �
 当前源文件以 `packages/contracts` 为权威。原压缩包的旧校验清单不作为工程输入；原包身份记录在 `docs/reference/SOURCE.json`。
 
 ## 使用边界
+
+QQ 的环境配置、回调启动、权限探针和一次性私聊测试见 [QQ 接入](docs/QQ-OFFICIAL.md)；当前真实联调状态见 [QQ 验收](docs/QQ-ACCEPTANCE.md)。
 
 ```typescript
 import type { SourcePluginV1 } from '@superagent/plugin-sdk';
