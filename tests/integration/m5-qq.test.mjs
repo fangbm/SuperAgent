@@ -38,8 +38,18 @@ test('duplicate QQ command creates one reply and original queries use the frozen
 });
 test('QQ original text is segmented without loss or broken emoji',async t=>{
   const original='联机崩溃：'+'🙂'.repeat(3000);const f=await setup(t,{text:original});const section=f.receive('bugs','command','/bugs');const detail=f.receive('work','button',section.options.buttons.find(b=>b.label==='详情 1').token);let response=f.receive('evidence','button',detail.options.buttons.find(b=>b.label==='Details 原文').token);let recovered='';let n=0;
-  while(response){recovered+=response.request.text.split('\n\n')[1];assert.equal(response.options.format,'text');const next=response.options.buttons.find(b=>b.label==='Next 续文');if(!next)break;response=f.receive('more-'+(++n),'button',next.token);}
+  while(response){recovered+=response.request.text.split('\n\n')[1];assert.equal(response.options.format,'markdown');assert.equal(response.options.literalText,true);const next=response.options.buttons.find(b=>b.label==='Next 续文');if(!next)break;response=f.receive('more-'+(++n),'button',next.token);}
   assert.equal(recovered,original);assert.equal(n,2);
+});
+
+test('original pages keep raw evidence but send literal Markdown with native pagination instead of visible open commands',async t=>{
+  const original='多人联机90%崩溃\n# [原文](https://example.invalid)\n1. **不要改写** <qqbot-at-everyone /> C:\\game\n'+'🙂'.repeat(1500);
+  const f=await setup(t,{text:original});const section=f.receive('literal-list','command','/bugs'),detail=f.receive('literal-work','button',section.options.buttons.find(b=>b.label==='详情 1').token),page=f.receive('literal-page','button',detail.options.buttons.find(b=>b.label==='Details 原文').token);
+  const next=page.options.buttons.find(b=>b.label==='Next 续文');assert.ok(next);assert.equal(page.options.literalText,true);assert.ok(page.request.text.includes(Array.from(original).slice(0,1200).join('')));
+  f.coordinator.enqueueReplies(binding.projectId,'developer');const operation=f.runtime.store.get('SELECT operation_id FROM operator_reply_plans WHERE delivery_id=?',page.request.deliveryId);assert.equal((await f.service.tick({purpose:'interaction',operationId:operation.operation_id})).state,'succeeded');
+  const payload=f.requests[0].body;assert.equal(payload.msg_type,2);assert.equal(payload.content,undefined);assert.equal(payload.markdown.content.includes('/open '),false);assert.equal(payload.markdown.content.includes('操作命令'),false);assert.ok(payload.markdown.content.includes('\\# \\[原文\\]\\(https://example.invalid\\)'));assert.ok(payload.markdown.content.includes('\\*\\*不要改写\\*\\*'));assert.ok(payload.markdown.content.includes('\\<qqbot\\-at\\-everyone /\\>'));
+  const buttons=payload.keyboard.content.rows.flatMap(r=>r.buttons);assert.ok(buttons.some(b=>b.action.data===next.token));assert.ok(buttons.every(b=>b.action.type===1));assert.ok(payload.markdown.content.length<=3500);
+  assert.equal(f.control.evidence(f.principal,binding.projectId,'defect',f.report.issueIds[0],{reportId:f.report.reportId,revision:1}).items[0].originalText,original);
 });
 
 test('QQ read-only operators can query frozen details and originals without receiving action tokens',async t=>{

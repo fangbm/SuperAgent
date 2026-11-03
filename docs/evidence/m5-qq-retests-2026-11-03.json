@@ -1,0 +1,259 @@
+{
+  "date": "2026-11-03",
+  "dataProvenance": "M3 synthetic sources with real model inference",
+  "reportResent": false,
+  "githubWrites": false,
+  "workStatusWrites": false,
+  "rounds": [
+    {
+      "round": "M5-QQ-r2",
+      "startedAtUTC": "2026-11-03T02:13:34.573Z",
+      "maximumAttempts": 3,
+      "attempts": 3,
+      "completed": true,
+      "processFinished": true,
+      "events": [
+        {
+          "at": "2026-11-03T02:13:35.776Z",
+          "phase": "listening",
+          "stage": "list",
+          "expiresAt": "2026-11-03T02:28:34.576Z",
+          "maximumNewReplies": 3,
+          "reportResend": false
+        },
+        {
+          "at": "2026-11-03T02:16:03.387Z",
+          "phase": "send_attempt",
+          "stage": "list",
+          "operationId": "external-6d04fe42eb9296b98e3be99409f1d284ba88d78ec770bf51e997940fe6ad9d6c",
+          "attempt": 1
+        },
+        {
+          "at": "2026-11-03T02:16:04.746Z",
+          "phase": "transport",
+          "httpStatus": 200,
+          "latencyMs": 1135,
+          "hasMsgId": true,
+          "hasEventId": false,
+          "eventIdHasInteractionPrefix": false
+        },
+        {
+          "at": "2026-11-03T02:16:04.754Z",
+          "phase": "send_result",
+          "stage": "list",
+          "operationId": "external-6d04fe42eb9296b98e3be99409f1d284ba88d78ec770bf51e997940fe6ad9d6c",
+          "state": "succeeded",
+          "result": {
+            "status": "accepted"
+          }
+        },
+        {
+          "at": "2026-11-03T02:16:04.755Z",
+          "phase": "stage_complete",
+          "nextStage": "detail"
+        },
+        {
+          "at": "2026-11-03T02:16:06.761Z",
+          "phase": "send_attempt",
+          "stage": "detail",
+          "operationId": "external-17e534dc01cca198feb389bd3ebf2305e9d204dc094d8c03e4aea3adec908265",
+          "attempt": 2
+        },
+        {
+          "at": "2026-11-03T02:16:07.120Z",
+          "phase": "ack",
+          "httpStatus": 200,
+          "latencyMs": 375,
+          "callbackAppIdPresent": true
+        },
+        {
+          "at": "2026-11-03T02:16:07.630Z",
+          "phase": "transport",
+          "httpStatus": 200,
+          "latencyMs": 867,
+          "hasMsgId": false,
+          "hasEventId": true,
+          "eventIdHasInteractionPrefix": true
+        },
+        {
+          "at": "2026-11-03T02:16:07.638Z",
+          "phase": "send_result",
+          "stage": "detail",
+          "operationId": "external-17e534dc01cca198feb389bd3ebf2305e9d204dc094d8c03e4aea3adec908265",
+          "state": "succeeded",
+          "result": {
+            "status": "accepted"
+          }
+        },
+        {
+          "at": "2026-11-03T02:16:07.639Z",
+          "phase": "stage_complete",
+          "nextStage": "original"
+        },
+        {
+          "at": "2026-11-03T02:16:09.647Z",
+          "phase": "send_attempt",
+          "stage": "original",
+          "operationId": "external-ce6638c645d73b5b40c96dc8c8a8dc785c64b9db4f93ad062912e7657c0d2d05",
+          "attempt": 3
+        },
+        {
+          "at": "2026-11-03T02:16:09.872Z",
+          "phase": "ack",
+          "httpStatus": 200,
+          "latencyMs": 307,
+          "callbackAppIdPresent": true
+        },
+        {
+          "at": "2026-11-03T02:16:10.437Z",
+          "phase": "transport",
+          "httpStatus": 200,
+          "latencyMs": 788,
+          "hasMsgId": false,
+          "hasEventId": true,
+          "eventIdHasInteractionPrefix": true
+        },
+        {
+          "at": "2026-11-03T02:16:10.445Z",
+          "phase": "send_result",
+          "stage": "original",
+          "operationId": "external-ce6638c645d73b5b40c96dc8c8a8dc785c64b9db4f93ad062912e7657c0d2d05",
+          "state": "succeeded",
+          "result": {
+            "status": "accepted"
+          }
+        },
+        {
+          "at": "2026-11-03T02:16:10.446Z",
+          "phase": "stage_complete",
+          "nextStage": "done"
+        },
+        {
+          "at": "2026-11-03T02:16:10.447Z",
+          "phase": "round_complete",
+          "completed": true,
+          "attempts": 3
+        },
+        {
+          "at": "2026-11-03T02:16:10.458Z",
+          "phase": "closed",
+          "cancelledPending": 0
+        }
+      ]
+    },
+    {
+      "round": "M5-QQ-r3",
+      "startedAtUTC": "2026-11-03T02:28:54.556Z",
+      "maximumAttempts": 2,
+      "attempts": 2,
+      "completed": true,
+      "processFinished": true,
+      "events": [
+        {
+          "at": "2026-11-03T02:28:55.645Z",
+          "phase": "listening",
+          "stage": "original",
+          "expiresAt": "2026-11-03T02:43:54.558Z",
+          "maximumNewReplies": 2,
+          "reportResend": false
+        },
+        {
+          "at": "2026-11-03T02:29:35.990Z",
+          "phase": "send_attempt",
+          "stage": "original",
+          "operationId": "external-2a96e104a46aa09c3d83b551c12a42a0074143ddc869039e55be6d2680a66dc4",
+          "attempt": 1
+        },
+        {
+          "at": "2026-11-03T02:29:36.225Z",
+          "phase": "ack",
+          "httpStatus": 200,
+          "latencyMs": 384,
+          "callbackAppIdPresent": true
+        },
+        {
+          "at": "2026-11-03T02:29:37.207Z",
+          "phase": "transport",
+          "httpStatus": 200,
+          "latencyMs": 1021,
+          "nativeKeyboard": true,
+          "visibleOpenCommand": false,
+          "hasMsgId": false,
+          "hasEventId": true,
+          "eventIdHasInteractionPrefix": true
+        },
+        {
+          "at": "2026-11-03T02:29:37.214Z",
+          "phase": "send_result",
+          "stage": "original",
+          "operationId": "external-2a96e104a46aa09c3d83b551c12a42a0074143ddc869039e55be6d2680a66dc4",
+          "state": "succeeded",
+          "result": {
+            "status": "accepted"
+          }
+        },
+        {
+          "at": "2026-11-03T02:29:37.215Z",
+          "phase": "stage_complete",
+          "nextStage": "next_original"
+        },
+        {
+          "at": "2026-11-03T02:29:38.973Z",
+          "phase": "send_attempt",
+          "stage": "next_original",
+          "operationId": "external-a7d8b89a1ab53ef77975c2c8d98752ff133bbd06d27957965cf0dc3728a9d982",
+          "attempt": 2
+        },
+        {
+          "at": "2026-11-03T02:29:39.237Z",
+          "phase": "ack",
+          "httpStatus": 200,
+          "latencyMs": 325,
+          "callbackAppIdPresent": true
+        },
+        {
+          "at": "2026-11-03T02:29:39.820Z",
+          "phase": "transport",
+          "httpStatus": 200,
+          "latencyMs": 845,
+          "nativeKeyboard": true,
+          "visibleOpenCommand": false,
+          "hasMsgId": false,
+          "hasEventId": true,
+          "eventIdHasInteractionPrefix": true
+        },
+        {
+          "at": "2026-11-03T02:29:39.828Z",
+          "phase": "send_result",
+          "stage": "next_original",
+          "operationId": "external-a7d8b89a1ab53ef77975c2c8d98752ff133bbd06d27957965cf0dc3728a9d982",
+          "state": "succeeded",
+          "result": {
+            "status": "accepted"
+          }
+        },
+        {
+          "at": "2026-11-03T02:29:39.829Z",
+          "phase": "stage_complete",
+          "nextStage": "done"
+        },
+        {
+          "at": "2026-11-03T02:29:39.830Z",
+          "phase": "round_complete",
+          "completed": true,
+          "attempts": 2
+        },
+        {
+          "at": "2026-11-03T02:29:39.841Z",
+          "phase": "closed",
+          "cancelledPending": 0
+        }
+      ]
+    }
+  ],
+  "clientVerification": {
+    "originalReceived": "user screenshot from round 2",
+    "paginationButtonsAndOriginalText": "user confirmed both normal after round 3",
+    "arbitraryMarkdownCharacters": "local regression coverage only"
+  }
+}

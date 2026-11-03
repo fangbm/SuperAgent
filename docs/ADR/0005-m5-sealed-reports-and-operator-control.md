@@ -17,3 +17,5 @@ control-plane 提供项目/角色授权、哈希会话、单次动作令牌、�
 2026-11-03 真实联调修正：用户已收到报告，但客户端点击提示无权限，服务端未收到回调。先前使用 permission.type=0 并将 C2C OpenID 当作键盘指定用户 ID；此身份匹配是本次故障的主要疑点。C2C 专用适配器改为 type=2，按钮触达后仍经 Source 的实际 user_openid 白名单和 Host 的项目/操作者/令牌/角色校验。群聊和频道不使用该发送器，转发或冒用的回调仍被拒绝。腾讯官方 SDK 定义见 [keyboard.go](https://github.com/tencent-connect/botgo/blob/master/dto/keyboard/keyboard.go)。不重发已送达报告，改由开发者 `/bugs` 发起查询验证新按钮；总额度沿用原授权。
 
 同日官方文档复核：ACK 使用互动体 `d.id`，被动发送必须使用外层 `payload.id`，二者独立；缺失被动上下文时不允许转主动发送。新增 Host 私有 `requireReplyContext` 选项、C2C `msg_idx` 去重/回复序号和可选频道消息范围，不调整冻结 SDK。旧交互重放保留已存请求与投递结果；本地验收超额点击取消并留档。具体对应关系见 [官方文档核对](../QQ-PROTOCOL-AUDIT-2026-11-03.md)。
+
+原文页展示修正：原先纯文本模式会把分页按钮展开成长指令。改用私有 `literalText` 渲染选项，保留原始请求/证据，在发送层转义 Markdown 并挂原生键盘。M0 契约、SDK 和旧快照不变；新消息使用新展示方式，已发送消息不被改写。两页实际送达及按钮操作已获用户确认，见 M5 验收记录。

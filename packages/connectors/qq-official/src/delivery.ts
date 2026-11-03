@@ -14,7 +14,7 @@ export interface QQDeliveryOptions {
   api?: QQAPIOptions;
   /** Host-issued opaque, authenticated navigation tokens. */
   navigationTokens?: (request: DeliveryRequestV1) => Promise<readonly string[]>;
-  messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text'}>;
+  messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text';literalText?:boolean}>;
 }
 export class QQC2CDelivery implements DeliveryPluginV1 {
   readonly manifest = deliveryManifest;
@@ -45,7 +45,7 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
       const custom = this.options.messageOptions ? await this.options.messageOptions(request) : {};
       if(custom.requireReplyContext&&!custom.replyTo)return{status:'blocked',errorCode:'QQ_REPLY_CONTEXT_REQUIRED'};
       const markdown = (custom.format ?? this.options.format) !== 'text';
-      const payload: Record<string, unknown> = markdown ? { msg_type: 2, markdown: { content } } : { msg_type: 0, content };
+      const payload: Record<string, unknown> = markdown ? { msg_type: 2, markdown: { content:custom.literalText?literalMarkdown(content):content } } : { msg_type: 0, content };
       if(custom.replyTo){const r=custom.replyTo;if(Boolean(r.messageId)===Boolean(r.eventId)||!Number.isSafeInteger(r.sequence)||r.sequence<1)return{status:'rejected',errorCode:'QQ_REPLY_CONTEXT_INVALID'};if(r.messageId){if(r.sequence>4)return{status:'blocked',errorCode:'QQ_PASSIVE_REPLY_LIMIT'};payload.msg_id=text(r.messageId,512);}else payload.event_id=text(r.eventId,512);payload.msg_seq=r.sequence;}
       if (request.presentation) {
         if (request.reportRevision !== request.presentation.revision || request.reportId !== request.presentation.reportId || request.presentation.kind !== 'report_summary') return { status: 'rejected', errorCode: 'QQ_REPORT_SNAPSHOT_MISMATCH' };
@@ -82,3 +82,6 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
   }
 }
 function buttonLabel(label:string):string{return ({'查看 Steam 差评':'Steam 差评','Investigating':'开始调查','Implemented':'标记已实现'} as Record<string,string>)[label]??Array.from(label).slice(0,10).join('');}
+// Rendering only: the request and stored evidence remain verbatim. Escape ASCII
+// punctuation and use hard breaks so originals cannot turn into Markdown actions.
+function literalMarkdown(value:string):string{return value.replace(/[\\`*_{}\[\]()<>!#|~+\-&]/g,'\\$&').replace(/^(\s*\d+)\./gm,'$1\\.').replace(/\n/g,'\\\n');}

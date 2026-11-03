@@ -37,6 +37,7 @@
   },
   "totals": {"acceptedMessages": 4, "definitivelyRejectedRequests": 1, "messageNetworkAttempts": 5, "unknownReplays": 0, "reportResends": 0, "sessionRunning": false},
   "permissionFix": {"c2cKeyboardPermissionType": 2, "sourceDeveloperAllowlist": "enforced", "hostActorProjectTokenRoleChecks": "enforced", "reportResent": false},
-  "finalDocumentationCorrection": {"ackId": "d.id", "passiveReplyEventId": "outer_payload.id", "missingContextBlocksBeforePOST": true, "errCodeSupported": true, "fullCheckNodeTests": 172, "referenceSuites": 6, "finalPassiveImplementationLiveAcceptance": "not_run_no_additional_message_authorization"},
-  "evidenceBoundary": "The report receipt is user-confirmed. Detail acceptance used an interim active-reply implementation. Final documentation-aligned passive replies and original text have local HTTP coverage but no new live acceptance."
+  "finalDocumentationCorrection": {"ackId": "d.id", "passiveReplyEventId": "outer_payload.id", "missingContextBlocksBeforePOST": true, "errCodeSupported": true, "fullCheckNodeTests": 172, "referenceSuites": 6, "finalPassiveImplementationLiveAcceptance": "passed_in_subsequent_bounded_rounds"},
+  "followupEvidence": "m5-qq-retests-2026-11-03.json",
+  "evidenceBoundary": "This file records the first round. Later rounds verified documentation-aligned passive replies and user-confirmed native pagination; see followupEvidence."
 }
