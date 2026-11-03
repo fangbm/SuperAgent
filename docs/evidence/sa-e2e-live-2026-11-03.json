@@ -1,7 +1,7 @@
 {
   "startedAt": "2026-11-03T11:34:27.762Z",
-  "status": "recovery_awaiting_client",
-  "stage": "final_readback",
+  "status": "completed_with_evidence_boundaries",
+  "stage": "final_verified",
   "repository": "fangbm/sa-test",
   "projectId": "qq-mainflow-test-20261103",
   "maximumModelCalls": 8,
@@ -598,13 +598,17 @@
     "automatedBrowserVisual": false,
     "QQClientConfirmation": {
       "firstRun": "user reported Steam request failed after harness quota exhausted; other views and status actions have API and callback evidence",
-      "steamRecovery": "pending"
+      "steamRecovery": "user confirmed normal empty Steam list after one fresh click",
+      "otherNavigation": "real callback, send acceptance and state readback; no individual visual confirmation this round"
     },
     "WebClientConfirmation": {
       "firstRun": "user reported unreachable after harness exit",
-      "recovery": "pending"
+      "recovery": "user confirmed access, rendering, navigation normal; Bug pending"
     },
-    "allImplementedStagesComplete": false
+    "allImplementedStagesComplete": true,
+    "completionScope": "same-database replay and backfill path; original group capture and default batching independently verified earlier",
+    "continuousServiceStarted": false,
+    "actualSteamCollection": false
   },
   "interruption": {
     "at": "2026-11-03T12:06:03.045Z",
@@ -614,7 +618,7 @@
   },
   "recovery": {
     "startedAt": "2026-11-03T12:13:31.563Z",
-    "status": "ready",
+    "status": "finished",
     "webUrl": "http://127.0.0.1:51512",
     "webExpiresAt": "2026-11-03T13:13:31.565Z",
     "qqExpiresAt": "2026-11-03T12:33:31.565Z",
@@ -673,12 +677,26 @@
         "maximumReplies": 1,
         "statisticsVerified": true,
         "oldCallbacksIgnored": 0
+      },
+      {
+        "at": "2026-11-03T13:12:01.087Z",
+        "phase": "closed",
+        "status": "finished",
+        "statisticsVerified": true,
+        "qqReplies": 0,
+        "comments": 1,
+        "groupMessagesSent": 0
       }
     ],
     "webHTTPVerified": true,
     "bugId": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
     "commentId": "6603493775",
-    "statisticsVerified": true
+    "statisticsVerified": true,
+    "qqExpired": true,
+    "reportSealsUnchanged": true,
+    "cancelledPending": 0,
+    "quickCheck": "ok",
+    "newUnknownOperations": 0
   },
   "githubReadback": {
     "checkedAt": "2026-11-03T12:20:07.093Z",
@@ -730,11 +748,12 @@
     "issueCreates": 2,
     "statusPatches": 2,
     "comments": 1,
-    "qqPosts": 8,
-    "qqAccepted": 8,
+    "qqPosts": 9,
+    "qqAccepted": 9,
     "recallsSucceeded": 4,
     "recallsExpired": 1,
-    "groupMessagesSent": 0
+    "groupMessagesSent": 0,
+    "qqReplies": 8
   },
   "databaseReadback": {
     "checkedAt": "2026-11-03T12:22:06.032Z",
@@ -765,5 +784,136 @@
       "idle": 2
     },
     "quickCheck": "ok"
+  },
+  "steamRetry": {
+    "startedAt": "2026-11-03T13:12:50.419Z",
+    "status": "finished",
+    "webUrl": "http://127.0.0.1:51512",
+    "webExpiresAt": null,
+    "qqExpiresAt": "2026-11-03T13:32:50.421Z",
+    "qqReplies": 1,
+    "maximumQQReplies": 1,
+    "comments": 0,
+    "maximumComments": 0,
+    "issueCreates": 0,
+    "statusPatches": 0,
+    "groupMessagesSent": 0,
+    "oldCallbacksIgnored": 0,
+    "events": [
+      {
+        "at": "2026-11-03T13:12:50.421Z",
+        "phase": "starting",
+        "noReportResend": true,
+        "noIssueStateReplay": true
+      },
+      {
+        "at": "2026-11-03T13:12:52.134Z",
+        "phase": "prior_statistics_confirmed_no_writes",
+        "comments": 0,
+        "webClientConfirmed": true
+      },
+      {
+        "at": "2026-11-03T13:13:00.654Z",
+        "phase": "ready",
+        "webUrl": "http://127.0.0.1:51512",
+        "webExpiresAt": null,
+        "qqExpiresAt": "2026-11-03T13:32:50.421Z",
+        "maximumReplies": 1,
+        "statisticsVerified": true,
+        "oldCallbacksIgnored": 0
+      },
+      {
+        "at": "2026-11-03T13:14:09.016Z",
+        "phase": "steam_reply",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T13:14:09.027Z",
+        "phase": "steam_delivery_result",
+        "processed": true,
+        "operationId": "external-8244989b623391b917cb339e9f9eec24e35713e215f23ce8be072ce4ab5d97b1",
+        "state": "succeeded",
+        "status": "accepted"
+      },
+      {
+        "at": "2026-11-03T13:14:09.031Z",
+        "phase": "steam_verified",
+        "qqReplies": 1,
+        "reportResent": false
+      },
+      {
+        "at": "2026-11-03T13:14:09.073Z",
+        "phase": "closed",
+        "status": "finished",
+        "steamVerified": true,
+        "statisticsVerified": true,
+        "qqReplies": 1,
+        "comments": 0,
+        "groupMessagesSent": 0
+      }
+    ],
+    "statisticsVerified": true,
+    "steamVerified": true,
+    "reportSealsUnchanged": true,
+    "cancelledPending": 0,
+    "quickCheck": "ok",
+    "newUnknownOperations": 0,
+    "webStarted": false
+  },
+  "clientConfirmations": {
+    "web": {
+      "confirmed": true,
+      "receivedAt": "2026-11-03T13:11:39+00:00",
+      "confirmationTimePrecision": "observed at turn start; not exact submission time",
+      "rendering": true,
+      "navigation": true,
+      "finalBugStatus": "open"
+    },
+    "steam": {
+      "confirmed": true,
+      "status": "normal empty list shown",
+      "apiAcceptedAt": "2026-11-03T13:14:09.016Z"
+    }
+  },
+  "completedAt": "2026-11-03T13:14:09.073Z",
+  "databaseFinalReadback": {
+    "checkedAt": "2026-11-03T13:15:10.821Z",
+    "source_events": {
+      "unchanged": true,
+      "count": 10,
+      "hash": "5e2d015bdefa17e6d57e4db98905fd7147f95d59d89d3b634e5305d187e96906"
+    },
+    "report_revision_seals": {
+      "unchanged": true,
+      "count": 1,
+      "hash": "d7a91ea3a61f2b4b7ab430a418869d624516d6861adf54ecc21ebdaa4cdbd20c"
+    },
+    "external_operations": {
+      "succeeded": 14
+    },
+    "operator_inbox": {
+      "processed": 8
+    },
+    "operator_commands": {
+      "succeeded": 3
+    },
+    "qq_message_retirements": {
+      "expired": 1,
+      "succeeded": 4
+    },
+    "github_sync_outbox": {
+      "idle": 2
+    },
+    "quickCheck": "ok"
+  },
+  "finalGitHubReadback": {
+    "checkedAt": "2026-11-03T13:15:10.821Z",
+    "via": "independent GitHub connector",
+    "issue": 4,
+    "state": "open",
+    "stateReason": "reopened",
+    "commentCount": 1,
+    "statisticsCommentId": "6603493775",
+    "feedbackCount": 2
   }
 }
