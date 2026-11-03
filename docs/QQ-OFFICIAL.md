@@ -47,6 +47,8 @@ Webhook 回调路径 `/qq/events`，健康路径 `/health`。脚本仅监听 `12
 
 Source 脚本每秒推进已有 M1 admission/buffer；真实模型分析另运行已配置的 `worker:m3`，可使用同一 SQLite 数据库。退出时停止 admission、关闭 HTTP 并释放数据库。Windows 强制结束场景按崩溃恢复处理。
 
+2026-11-03 已在真实用户群收到普通 `GROUP_MESSAGE_CREATE`，真实等待默认 120 秒最长窗口后合批并完成模型调用；验收群也验证了 60 秒静默合批。真实用户群绑定单独存于 `.artifacts/qq-user-group-20261103.dpapi`，`.artifacts/qq-config.dpapi` 仍属于此前验收群，启动时须明确选择。当前监听是临时验收，已关闭；原文与计数修订问题见 [主链路验收](QQ-MAINFLOW-ACCEPTANCE.md)。
+
 ## 私聊投递
 
 ```powershell

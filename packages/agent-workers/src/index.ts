@@ -45,7 +45,10 @@ export class AnalysisWorker {
     let runId:string|undefined;
     try{
       if(!job.payload||typeof job.payload!=='object'||Array.isArray(job.payload)||typeof job.payload.batchId!=='string')throw new Error('INVALID_ANALYSIS_TASK');
-      const identity=this.domain.prepare(job.payload.batchId,typeof job.payload.pipelineVersion==='string'?job.payload.pipelineVersion:(this.options.pipelineVersion??'triage-v2.1'),typeof job.payload.revision==='number'?job.payload.revision:1);
+      const revision=typeof job.payload.revision==='number'?job.payload.revision:1;
+      const existing=this.store.get<{pipeline_version:string}>('SELECT pipeline_version FROM analysis_requests WHERE batch_id=? AND revision=?',job.payload.batchId,revision);
+      const pipelineVersion=typeof job.payload.pipelineVersion==='string'?job.payload.pipelineVersion:(existing?.pipeline_version??this.options.pipelineVersion??'triage-v2.2');
+      const identity=this.domain.prepare(job.payload.batchId,pipelineVersion,revision);
       if(identity.projectId!==job.projectId)throw new Error('BATCH_PROJECT_MISMATCH');
       if(this.store.get('SELECT 1 FROM triage_extractions WHERE triage_id=?',identity.triageId)){this.queue.complete(job.jobId,job.leaseToken!);return {processed:true,status:'already_completed'};}
       const batch=JSON.parse(this.store.get<{batch_json:string}>('SELECT batch_json FROM feedback_batches WHERE batch_id=?',identity.batchId)!.batch_json) as FeedbackBatchV1;
@@ -57,7 +60,7 @@ export class AnalysisWorker {
         if(e.event.type==='com.superagent.source.coverage.changed.v1')return [];
         return [{eventId:id,role,text:e.text,platform:e.event.data.platform,object:e.event.data.object,time:e.event.time}];
       });
-      const prompt=json({task:'extract',instructions:'Extract 0..N independent defect/suggestion items. Copy batchId, pipelineVersion, revision exactly. Each item needs primary evidence from candidate messages; context alone is not new feedback. Use an EXACT verbatim quote. OMIT the optional start/end fields entirely: do not estimate character offsets. Do not infer causes or invent personal identities. Output JSON.',batchId:identity.batchId,pipelineVersion:identity.pipelineVersion,revision:identity.revision,messages});
+      const prompt=json({task:'extract',instructions:'Extract 0..N independent defect/suggestion items. Copy batchId, pipelineVersion, revision exactly. Each item needs primary evidence from candidate messages; context alone is not new feedback. Preserve EVERY independent candidate report of an extracted issue or request as primary evidence. When multiple candidate messages independently report the same problem, either include all those reports as primary anchors in one item or emit separate items; do not downgrade a second independent report to corroboration just because the problem is the same. Corroboration is supporting context, not a replacement for counting independent reports. Do not turn unrelated chat or questions into feedback. Use an EXACT verbatim quote. OMIT the optional start/end fields entirely: do not estimate character offsets. Do not infer causes or invent personal identities. Output JSON.',batchId:identity.batchId,pipelineVersion:identity.pipelineVersion,revision:identity.revision,messages});
       if(prompt.length>(this.options.maxInputCharacters??60_000))throw new ModelError('MODEL_INPUT_BUDGET_EXCEEDED',false);
       const result:TriageResultV2=messages.some(m=>m.role==='candidate')?parseContract('triage-result-v2',await context.llm.generateStructured({schemaId:'triage-result-v2',prompt,timeoutMs:this.options.timeoutMs??30_000,maxOutputTokens:4096})):
         {schemaVersion:'2.0',batchId:identity.batchId,pipelineVersion:identity.pipelineVersion,revision:identity.revision,items:[],requiresHumanReview:true,nonActionableReason:'insufficient_context'};

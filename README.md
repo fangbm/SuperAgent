@@ -79,7 +79,7 @@ pnpm worker:m3 --database .artifacts/local.sqlite --once
 
 GitHub 同步是可选项：配置 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` 并指定 `--project`。默认不执行外部写入；只有追加 `--github-write` 且目标实际为私有仓库时才允许发送。后续统计写在机器人评论中，开发者 Issue 正文不会被 PATCH。
 
-本轮已用真实 `deepseek-flash` 分析合成 QQ/Discord 反馈，并经用户批准在私有测试仓库创建两个 Issue、读回一条统计评论。平台原始消息接入仍未验收。详见 [M3 设计与运行边界](docs/M3-ANALYSIS.md) 和 [M3 验收记录](docs/M3-ACCEPTANCE.md)。
+该轮已用真实 `deepseek-flash` 分析合成 QQ/Discord 反馈，并经用户批准在私有测试仓库创建两个 Issue、读回一条统计评论。该轮模型输入仍为合成消息；后续真实 QQ 普通群消息和自动批处理见 [主链路验收](docs/QQ-MAINFLOW-ACCEPTANCE.md)。详见 [M3 设计与运行边界](docs/M3-ANALYSIS.md) 和 [M3 验收记录](docs/M3-ACCEPTANCE.md)。
 
 当前源文件以 `packages/contracts` 为权威。原压缩包的旧校验清单不作为工程输入；原包身份记录在 `docs/reference/SOURCE.json`。
 
@@ -117,8 +117,10 @@ M5 基础范围已完成验收：QQ 导航按轮次完成有限真实验收，Gi
 
 M5 不安装模型 worker；pending 任务仍须由配置后的 M3 消费。P0 即时通知调度尚未实现；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
 
+2026-11-03 的 [QQ 主链路实测](docs/QQ-MAINFLOW-ACCEPTANCE.md) 已覆盖真实用户群普通消息、120 秒自动合批和真实模型，以及验收群三条明确反馈与 60 秒静默合批。发现并修订独立反馈被误标为 corroboration 的提取规则；新提示词真实复测遇到模型 503，计数修复仍未完成真实验收。真实群与验收群配置分开保存，临时监听均已关闭。
+
 ## M6 故障与安全检查
 
-运行 `pnpm test:m6` 可构建并执行 73 项故障专项；完整入口 `pnpm check` 已包含新增 17 项测试，总计 215 项。已修复网关积压无上限、投递绑定复核、GitHub 恢复范围隔离和密钥轮换后的 Web 会话撤销。生产及开发依赖在本次审计中均无已知漏洞。
+运行 `pnpm test:m6` 可构建并执行 73 项故障专项；M6 新增 17 项测试，完整入口 `pnpm check` 在后续 QQ 主链路修订后总计 217 项。已修复网关积压无上限、投递绑定复核、GitHub 恢复范围隔离和密钥轮换后的 Web 会话撤销。生产及开发依赖在本次审计中均无已知漏洞。
 
 本地验收覆盖重连、限流、超时、重复事件、权限丢失与实际进程终止恢复；不代表在真实平台完成故障注入或长期压测。范围、复现命令和证据见 [M6 验收](docs/M6-ACCEPTANCE.md)。

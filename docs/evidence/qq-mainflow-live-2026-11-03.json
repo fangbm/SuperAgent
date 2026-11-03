@@ -1,0 +1,203 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "status": "live_ingress_batch_model_verified; independent_report_count_correction_live_retest_pending",
+  "codeBaseline": "36a3d7d",
+  "bindingDiscovery": {
+    "status": "bound",
+    "observedEventType": "GROUP_MESSAGE_CREATE",
+    "challengeContainedMention": false,
+    "sameAsPreviousGroup": false,
+    "groupMessagesSent": 0,
+    "rawOpenidCommitted": false
+  },
+  "naturalUserGroupRound": {
+    "status": "succeeded",
+    "startedAt": "2026-11-03T09:28:08.768Z",
+    "closedAt": "2026-11-03T09:30:33.190Z",
+    "sourceEvents": 12,
+    "eventTypes": [
+      "GROUP_MESSAGE_CREATE"
+    ],
+    "withoutMentionTag": 10,
+    "batches": [
+      {
+        "id": "batch-fb8073361a9d3ff7cd836400c40f85ed5037c53a94fbf6d1249de8b10e43525f",
+        "reason": "max_wait",
+        "createdAt": "2026-11-03T09:30:29.967Z",
+        "openedAt": "2026-11-03T09:28:29.619Z",
+        "dueAt": "2026-11-03T09:30:29.619Z",
+        "schedulerLagMs": 348.0,
+        "candidates": 12,
+        "contexts": 0
+      }
+    ],
+    "modelCalls": [
+      {
+        "status": "succeeded",
+        "modelId": "deepseek-flash",
+        "errorCode": null,
+        "usage": {
+          "inputTokens": 3520,
+          "outputTokens": 87
+        },
+        "extractedItems": 0,
+        "nonActionableReason": "insufficient_context"
+      }
+    ],
+    "works": [],
+    "jobs": [
+      {
+        "kind": "feedback.admit",
+        "status": "completed",
+        "count": 12
+      },
+      {
+        "kind": "feedback.batch.triage",
+        "status": "completed",
+        "count": 1
+      }
+    ],
+    "manualFlushes": 0,
+    "qqMessagesSent": 0,
+    "githubCalls": 0,
+    "externalOperations": 0,
+    "sourceHealthAfterClose": {
+      "coverage": "unavailable",
+      "health_reason": "QQ_SOURCE_STOPPED"
+    },
+    "quickCheck": "ok",
+    "foreignKeyCheck": "ok",
+    "databaseSha256": "681a433d298561ec1f8a157c5487924a679100c6c57f12eae6a74b7f83dbe0bd"
+  },
+  "redirectedRound": {
+    "status": "stopped_on_user_request_to_switch_to_test_group",
+    "sourceEvents": 6,
+    "modelCalls": 0,
+    "originalPendingSegmentPreserved": true,
+    "automaticReplay": false
+  },
+  "acceptanceGroupRound": {
+    "status": "succeeded",
+    "startedAt": "2026-11-03T09:35:55.298Z",
+    "closedAt": "2026-11-03T09:38:26.596Z",
+    "sourceEvents": 10,
+    "eventTypes": [
+      "GROUP_MESSAGE_CREATE"
+    ],
+    "withoutMentionTag": 10,
+    "batches": [
+      {
+        "id": "batch-b6abd8ed71ecd908e0a3a7594b333390a5cf8fdf627282cbbe014dc2b1c20d58",
+        "reason": "quiet_timeout",
+        "createdAt": "2026-11-03T09:38:00.181Z",
+        "openedAt": "2026-11-03T09:36:32.911Z",
+        "dueAt": "2026-11-03T09:38:00.048Z",
+        "schedulerLagMs": 133.0,
+        "candidates": 10,
+        "contexts": 0
+      }
+    ],
+    "modelCalls": [
+      {
+        "status": "succeeded",
+        "modelId": "deepseek-flash",
+        "errorCode": null,
+        "usage": {
+          "inputTokens": 2897,
+          "outputTokens": 415
+        },
+        "extractedItems": 2,
+        "nonActionableReason": null
+      }
+    ],
+    "works": [
+      {
+        "kind": "defect",
+        "feedbackCount": 1,
+        "evidenceCount": 2
+      },
+      {
+        "kind": "suggestion",
+        "feedbackCount": 1,
+        "evidenceCount": 1
+      }
+    ],
+    "jobs": [
+      {
+        "kind": "feedback.admit",
+        "status": "completed",
+        "count": 10
+      },
+      {
+        "kind": "feedback.batch.triage",
+        "status": "completed",
+        "count": 1
+      }
+    ],
+    "manualFlushes": 0,
+    "qqMessagesSent": 0,
+    "githubCalls": 0,
+    "externalOperations": 0,
+    "sourceHealthAfterClose": {
+      "coverage": "unavailable",
+      "health_reason": "QQ_SOURCE_STOPPED"
+    },
+    "quickCheck": "ok",
+    "foreignKeyCheck": "ok",
+    "databaseSha256": "5d81b559f6cb843ada4e18302f0af93f4694c4647e02bd9b9d1497e967a6bc3e"
+  },
+  "countCorrection": {
+    "defaultPipelineVersion": "triage-v2.2",
+    "promptClarified": true,
+    "localRegression": "passed; independent feedback 1 to 2, one Issue, no context inflation, original extraction and sources unchanged",
+    "realModelRetest": "not_verified_HTTP_503",
+    "modelRequests": 4,
+    "providerCode": "service_unavailable_error",
+    "failedJobs": [
+      {
+        "pipeline_version": "triage-v2.2",
+        "revision": 2,
+        "status": "dead_letter",
+        "attempt": 3,
+        "max_attempts": 3,
+        "last_error_code": "MODEL_HTTP_503"
+      },
+      {
+        "pipeline_version": "triage-v2.2",
+        "revision": 3,
+        "status": "dead_letter",
+        "attempt": 1,
+        "max_attempts": 1,
+        "last_error_code": "MODEL_HTTP_503"
+      }
+    ],
+    "originalSourceEventsUnchanged": true,
+    "originalExtractionPreserved": true,
+    "newSuccessfulRevision": false,
+    "automaticRetryRemaining": false,
+    "legacyPipelineRetryCompatibility": "passed; persisted triage-v2.1 analysis identity retained across default upgrade, new batch uses triage-v2.2"
+  },
+  "checks": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "nodeTests": 217,
+    "referenceSuites": 6,
+    "frozenFiles": 45,
+    "logSha256": "47ccb8141c4e17afbc4227afd56841de5f10b970def0c87dcfa15fa53a027478"
+  },
+  "verificationBoundary": {
+    "naturalQQMessages": true,
+    "explicitSampleInputViaRealQQ": true,
+    "automaticMaxWait": true,
+    "automaticQuietWindow": true,
+    "realModelAnalysis": true,
+    "correctedIndependentCountViaRealModel": false,
+    "liveReportGeneration": false,
+    "persistentProductionDaemon": false,
+    "allQQWrites": 0,
+    "allGitHubCalls": 0,
+    "rawPrivateMessagesCommitted": false,
+    "rawOpenidsCommitted": false
+  }
+}
