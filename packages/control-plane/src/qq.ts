@@ -8,7 +8,7 @@ import type { ControlPlane } from './index.js';
 import type { StatusCommand } from './index.js';
 export interface QQOperatorRequest {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}
 export interface QQButton {label:string;token:string}
-export interface QQReplyOptions {replyTo:{messageId?:string;eventId?:string;sequence:number};buttons:QQButton[];format?:'markdown'|'text'}
+export interface QQReplyOptions {replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons:QQButton[];format?:'markdown'|'text'}
 interface Navigation {route:'section'|'work'|'evidence';reportId:string;revision:number;section?:ReportSectionV1;kind?:'defect'|'suggestion';workId?:string;cursor?:string;sectionOffset?:number;itemOffset?:number;charOffset?:number;steamOrdinal?:number}
 interface Message {title:string;text:string;buttons:QQButton[];report?:ReportV2;format?:'markdown'|'text'}
 export class QQOperatorService {
@@ -27,7 +27,7 @@ export class QQOperatorService {
     if(request.kind==='command'&&!/^\/(reports|bugs|suggestions|steam-negative|open)(?:\s|$)/.test(request.content.trim()))return{accepted:false,duplicate:false};
     const inboxId=stableId('qq-inbox',this.options.projectId,principal.actorRef,request.interactionId);const requestHash=hash(canonicalJSON(request as unknown as JSONValue));
     return this.control.store.transaction(()=>{
-      const existing=this.control.store.get<{request_hash:string}>('SELECT request_hash FROM operator_inbox WHERE inbox_id=?',inboxId);if(existing){if(existing.request_hash!==requestHash)throw new ControlError('QQ_INTERACTION_REPLAY_CONFLICT',409);return{accepted:true,duplicate:true};}
+      const existing=this.control.store.get<{request_hash:string;request_json:string}>('SELECT request_hash,request_json FROM operator_inbox WHERE inbox_id=?',inboxId);if(existing){if(existing.request_hash!==requestHash){const prior=JSON.parse(existing.request_json) as QQOperatorRequest;if(prior.interactionId!==request.interactionId||prior.kind!==request.kind||prior.content!==request.content)throw new ControlError('QQ_INTERACTION_REPLAY_CONFLICT',409);}return{accepted:true,duplicate:true};} // A duplicate never replaces its saved reply context or outbox.
       this.control.store.run('INSERT INTO operator_inbox(inbox_id,project_id,actor_ref,interaction_id,request_hash,request_json,created_at) VALUES(?,?,?,?,?,?,?)',inboxId,this.options.projectId,principal.actorRef,inboxId,requestHash,canonicalJSON(request as unknown as JSONValue),this.now());return{accepted:true,duplicate:false};
     });
   }
@@ -39,7 +39,10 @@ export class QQOperatorService {
       let message:Message;
       try{message=this.resolve(principal,request,row.inbox_id);}catch(error){message={title:'操作未完成',text:error instanceof ControlError?`请求已拒绝：${error.code}。请刷新卡片或在 Web 查看当前状态。`:'当前无法处理该请求，请稍后查询。',buttons:[]};}
       const deliveryId=randomUUID();const delivery:DeliveryRequestV1={deliveryId,idempotencyKey:`qq-reply:${row.inbox_id}`,projectId:this.options.projectId,reportId:message.report?.reportId??'operator-response',...(message.report?{reportRevision:message.report.revision}:{}),recipientRef:this.options.recipientRef,title:message.title,text:message.text,requestedAt:this.now()};
-      const messageOptions:QQReplyOptions={replyTo:{...request.reply,sequence:1},buttons:message.buttons,...(message.format?{format:message.format}:{})};
+      // d.id identifies the ACK; the outer payload.id identifies the passive event reply.
+      const reply=request.kind==='command'&&request.reply.messageId?{messageId:request.reply.messageId}:request.kind==='button'&&request.reply.eventId?{eventId:request.reply.eventId}:undefined;
+      const sequence=reply&&'messageId' in reply?1+(this.control.store.get<{n:number|null}>("SELECT max(json_extract(message_options_json,'$.replyTo.sequence')) n FROM operator_reply_plans WHERE project_id=? AND recipient_ref=? AND json_extract(message_options_json,'$.replyTo.messageId')=?",this.options.projectId,this.options.recipientRef,reply.messageId)?.n??0):1;
+      const messageOptions:QQReplyOptions={...(reply?{replyTo:{...reply,sequence}}:{}),requireReplyContext:true,buttons:message.buttons,...(message.format?{format:message.format}:{})};
       this.control.store.run('INSERT INTO operator_reply_plans(delivery_id,inbox_id,project_id,recipient_ref,report_id,revision,request_json,message_options_json) VALUES(?,?,?,?,?,?,?,?)',deliveryId,row.inbox_id,this.options.projectId,this.options.recipientRef,message.report?.reportId??null,message.report?.revision??null,canonicalJSON(delivery as unknown as JSONValue),canonicalJSON(messageOptions as unknown as JSONValue));
       this.control.store.run("UPDATE operator_inbox SET state='processed',response_json=? WHERE inbox_id=?",canonicalJSON({deliveryId}),row.inbox_id);return{processed:true,deliveryId};
     });

@@ -66,6 +66,8 @@ pnpm qq:send-test --database .artifacts/qq.sqlite --project game-01 --send
 
 ## 接口依据
 
+2026-11-03 按用户指定的 API v2 官方文档重新核对了 ACK、外层回复事件 ID、业务错误码、消息索引去重和频道 intents。修正清单、本地协议联测与真实证据边界见 [QQ 文档核对](QQ-PROTOCOL-AUDIT-2026-11-03.md)。M5 查询回复缺失被动上下文时会阻止发送，不转主动消息。
+
 见 [QQ 验收记录](QQ-ACCEPTANCE.md)。真实账号权限、HTTPS 回调可达性和客户端实际送达必须单独记录；本地 HTTP 模拟和认证成功都不能替代这些证据。
 
 官方文档（2026-11-02 查阅）：[访问凭证](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/access-token.html)、[Webhook](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/event-emit/webhook.html)、[WebSocket](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/event-emit/websocket.html)、[签名算法](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/sign.html)、[通用 Payload](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/event-emit/payload.html)、[全量群消息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/group_message_create.html)、[单聊发送](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_users_user_openid_messages.post.html)。API 与凭证默认域名为 `api.bot.qq.com`；本机真实请求返回的网关主机为 `api.sgroup.qq.com`，两个平台主机均列入 Source 声明。实际账号权限以联调为准。

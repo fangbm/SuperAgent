@@ -24,10 +24,19 @@
   },
   "queries": {
     "maximumReplies": 3,
-    "sessionExpiresAtBeijing": "2026-11-03 09:42:15",
-    "buttonCallbacks": "original_buttons_denied_before_callback; fixed_client_permission_awaiting_verification",
-    "clientDisplay": "awaiting_user_confirmation"
+    "sessionStoppedAtBeijing": "2026-11-03 09:40:51",
+    "buttonCallbacks": "received_and_persisted_after_permission_fix",
+    "listAccepted": 1,
+    "detailAccepted": 2,
+    "detailExplicitlyRejectedHTTP400": 1,
+    "originalTextAccepted": 0,
+    "detailClientDisplay": "unconfirmed",
+    "pendingExcessClicksCancelledWithRequestPreserved": 1,
+    "ackHTTPStatus": [200, 200, 200],
+    "ackLatencyMs": [357, 340, 278]
   },
-  "permissionFix": {"c2cKeyboardPermissionType": 2, "sourceDeveloperAllowlist": "enforced", "hostActorProjectTokenRoleChecks": "enforced", "reportResent": false, "fullCheckNodeTests": 165, "referenceSuites": 6},
-  "evidenceBoundary": "User confirmed the report receipt; repaired buttons still require real callback and client display verification."
+  "totals": {"acceptedMessages": 4, "definitivelyRejectedRequests": 1, "messageNetworkAttempts": 5, "unknownReplays": 0, "reportResends": 0, "sessionRunning": false},
+  "permissionFix": {"c2cKeyboardPermissionType": 2, "sourceDeveloperAllowlist": "enforced", "hostActorProjectTokenRoleChecks": "enforced", "reportResent": false},
+  "finalDocumentationCorrection": {"ackId": "d.id", "passiveReplyEventId": "outer_payload.id", "missingContextBlocksBeforePOST": true, "errCodeSupported": true, "fullCheckNodeTests": 172, "referenceSuites": 6, "finalPassiveImplementationLiveAcceptance": "not_run_no_additional_message_authorization"},
+  "evidenceBoundary": "The report receipt is user-confirmed. Detail acceptance used an interim active-reply implementation. Final documentation-aligned passive replies and original text have local HTTP coverage but no new live acceptance."
 }

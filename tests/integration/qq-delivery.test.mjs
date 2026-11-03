@@ -30,6 +30,13 @@ test('QQ Gateway rejects non-platform WebSocket destinations and plaintext remot
     await assert.rejects(api.gateway(), /QQ_INVALID_GATEWAY/);
   }
 });
+
+test('interaction ACK uses callback AppID and accepts empty HTTP 200; HTTP errors expose only numeric codes',async t=>{
+  const seen=[];const server=createServer(async(req,res)=>{let body='';for await(const chunk of req)body+=chunk;seen.push({path:req.url,headers:req.headers,body});if(req.url==='/app/getAppAccessToken'){res.end(JSON.stringify({access_token:'fixture-token',expires_in:7200}));return;}if(req.url.startsWith('/interactions/')){if(req.headers['x-callback-appid']!==qqSecrets.QQ_APP_ID){res.writeHead(400);res.end(JSON.stringify({code:40034025}));return;}res.writeHead(200);res.end();return;}res.writeHead(400);res.end(JSON.stringify({code:40034025,message:'fixture-private-identifier'}));});
+  server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
+  const api=new QQAPI(readSecret,{baseURL:`http://127.0.0.1:${server.address().port}`,allowLoopbackHTTP:true});await api.acknowledgeInteraction('fixture-interaction');assert.deepEqual(JSON.parse(seen[1].body),{code:0});
+  await assert.rejects(api.sendC2C(qqSecrets.QQ_RECIPIENT_OPENID,{}),error=>error.code==='QQ_API_40034025'&&error.outcome==='rejected'&&!error.message.includes('private'));
+});
 test('QQ sends only to the approved C2C recipient, with Markdown or explicit text and no group API', async () => {
   const requests = []; const plugin = new QQC2CDelivery({ projectId: binding.projectId, recipientRef: 'developer', api: { fetch: apiFetch(() => Response.json({ id: 'sent-1' }), requests) } });
   const host = deliveryHost(plugin, readSecret);
@@ -49,6 +56,10 @@ test('QQ response classification is conservative and never sends a second POST o
     const result = await plugin.send(deliveryRequest(), deliveryHost(plugin, readSecret));
     assert.equal(result.status, status); assert.equal(posts, 1); assert.equal(JSON.stringify(result).includes('private raw'), false); assert.equal(JSON.stringify(result).includes('sensitive'), false);
   }
+});
+
+test('documented err_code failures override apparent success and never leak provider messages or retry',async()=>{
+  for(const payload of [{err_code:40034025,id:'not-a-success',message:'private-value'},{err_code:40034025,code:0},{err_code:0,code:40034025}]){let sends=0;const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch(()=>{sends++;return Response.json(payload);})}});const result=await plugin.send(deliveryRequest(),deliveryHost(plugin,readSecret));assert.equal(result.status,'rejected');assert.equal(result.errorCode,'QQ_API_40034025');assert.equal(sends,1);assert.equal(JSON.stringify(result).includes('private-value'),false);}
 });
 test('report Keyboard uses three opaque Host tokens and fixed snapshot; missing handler produces no dead buttons', async () => {
   const request = { ...deliveryRequest(), reportRevision: 2, presentation: { schemaVersion: '1.0', kind: 'report_summary', format: 'markdown', reportId: 'qq-fixture-report', revision: 2, actions: [{ kind: 'report.open_section', section: 'bugs', label: '查看 Bug' }, { kind: 'report.open_section', section: 'suggestions', label: '查看建议' }, { kind: 'report.open_section', section: 'steam_negative_reviews', label: '查看 Steam 差评' }] } };

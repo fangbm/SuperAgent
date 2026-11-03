@@ -8,12 +8,13 @@ import type { QQGatewayOptions, QQSession } from './gateway.js';
 export const sourceManifest: PluginManifestV1 = {
   apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-source', version: '0.1.0', displayName: 'QQ Official Source', kind: 'source', engine: { sdk: '^0.1.0' },
   permissions: { networkHosts: ['api.bot.qq.com', 'api.sgroup.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_SCOPE_ID', 'QQ_PSEUDONYM_KEY', 'QQ_OPERATOR_OPENID'], eventPublish: true },
-  configSchema: { type: 'object', additionalProperties: false, properties: { kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] } }, required: ['kind', 'sourceUri'] },
+  configSchema: { type: 'object', additionalProperties: false, properties: { kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] },channelMessages:{enum:['mentions','all']} }, required: ['kind', 'sourceUri'] },
 };
 export interface QQSourceOptions {
   kind: 'group' | 'channel' | 'c2c';
   sourceUri: string;
   transport?: 'webhook' | 'websocket';
+  channelMessages?:'mentions'|'all';
   gateway?: Pick<QQGatewayOptions, 'createSocket' | 'backoffMs' | 'maxFailures'>;
   api?: QQAPIOptions;
   now?: () => number;
@@ -34,7 +35,9 @@ export class QQSource implements SourcePluginV1 {
   constructor(private readonly options: QQSourceOptions) {
     const uri = new URL(options.sourceUri);
     if (!['urn:', 'https:'].includes(uri.protocol) || !['group', 'channel', 'c2c'].includes(options.kind)) throw new QQError('QQ_INVALID_SOURCE_CONFIG', 'blocked');
+    if(options.channelMessages!==undefined&&!['mentions','all'].includes(options.channelMessages))throw new QQError('QQ_INVALID_SOURCE_CONFIG','blocked');
   }
+  private intents():number{return(this.options.kind==='channel'?(this.options.channelMessages==='all'?1<<9:1<<30):1<<25)|(this.options.operator&&this.options.operator.interactions!==false?1<<26:0);}
   private now(): number { return (this.options.now ?? Date.now)(); }
   async start(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {
     if (this.active) throw new QQError('QQ_SOURCE_ALREADY_STARTED', 'blocked');
@@ -51,7 +54,7 @@ export class QQSource implements SourcePluginV1 {
       if (cp === null) await host.commitBatch([], { sourceId: host.sourceId, cursor: { kind: 'qq-webhook-v1', binding, observed: false } });
       await this.sync(host, signal);
       if (this.options.transport === 'websocket') {
-        const intents=(this.options.kind==='channel'?(1<<9)|(1<<30):1<<25)|(this.options.operator&&this.options.operator.interactions!==false?1<<26:0);
+        const intents=this.intents();
         const gateway = new QQGateway(this.active.api, {
           ...this.options.gateway,
           intents,
@@ -146,7 +149,7 @@ export class QQSource implements SourcePluginV1 {
     await state.host.commitBatch(event ? [event] : [], { sourceId: state.host.sourceId, cursor: {
       ...previous, kind: 'qq-webhook-v1', binding: state.binding,
       ...(event ? { observed: true, lastEventId: event.id, lastEventAt: event.time, lastCallbackAt: new Date(this.now()).toISOString(), observedEventType: String(payload.t) } : {}),
-      ...(gateway ? { gateway: { sessionId: gateway.sessionId, seq: gateway.seq, intents:(this.options.kind==='channel'?(1<<9)|(1<<30):1<<25)|(this.options.operator&&this.options.operator.interactions!==false?1<<26:0) } } : {}),
+      ...(gateway ? { gateway: { sessionId: gateway.sessionId, seq: gateway.seq, intents:this.intents() } } : {}),
     } });
     if (event) await state.host.reportHealth({ coverage: 'partial', reason: coverageReason(payload.t), checkedAt: new Date(this.now()).toISOString() }).catch(() => {});
   }
@@ -156,7 +159,10 @@ export class QQSource implements SourcePluginV1 {
       const data=object(payload.d),author=object(data.author);
       if((author.user_openid??author.id)!==state.operatorOpenid)return false;
       const content=typeof data.content==='string'?data.content.trim():'';
-      if(content.length<=512&&content.startsWith('/'))await this.options.operator.receive({interactionId:`command:${text(data.id,512)}`,kind:'command',content,reply:{messageId:text(data.id,512)}});
+      const messageId=text(data.id,480),ext=data.message_scene?object(data.message_scene).ext:undefined;
+      const index=Array.isArray(ext)?ext.find((v):v is string=>typeof v==='string'&&v.startsWith('msg_idx='))?.slice(8):undefined;
+      const identity=index?createHmac('sha256',state.pseudonymKey).update(JSON.stringify([messageId,index])).digest('hex'):messageId;
+      if(content.length<=512&&content.startsWith('/'))await this.options.operator.receive({interactionId:`command:${identity}`,kind:'command',content,reply:{messageId}});
       return true;
     }
     if(payload.t==='INTERACTION_CREATE'){
@@ -164,8 +170,9 @@ export class QQSource implements SourcePluginV1 {
       if(data.application_id!==undefined&&data.application_id!==state.appId)return true;
       const body=object(data.data);if(Number(body.type??data.type)!==11)return true;const resolved=object(body.resolved);
       const token=typeof resolved.button_data==='string'?resolved.button_data:'';if(!/^[A-Za-z0-9_-]{43}$/.test(token))return true;
-      const id=text(data.id,512);const result=await this.options.operator.receive({interactionId:`button:${id}`,kind:'button',content:token,reply:{eventId:id}});
-      if(result.accepted)await state.api.acknowledgeInteraction(id).catch(()=>{state.host.logger.warn('QQ_INTERACTION_ACK_UNCONFIRMED');});
+      const id=text(data.id,480);const eventId=typeof payload.id==='string'&&payload.id&&payload.id!==id?text(payload.id,512):undefined;
+      const result=await this.options.operator.receive({interactionId:`button:${id}`,kind:'button',content:token,reply:eventId?{eventId}:{}});
+      if(result.accepted&&!result.duplicate)await state.api.acknowledgeInteraction(id).catch(error=>{state.host.logger.warn('QQ_INTERACTION_ACK_UNCONFIRMED',{code:error instanceof QQError?error.code:'QQ_ACK_FAILED'});});
       return true;
     }
     return false;

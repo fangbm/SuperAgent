@@ -14,7 +14,7 @@ async function setup(t,options={}){
   const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',navigationTokens:async request=>qq.navigationTokens(request),messageOptions:async request=>coordinator.messageOptions(request.deliveryId),api:{fetch:async(url,init)=>{if(String(url).endsWith('/app/getAppAccessToken'))return Response.json({access_token:'fixture-token',expires_in:7200});requests.push({url:String(url),body:JSON.parse(init.body),method:init.method});return options.send?options.send(requests.length):Response.json({id:`fixture-message-${requests.length}`});}}});
   const service=new DurableDeliveryService(f.runtime.store,plugin,deliveryHost(plugin,readSecret),{projectId:binding.projectId,recipientRef:'developer',recipientBindingId:'m5-fixture-binding',clock:f.clock,allowWrites:true,authorizeInteraction:r=>coordinator.authorizeReply(r),authorizeDelivery:()=>f.auth.authorize(f.auth.principal('developer'),binding.projectId)});
   coordinator=new ReportDeliveryCoordinator(f.runtime.store,service,{getReport:(p,id,rev)=>f.reports.getExact(p,id,rev),clock:f.clock});
-  const receive=(id,kind,content)=>{qq.receive({interactionId:id,kind,content,reply:{messageId:id}});const processed=qq.tick();const plan=processed.deliveryId?f.runtime.store.get('SELECT * FROM operator_reply_plans WHERE delivery_id=?',processed.deliveryId):null;return plan?{request:JSON.parse(plan.request_json),options:JSON.parse(plan.message_options_json)}:null;};
+  const receive=(id,kind,content)=>{qq.receive({interactionId:id,kind,content,reply:kind==='button'?{eventId:`INTERACTION_CREATE:${id}`}:{messageId:id}});const processed=qq.tick();const plan=processed.deliveryId?f.runtime.store.get('SELECT * FROM operator_reply_plans WHERE delivery_id=?',processed.deliveryId):null;return plan?{request:JSON.parse(plan.request_json),options:JSON.parse(plan.message_options_json)}:null;};
   return{...f,report,qq,plugin,service,coordinator,requests,receive};
 }
 test('report delivery renders three scoped navigation buttons, persists accepted once and never patches report',async t=>{
@@ -45,12 +45,23 @@ test('QQ original text is segmented without loss or broken emoji',async t=>{
 test('QQ read-only operators can query frozen details and originals without receiving action tokens',async t=>{
   const f=await setup(t);f.runtime.store.run("UPDATE operator_accounts SET role='reader' WHERE actor_ref='developer'");const section=f.receive('reader-bugs','command','/bugs');const detail=f.receive('reader-work','button',section.options.buttons.find(b=>b.label==='详情 1').token);assert.equal(detail.options.buttons.length,1);assert.match(detail.request.text,/当前状态/);const original=f.receive('reader-original','button',detail.options.buttons[0].token);assert.match(original.request.text,/联机/);assert.equal(count(f.runtime.store,'operator_commands'),0);
 });
+
+test('C2C button replies use the outer event id rather than the interaction UUID or a new active send',async t=>{
+  const f=await setup(t);const section=f.receive('passive-command','command','/bugs');const detailToken=section.options.buttons.find(b=>b.label==='详情 1').token;
+  f.qq.receive({interactionId:'button:interaction-uuid',kind:'button',content:detailToken,reply:{eventId:'INTERACTION_CREATE:outer-event-id'}});f.qq.tick();f.coordinator.enqueueReplies(binding.projectId,'developer');
+  await f.service.tick({purpose:'interaction'});await f.service.tick({purpose:'interaction'});assert.equal(f.requests.length,2);
+  const passive=f.requests.find(r=>r.body.msg_id==='passive-command'),button=f.requests.find(r=>r.body.event_id==='INTERACTION_CREATE:outer-event-id');assert.ok(passive);assert.ok(button);assert.equal(button.body.msg_id,undefined);assert.equal(button.body.msg_seq,1);assert.match(button.body.markdown.content,/当前状态/);
+});
+
+test('missing passive reply context blocks before POST and cannot silently become an active message',async t=>{
+  const f=await setup(t);const section=f.receive('list','command','/bugs');f.qq.receive({interactionId:'button:missing-context',kind:'button',content:section.options.buttons.find(b=>b.label==='详情 1').token,reply:{}});const reply=f.qq.tick();f.coordinator.enqueueReplies(binding.projectId,'developer');const operation=f.runtime.store.get('SELECT operation_id FROM operator_reply_plans WHERE delivery_id=?',reply.deliveryId);const result=await f.service.tick({purpose:'interaction',operationId:operation.operation_id});assert.equal(result.state,'blocked');assert.equal(f.requests.length,0);assert.equal(f.service.get(result.operationId).result.errorCode,'QQ_REPLY_CONTEXT_REQUIRED');
+});
 test('QQ evidence navigation continues beyond fifty independent source objects without omitting originals',async t=>{
   const f=await m5Fixture(t,{responder:task=>{const answer=fixtureAnswer(task);if(task.task==='extract')answer.items[0].evidence=task.messages.filter(m=>m.role==='candidate').map(m=>({eventId:m.eventId,role:'primary',quote:m.text}));return answer;}});
   const events=Array.from({length:51},(_,i)=>event(`source-${i}`,{text:`联机载入90%时崩溃，原始反馈 #${i}`}));f.runtime.ingress.commitBatch(scope,events);f.runtime.tick();for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))f.runtime.buffer.flushSync(row.segment_id,'replay');
   while((await f.worker.tick()).processed){}const report=f.generate();assert.equal(f.domain.getWork(binding.projectId,'defect',report.issueIds[0]).feedbackCount,51);
   const qq=new QQOperatorService(f.control,{projectId:binding.projectId,actorRef:'developer',recipientRef:'developer',clock:f.clock});let n=0;
-  const click=(kind,content)=>{qq.receive({interactionId:'many-'+n++,kind,content,reply:{messageId:'reply-'+n}});const result=qq.tick();return JSON.parse(f.runtime.store.get('SELECT message_options_json FROM operator_reply_plans WHERE delivery_id=?',result.deliveryId).message_options_json);};
+  const click=(kind,content)=>{qq.receive({interactionId:'many-'+n++,kind,content,reply:kind==='button'?{eventId:'INTERACTION_CREATE:reply-'+n}:{messageId:'reply-'+n}});const result=qq.tick();return JSON.parse(f.runtime.store.get('SELECT message_options_json FROM operator_reply_plans WHERE delivery_id=?',result.deliveryId).message_options_json);};
   let buttons=click('command','/bugs');buttons=click('button',buttons.buttons.find(b=>b.label==='详情 1').token);buttons=click('button',buttons.buttons.find(b=>b.label==='Details 原文').token);let pages=1;
   while(buttons.buttons.some(b=>b.label==='下一条原文')){buttons=click('button',buttons.buttons.find(b=>b.label==='下一条原文').token);pages++;}
   assert.equal(pages,51);assert.equal(count(f.runtime.store,'operator_reply_plans'),53);
@@ -59,9 +70,19 @@ test('authenticated QQ interactions persist quickly before ACK, reject wrong act
   const f=await setup(t);const events=[];const source=new QQSource({kind:'group',sourceUri:binding.sourceUri,now:()=>Date.parse(f.clock()),operator:{receive:async request=>{events.push('persist');return f.qq.receive(request);}},api:{fetch:async(url)=>{if(String(url).endsWith('/app/getAppAccessToken'))return Response.json({access_token:'fixture-token',expires_in:7200});events.push('ack');return new Response(null,{status:204});}}});
   const host=f.runtime.ingress.sourceHost(scope,{secretKeys:source.manifest.permissions.secretKeys,getSecret:async key=>key==='QQ_OPERATOR_OPENID'?qqSecrets.QQ_RECIPIENT_OPENID:readSecret(key)});await source.start(host,new AbortController().signal);
   const request={deliveryId:'00000000-0000-4000-a000-000000000001',projectId:binding.projectId,recipientRef:'developer',reportId:f.report.reportId,reportRevision:1};const token=f.qq.navigationTokens(request)[0];
-  const callback={op:0,t:'INTERACTION_CREATE',d:{id:'button-event',scene:'c2c',user_openid:qqSecrets.QQ_RECIPIENT_OPENID,data:{type:11,resolved:{button_data:token}}}};
+  const callback={op:0,id:'INTERACTION_CREATE:outer-event',t:'INTERACTION_CREATE',d:{id:'button-event',scene:'c2c',user_openid:qqSecrets.QQ_RECIPIENT_OPENID,data:{type:11,resolved:{button_data:token}}}};
   try{
-    assert.equal((await source.handleWebhook(...signed(callback,f.clock))).statusCode,200);assert.deepEqual(events,['persist','ack']);assert.equal(f.runtime.store.get("SELECT state FROM operator_inbox").state,'pending');
+    assert.equal((await source.handleWebhook(...signed(callback,f.clock))).statusCode,200);assert.deepEqual(events,['persist','ack']);assert.equal(f.runtime.store.get("SELECT state FROM operator_inbox").state,'pending');assert.equal(JSON.parse(f.runtime.store.get('SELECT request_json FROM operator_inbox').request_json).reply.eventId,callback.id);
+    assert.equal((await source.handleWebhook(...signed(callback,f.clock))).statusCode,200);assert.deepEqual(events,['persist','ack','persist']);
+    assert.equal((await source.handleWebhook(...signed({...callback,id:'INTERACTION_CREATE:other-transport'},f.clock))).statusCode,200);assert.deepEqual(events,['persist','ack','persist','persist']);assert.equal(JSON.parse(f.runtime.store.get('SELECT request_json FROM operator_inbox').request_json).reply.eventId,callback.id);
     await source.handleWebhook(...signed({...callback,d:{...callback.d,id:'group-forgery',scene:'group',group_openid:qqSecrets.QQ_SCOPE_ID}},f.clock));await source.handleWebhook(...signed({...callback,d:{...callback.d,id:'actor-forgery',user_openid:'other-user'}},f.clock));assert.equal(count(f.runtime.store,'operator_inbox'),1);assert.equal(count(f.runtime.store,'source_events'),1);
+  }finally{await source.stop();}
+});
+
+test('C2C msg_idx separates control commands sharing msg_id and allocates distinct passive reply sequences',async t=>{
+  const f=await setup(t);const source=new QQSource({kind:'group',sourceUri:binding.sourceUri,now:()=>Date.parse(f.clock()),operator:{receive:r=>Promise.resolve(f.qq.receive(r))}});
+  const host=f.runtime.ingress.sourceHost(scope,{secretKeys:source.manifest.permissions.secretKeys,getSecret:key=>key==='QQ_OPERATOR_OPENID'?Promise.resolve(qqSecrets.QQ_RECIPIENT_OPENID):readSecret(key)});await source.start(host,new AbortController().signal);
+  try{for(const index of ['one','two','one']){const callback={op:0,t:'C2C_MESSAGE_CREATE',d:{id:'same-msg-id',author:{user_openid:qqSecrets.QQ_RECIPIENT_OPENID},content:'/bugs',message_scene:{ext:[`msg_idx=${index}`,'auth_token=not-for-core']}}};assert.equal((await source.handleWebhook(...signed(callback,f.clock))).statusCode,200);f.qq.tick();}
+    assert.equal(count(f.runtime.store,'operator_inbox'),2);const plans=f.runtime.store.all('SELECT message_options_json FROM operator_reply_plans ORDER BY rowid').map(p=>JSON.parse(p.message_options_json));assert.deepEqual(plans.map(p=>p.replyTo.sequence),[1,2]);assert.ok(plans.every(p=>p.replyTo.messageId==='same-msg-id'));assert.equal(JSON.stringify(f.runtime.store.all('SELECT request_json FROM operator_inbox')).includes('not-for-core'),false);
   }finally{await source.stop();}
 });

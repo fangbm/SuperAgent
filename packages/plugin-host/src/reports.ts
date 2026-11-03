@@ -16,8 +16,8 @@ export class ReportDeliveryCoordinator {
         if(['unknown','manual_review'].includes(result.state)){this.finish(plan,result.state);return{prepared:0};}
         if(result.state==='blocked'){
           const error=result.result?.errorCode;let stage:number|undefined;
-          if(plan.stage<2&&['QQ_API_40034127','QQ_API_40034011'].includes(error??''))stage=2;
-          else if(plan.stage===0&&['QQ_API_40034106','QQ_API_40034029'].includes(error??''))stage=1;
+          if(plan.stage<2&&['QQ_API_40034127','QQ_API_40034011','QQ_API_304036'].includes(error??''))stage=2;
+          else if(plan.stage===0&&['QQ_API_40034106','QQ_API_40034029','QQ_API_304037'].includes(error??''))stage=1;
           if(stage===undefined){this.finish(plan,'blocked');return{prepared:0};}
           this.store.run('UPDATE report_delivery_plans SET stage=?,operation_id=NULL WHERE plan_id=?',stage,plan.plan_id);plan.stage=stage;plan.operation_id=null;
         }else return{prepared:0};
@@ -44,7 +44,7 @@ export class ReportDeliveryCoordinator {
   enqueueReplies(projectId:string,recipientRef:string):number{
     return this.store.transaction(()=>{const rows=this.store.all<{delivery_id:string;request_json:string}>('SELECT delivery_id,request_json FROM operator_reply_plans WHERE project_id=? AND recipient_ref=? AND operation_id IS NULL ORDER BY rowid LIMIT 20',projectId,recipientRef);for(const row of rows){const id=this.delivery.enqueue(JSON.parse(row.request_json) as DeliveryRequestV1,'interaction');this.store.run('UPDATE operator_reply_plans SET operation_id=? WHERE delivery_id=?',id,row.delivery_id);}return rows.length;});
   }
-  messageOptions(deliveryId:string):{format?:'markdown'|'text';replyTo?:{messageId?:string;eventId?:string;sequence:number};buttons?:readonly {label:string;token:string}[]}{
+  messageOptions(deliveryId:string):{format?:'markdown'|'text';replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[]}{
     const reply=this.store.get<{message_options_json:string}>('SELECT message_options_json FROM operator_reply_plans WHERE delivery_id=?',deliveryId);if(reply)return JSON.parse(reply.message_options_json) as ReturnType<ReportDeliveryCoordinator['messageOptions']>;
     const report=this.store.get<{options_json:string}>('SELECT options_json FROM report_delivery_requests WHERE delivery_id=?',deliveryId);return report?JSON.parse(report.options_json) as {format:'markdown'|'text'}:{};
   }
