@@ -47,6 +47,8 @@ Webhook 回调路径 `/qq/events`，健康路径 `/health`。脚本仅监听 `12
 
 Source 脚本每秒推进已有 M1 admission/buffer；真实模型分析另运行已配置的 `worker:m3`，可使用同一 SQLite 数据库。退出时停止 admission、关闭 HTTP 并释放数据库。Windows 强制结束场景按崩溃恢复处理。
 
+2026-11-03 已在真实用户群收到普通 `GROUP_MESSAGE_CREATE`，真实等待默认 120 秒最长窗口后合批并完成模型调用；验收群也验证了 60 秒静默合批。真实用户群绑定单独存于 `.artifacts/qq-user-group-20261103.dpapi`，`.artifacts/qq-config.dpapi` 仍属于此前验收群，启动时须明确选择。当前监听是临时验收，已关闭；原文与计数修订问题见 [主链路验收](QQ-MAINFLOW-ACCEPTANCE.md)。
+
 ## 私聊投递
 
 ```powershell
@@ -65,6 +67,8 @@ pnpm qq:send-test --database .artifacts/qq.sqlite --project game-01 --send
 发送前原子写 intent、请求快照和尝试记录；终态与本地映射原子提交。权限拒绝为 blocked；超时、5xx、响应损坏、未知业务码、发送进程崩溃为 unknown，不盲目重试、不自动切换格式。只有已证实消息 POST 尚未发生的认证失败才 safe_retry，最多三次；当前没有假设 QQ 提供可靠的主动消息请求幂等或查询接口。错误只记代码，不输出平台原始错误、Token、OpenID。
 
 ## 接口依据
+
+2026-11-03 按用户指定的 API v2 官方文档重新核对了 ACK、外层回复事件 ID、业务错误码、消息索引去重和频道 intents。修正清单、本地协议联测与真实证据边界见 [QQ 文档核对](QQ-PROTOCOL-AUDIT-2026-11-03.md)。M5 查询回复缺失被动上下文时会阻止发送，不转主动消息。
 
 见 [QQ 验收记录](QQ-ACCEPTANCE.md)。真实账号权限、HTTPS 回调可达性和客户端实际送达必须单独记录；本地 HTTP 模拟和认证成功都不能替代这些证据。
 

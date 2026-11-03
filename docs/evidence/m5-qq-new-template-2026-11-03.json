@@ -1,0 +1,195 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "templateCommit": "052310a",
+  "project": "m3-live-acceptance",
+  "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+  "revision": 1,
+  "dataProvenance": "previous_M3_synthetic_source_acceptance_data",
+  "initialBodyPreview": {
+    "acceptedAt": "2026-11-03T03:16:05.318Z",
+    "attempts": 1,
+    "state": "succeeded",
+    "nativeKeyboard": false,
+    "userFeedback": "buttons_missing",
+    "cause": "temporary_preview_script_omitted_presentation_and_navigationTokens"
+  },
+  "correctedPreview": {
+    "startedAt": "2026-11-03T03:20:28.267Z",
+    "finishedAt": "2026-11-03T03:22:23.046Z",
+    "maximumReportAttempts": 1,
+    "maximumQueryAttempts": 3,
+    "reportAttempts": 1,
+    "queryAttempts": 3,
+    "pendingOperation": null,
+    "status": "finished",
+    "clientReceipt": "user_confirmed_report_buttons_list_details_original_normal",
+    "events": [
+      {
+        "at": "2026-11-03T03:20:29.915Z",
+        "phase": "report_attempt",
+        "operationId": "external-312314f38c856cc6b752a2b8267bd9cee77d417d06ad257755fb7d61d64a83ce"
+      },
+      {
+        "at": "2026-11-03T03:20:31.355Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": false
+      },
+      {
+        "at": "2026-11-03T03:20:31.363Z",
+        "phase": "report_result",
+        "operationId": "external-312314f38c856cc6b752a2b8267bd9cee77d417d06ad257755fb7d61d64a83ce",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:20:31.364Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T03:35:28.269Z",
+        "remainingQueries": 3
+      },
+      {
+        "at": "2026-11-03T03:20:31.365Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:20:31.367Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:20:31.623Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:20:31.731Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:20:31.881Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:20:32.075Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:21:51.610Z",
+        "phase": "query_attempt",
+        "operationId": "external-8456dfccfd714c3ceecdaab6a02aa7d2207e45aae695bc6c30469e29badd0d5f",
+        "attempt": 1
+      },
+      {
+        "at": "2026-11-03T03:21:51.868Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:21:52.969Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "详情 1",
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:21:52.978Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:22:15.308Z",
+        "phase": "query_attempt",
+        "operationId": "external-f627fa893be7425449d280800e770eb650a8330ab5134c5c9d1c8495ac03e69c",
+        "attempt": 2
+      },
+      {
+        "at": "2026-11-03T03:22:16.350Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:22:16.844Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看原文"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:22:16.852Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:22:22.118Z",
+        "phase": "query_attempt",
+        "operationId": "external-c7fd1bbb7d7af6576fc3fcc7434f556863027383e9230b567ebb7ad623041dd1",
+        "attempt": 3
+      },
+      {
+        "at": "2026-11-03T03:22:22.402Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:22:23.022Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "下一条原文"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:22:23.028Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:22:23.046Z",
+        "phase": "closed",
+        "cancelledPending": 0,
+        "queryAttempts": 3
+      }
+    ]
+  },
+  "localChecks": {
+    "command": "node --test tests/integration/qq-presentation.test.mjs tests/integration/m5-qq.test.mjs tests/integration/qq-delivery.test.mjs",
+    "passed": 26
+  },
+  "githubWrites": 0,
+  "domainStatusWrites": 0
+}

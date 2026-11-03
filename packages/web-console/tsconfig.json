@@ -1,0 +1,1 @@
+{"extends":"../../tsconfig.base.json","compilerOptions":{"rootDir":"src","outDir":"dist","types":["node"]},"references":[{"path":"../contracts"},{"path":"../control-plane"},{"path":"../reporting"}],"include":["src/**/*.ts"]}

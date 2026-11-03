@@ -1,0 +1,142 @@
+{
+  "date": "2026-11-03",
+  "recordedAt": "2026-11-03T07:51:58.508087+00:00",
+  "baselineCommit": "8622d6e",
+  "status": "local_M6_acceptance_passed",
+  "environment": {
+    "os": "Windows",
+    "timezone": "Asia/Shanghai",
+    "database": "temporary file SQLite; multiple connections",
+    "network": "loopback HTTP and simulated WebSocket; dependency audit registry access"
+  },
+  "checks": {
+    "pnpm test:m6": {
+      "exitCode": 0,
+      "tests": 73,
+      "passed": 73,
+      "failed": 0
+    },
+    "pnpm check": {
+      "exitCode": 0,
+      "nodeTests": 215,
+      "passed": 215,
+      "failed": 0,
+      "referenceSuites": 6,
+      "frozenFiles": 45,
+      "typeChecks": true,
+      "privateWorkspaceBoundaries": true
+    },
+    "pnpm audit --prod --json": {
+      "exitCode": 0,
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0
+      },
+      "dependencies": 10,
+      "devDependencies": 0,
+      "optionalDependencies": 0,
+      "totalDependencies": 10
+    },
+    "pnpm audit --json": {
+      "exitCode": 0,
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0
+      },
+      "dependencies": 10,
+      "devDependencies": 24,
+      "optionalDependencies": 0,
+      "totalDependencies": 34
+    }
+  },
+  "newTests": {
+    "tests/fault-injection/external-writes.test.mjs": [
+      "M6 real local HTTP auth throttling retries within budget without dispatching a QQ message",
+      "M6 real local HTTP send-body timeout becomes unknown and restart never replays POST",
+      "M6 QQ permission loss after authentication blocks once without format fallback",
+      "M6 changing a durable recipient binding blocks an already prepared delivery before network access",
+      "M6 two SQLite connections claim one send and ignore a late accepted result after Host timeout",
+      "M6 GitHub recovery cannot alter QQ or another repository lease",
+      "M6 model HTTP 429 preserves incoming events, then resumes the same batch without duplicate effects",
+      "M6 model permission loss is not retried and leaves durable source evidence intact"
+    ],
+    "tests/fault-injection/gateway.test.mjs": [
+      "M6 gateway flood closes at its bounded queue and replays only after the last durable commit",
+      "M6 duplicate and old gateway sequences cannot be dispatched twice",
+      "M6 shutdown waits for an active durable dispatch and validates dispatch limits"
+    ],
+    "tests/fault-injection/security.test.mjs": [
+      "M6 access-key rotation revokes existing HTTP sessions while an unchanged key preserves them",
+      "M6 repeated failed HTTP logins are throttled without exposing key material",
+      "M6 browser writes reject cross-origin, spoofed Host and oversized JSON before authentication succeeds",
+      "M6 signed cursors remain bound to actor, project, revision and expiry after permission changes",
+      "M6 QQ prompt injection stays untrusted data and raw platform identifiers never enter the model",
+      "M6 credentialed QQ, GitHub and model requests refuse redirects to a second server"
+    ]
+  },
+  "fixes": [
+    {
+      "id": "M6-001",
+      "finding": "Unbounded pending gateway dispatches under a slow durable commit",
+      "resolution": "Default 256 pending dispatches; disconnect, drain active commit, resume from durable sequence",
+      "path": "packages/connectors/qq-official/src/gateway.ts"
+    },
+    {
+      "id": "M6-002",
+      "finding": "Delivery checked recipient binding only at construction",
+      "resolution": "Recheck persisted binding and current authorization before invoking send",
+      "path": "packages/plugin-host/src/index.ts"
+    },
+    {
+      "id": "M6-003",
+      "finding": "GitHub Sync recovered expired leases outside its repository and service",
+      "resolution": "Restrict recovery to payload operations belonging to its repository",
+      "path": "packages/issue-tracker/src/index.ts"
+    },
+    {
+      "id": "M6-004",
+      "finding": "Existing Web sessions survived access key rotation",
+      "resolution": "Update account and revoke its sessions transactionally when access hash changes",
+      "path": "packages/control-plane/src/auth.ts"
+    }
+  ],
+  "compatibility": {
+    "newMigrations": 0,
+    "frozenFilesChanged": 0,
+    "sdkChanged": false,
+    "defaultsChanged": false,
+    "packagesRemainPrivate": true
+  },
+  "verificationBoundary": {
+    "realPlatformFaultInjection": false,
+    "newRealQQMessages": 0,
+    "testGitHubWrites": 0,
+    "actualChildProcessTermination": true,
+    "multiConnectionSQLite": true,
+    "simulatedGateway": true,
+    "realLoopbackHTTP": true,
+    "realUserClientVerificationThisRound": false,
+    "longRunningLoadTest": false,
+    "externalPenetrationAudit": false
+  },
+  "notDelivered": [
+    "M4 Discord/Steam collection",
+    "P0 scheduling",
+    "full-group QQ entitlement",
+    "production retention-policy decisions",
+    "real-platform fault injection",
+    "multi-host or long-duration load acceptance"
+  ],
+  "logSha256": {
+    "m6-full-check.log": "07a8d860f5ab536c5d2fa9f8c11daf06aac8e4b5508c2c57670e060d05976d26",
+    "m6-focused-check.log": "e4ec117c07b75be60f8421d22e23d83f7b59381681aa08d4baa2ac35a66205a1",
+    "m6-dependency-audit.json": "9396afc00ebd6cd834e25e8eb97d1efb1407b029eab9797cf4fb42453e274b33",
+    "m6-dependency-audit-all.json": "2445a58581df4b2eb1362d3dd40fba5dbeda0052f1f4796646905d58ecaacfce"
+  }
+}

@@ -48,6 +48,15 @@
     },
     {
       "path": "packages/connectors/steam-reviews"
+    },
+    {
+      "path": "packages/reporting"
+    },
+    {
+      "path": "packages/control-plane"
+    },
+    {
+      "path": "packages/web-console"
     }
   ]
 }
