@@ -10,6 +10,8 @@ This is a deployment guide, not activation. It uses the existing SuperAgent runt
 - `.artifacts/`, SQLite files, and secret paths are excluded from Git by the repo ignore rules and Docker context rules. Keep copied archives private and transfer them over an encrypted channel. Never attach raw archives or tokens to tickets, chat, or Git.
 - Use one writer. Stop the old collector before starting this bot; do not run old and new collectors against the same Discord channels at once.
 
+Main integration preserves migrations 001–011 and adds `012_source_privacy_policy.sql` and `013_community_lifecycle.sql`. A stopped archive from schema 8 or current main's schema 11 upgrades normally after backup. Earlier unreleased bot drafts used different 009/010 migrations; those development databases intentionally fail the migration-history check. Do not edit their ledger or rename applied migrations. Use the validated pre-bot archive for the handoff; no live bot archive from those drafts exists in this deployment.
+
 ## Windows setup
 
 From the repository root in PowerShell, create local directories and the token file:

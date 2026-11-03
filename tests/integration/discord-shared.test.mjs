@@ -160,8 +160,9 @@ test('private channel resolution archives only registered tickets without a seco
   f.runtime.ingress.registerSource(binding);
   f.runtime.ingress.setSourcePolicy(scope, { visibility: 'staff', processingMode: 'archive_only' });
   const host = f.runtime.ingress.sourceHost(scope, { secretKeys: ['DISCORD_BOT_TOKEN'], getSecret: async () => 'synthetic-token' });
-  let ids = [];
+  let ids = []; let privateHistory = [];
   const fetch = async url => {
+    if (new URL(url).pathname === '/api/v10/channels/400/messages') return Response.json(privateHistory);
     if (new URL(url).pathname === '/api/v10/channels/400') return Response.json({ id: '400', guild_id: '100', type: 0,
       permission_overwrites: [{ id: '100', type: 0, allow: '0', deny: '1024' }, { id: '999', type: 1, allow: '66560', deny: '0' }] });
     return publicFetch()(url);
@@ -173,11 +174,20 @@ test('private channel resolution archives only registered tickets without a seco
   ids = ['400'];
   const packet = { type: 'MESSAGE_CREATE', sequence: 2, sessionId: 'shared', receivedAt: '2026-11-03T00:00:00.000Z',
     data: { ...nativeFixture('discord-message'), channel_id: '400' } };
+  const failingHost = { ...host, commitBatch: async () => { throw new Error('Injected private commit failure'); } };
+  await assert.rejects(connector.consumeDispatch(failingHost, packet, signal()), /Injected private commit failure/);
+  assert.equal(await host.getCheckpoint(), null);
   await connector.consumeDispatch(host, packet, signal()); await connector.consumeDispatch(host, packet, signal());
+  privateHistory = [{ ...packet.data }]; delete privateHistory[0].guild_id;
+  await connector.sync(host, signal());
+  const restarted = new DiscordConnector({ sourceUri: binding.sourceUri, guildId: '100', channelIds: [] }, {
+    channelResolver: async () => ids, fetch, webSocket: () => { assert.fail('Private collector must not open Gateway'); },
+  });
+  await restarted.sync(host, signal());
   await connector.consumeDispatch(host, { ...packet, sequence: 3, data: { ...packet.data, channel_id: '500' } }, signal());
   assert.equal(f.runtime.store.get('SELECT count(*) n FROM source_events WHERE source_id=?', scope.sourceId).n, 1);
   assert.equal(f.events(f.runtime).length, 0);
   assert.equal(f.runtime.tick().admitted, 0);
   assert.throws(() => connector.start(host, signal()), /UNSUPPORTED_CAPABILITY/);
-  await connector.stop();
+  await connector.stop(); await restarted.stop();
 });

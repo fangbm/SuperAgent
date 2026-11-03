@@ -93,8 +93,8 @@ test('lease acquisition is durable, expires, and fences stale owners from takeov
 });
 
 test('invalid lease arguments are rejected without changing the current owner', t => {
-  const { runtime } = fixture(t);
-  const state = new DurableCommunityState(runtime.store, 'guild:invalid-lease');
+  const { runtime, clock } = fixture(t);
+  const state = new DurableCommunityState(runtime.store, 'guild:invalid-lease', { clock });
   assert.equal(state.acquireLease('owner', 10), true);
   assert.throws(() => state.acquireLease('', 10), /INVALID_COMMUNITY_LEASE/);
   assert.throws(() => state.acquireLease('other', 0), /INVALID_COMMUNITY_LEASE/);

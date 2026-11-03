@@ -23,7 +23,7 @@ function fixture(t) {
     projectId: 'idle-abyss-princesses-private', sourceId: 'discord-community-private',
     async commitBatch(input) { events.push(...jsonClone(input)); return { refs: input.map((_, index) => ({ eventId: `private-event-${events.length - input.length + index + 1}` })) }; },
   };
-  const channels = new Map(); const messages = new Map(); let registeredCommands = []; let flushWait;
+  const channels = new Map(); const messages = new Map(); let registeredCommands = []; let flushWait; let canManageRoles = true;
   const api = {
     async request(method, route, body) {
       calls.push({ method, route, body: body && jsonClone(body) });
@@ -47,6 +47,7 @@ function fixture(t) {
         list.unshift(item); messages.set(channelId, list); return jsonClone(item);
       }
       if (route.startsWith('/channels/') && route.includes('/permissions/')) {
+        if (!canManageRoles) throw new Error('PERMISSION_DENIED');
         const [, , channelId, , userId] = route.split('/');
         const channel = channels.get(channelId);
         channel.permission_overwrites = channel.permission_overwrites.filter(item => !(item.id === userId && Number(item.type) === 1));
@@ -68,7 +69,8 @@ function fixture(t) {
   };
   const community = new DiscordCommunity(config, host, api);
   t.after(() => { db.clear(); events.length = 0; });
-  return { community, host, state, events, calls, channels, messages, setNow(value) { now = value; }, setFlushWait(value) { flushWait = value; }, api };
+  return { community, host, state, events, calls, channels, messages, setNow(value) { now = value; }, setFlushWait(value) { flushWait = value; },
+    setCanManageRoles(value) { canManageRoles = value; }, api };
 }
 
 const packet = (interaction, sequence = 1) => ({ type: 'INTERACTION_CREATE', sequence, sessionId: 'session', receivedAt: '2026-11-03T00:00:00.000Z', data: interaction });
@@ -131,6 +133,39 @@ test('one-open-ticket reservation and staff role checks guard ticket lifecycle a
   const closePermission = f.calls.find(call => call.method === 'PUT' && call.route.endsWith('/permissions/701'));
   assert.ok((BigInt(closePermission.body.deny) & 2048n) !== 0n);
   assert.ok((BigInt(closePermission.body.deny) & (1n << 35n)) !== 0n);
+});
+
+test('ticket overwrite 403s leave close/add/remove operations retryable after MANAGE_ROLES is restored', async t => {
+  const f = fixture(t); const signal = new AbortController().signal;
+  await f.community.handleDispatch(packet(modal('9111', '701')), signal); await f.community.tick(signal);
+  const ticket = await f.state.get('ticket:9111');
+  const command = (id, name, member) => ({ id, application_id: ids.bot, token: `token-${id}`, type: 2, guild_id: ids.guild, channel_id: ticket.channelId,
+    member: { user: { id: ids.staff }, roles: [ids.staff] }, data: { name: 'ticket', options: [{ type: 1, name,
+      ...(member ? { options: [{ type: 6, name: 'member', value: member }] } : {}) }] } });
+  const requesterOverwrite = () => f.channels.get(ticket.channelId).permission_overwrites.find(item => item.id === '701');
+
+  f.setCanManageRoles(false);
+  await f.community.handleDispatch(packet(command('9112', 'close')), signal);
+  await assert.rejects(f.community.tick(signal), /PERMISSION_DENIED/);
+  assert.equal((await f.state.get('ticket:9111')).status, 'closed');
+  assert.ok(BigInt(requesterOverwrite().allow) & 2048n, 'failed close did not apply its overwrite');
+  f.setCanManageRoles(true); await f.community.tick(signal);
+  assert.equal(BigInt(requesterOverwrite().allow) & 2048n, 0n);
+  assert.ok(BigInt(requesterOverwrite().deny) & 2048n);
+
+  f.setCanManageRoles(false);
+  await f.community.handleDispatch(packet(command('9113', 'add', '716')), signal);
+  await assert.rejects(f.community.tick(signal), /PERMISSION_DENIED/);
+  assert.equal((await f.state.get('ticket:9111')).pendingAccess[0].action, 'add');
+  f.setCanManageRoles(true); await f.community.tick(signal);
+  assert.ok(f.channels.get(ticket.channelId).permission_overwrites.some(item => item.id === '716'));
+
+  f.setCanManageRoles(false);
+  await f.community.handleDispatch(packet(command('9114', 'remove', '716')), signal);
+  await assert.rejects(f.community.tick(signal), /PERMISSION_DENIED/);
+  assert.equal((await f.state.get('ticket:9111')).pendingAccess[0].action, 'remove');
+  f.setCanManageRoles(true); await f.community.tick(signal);
+  assert.equal(f.channels.get(ticket.channelId).permission_overwrites.some(item => item.id === '716'), false);
 });
 
 test('ticket deletion checks existence before final flush and recovers accepted unknown delete without flushing a missing channel', async t => {

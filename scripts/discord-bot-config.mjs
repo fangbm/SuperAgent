@@ -36,8 +36,8 @@ export function readBotSecret(name, env = process.env) {
 
 export function botInstallUrl(applicationId, guildId) {
   if (!id(applicationId) || !id(guildId)) throw new Error('INVALID_CONFIG: application/guild ID');
-  // No Administrator, role management, audio capture or direct-message permissions.
-  const permissions = 16n | 1024n | 2048n | 16384n | 65536n | (1n << 20n) | (1n << 24n) | (1n << 34n) | (1n << 38n);
+  // MANAGE_ROLES is required for channel permission overwrites; no role CRUD or assignment is used.
+  const permissions = 16n | 1024n | 2048n | 16384n | 65536n | (1n << 20n) | (1n << 24n) | (1n << 28n) | (1n << 34n) | (1n << 38n);
   const url = new URL('https://discord.com/oauth2/authorize');
   url.search = new URLSearchParams({ client_id: applicationId, scope: 'bot applications.commands', permissions: permissions.toString(),
     guild_id: guildId, disable_guild_select: 'true' }).toString();

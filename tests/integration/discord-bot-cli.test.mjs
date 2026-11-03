@@ -44,6 +44,7 @@ test('bot config and installation link are offline, scoped and never request Adm
   assert.equal(url.searchParams.get('guild_id'), c.guildId);
   assert.equal(url.searchParams.get('disable_guild_select'), 'true');
   assert.equal(BigInt(url.searchParams.get('permissions')) & 8n, 0n);
+  assert.ok(BigInt(url.searchParams.get('permissions')) & (1n << 28n), 'channel overwrite endpoints require MANAGE_ROLES');
 });
 
 test('missing bot credentials do not create or migrate an archive', async t => {

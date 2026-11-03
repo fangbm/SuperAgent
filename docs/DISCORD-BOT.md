@@ -18,7 +18,7 @@ pnpm discord:bot --config community/idle-abyss-princesses/bot-config.json --chec
 pnpm discord:bot --config community/idle-abyss-princesses/bot-config.json --install-url --application-id YOUR_APPLICATION_ID
 ```
 
-The installation URL is locked to this guild. It requests message/history/thread access, channel management and Connect/Move Members, without Administrator or role management. Developer/Moderator role assignments remain manual. The runner accepts either `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE`, rejecting simultaneous configuration.
+The installation URL is locked to this guild. It requests message/history/thread access, channel management, Connect/Move Members, and `MANAGE_ROLES`, without Administrator. Discord requires `MANAGE_ROLES` for channel permission overwrite endpoints used to close tickets and manage ticket participants; the bot uses it only for those channel overwrites and does not create, edit, or assign guild roles. Developer/Moderator role assignments remain manual. The runner accepts either `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE`, rejecting simultaneous configuration.
 
 On the friend PC, place the stopped archive and token first. Run the explicit `--setup` command to resolve existing roles/categories, provision the ticket entry/private category/voice lobby, register guild commands, and publish bilingual panels. It backfills those setup messages before reporting completion. Stop an existing bot before rerunning setup; resource creation reconciles previous uncertain attempts.
 
@@ -50,6 +50,8 @@ Controller leases fence old writers. Ticket/room lifecycle records reconcile unc
 
 ## Verification and live checklist
 
-Frozen install and `pnpm check` pass: **209 Node tests, six Python suites**, build/typecheck, package boundaries and the 45-file freeze. Coverage includes real Host ticket replay/isolation, shared Gateway ACK ordering/split replay, dynamic private capture, permission changes, lifecycle races, unknown outcomes, lease fencing and WAL-safe backups.
+After integration with current M5/M6 main, frozen install and `pnpm check` pass: **295 Node tests, six Python suites**, build/typecheck, package boundaries and the 45-file freeze. Coverage includes real Host ticket replay/isolation, shared Gateway ACK ordering/split replay, Gateway/REST reconciliation, dynamic private capture, permission changes/403 recovery, lifecycle races, unknown outcomes, lease fencing, schema 8/11 upgrades and WAL-safe backups. See [PR integration review](PR-INTEGRATION-REVIEW.md).
+
+Ambiguous channel creation can require operator reconciliation if a marker lookup finds no channel, including a crash after persisting `creating` but before sending POST. The bot preserves archived submissions and avoids an unsafe duplicate create; it does not promise automatic completion of an unknown external outcome.
 
 Before live acceptance, verify the actual bot's intent/permissions, use two ordinary accounts to test ticket isolation, create two voice parties, test host departure/empty cleanup, and restart the actual process to check archive recovery. Record live results separately. The friend PC must remain awake and connected.
