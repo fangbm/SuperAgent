@@ -42,7 +42,9 @@ pnpm start:m5 --database .artifacts/local.sqlite --project my-game --qq-configur
 
 QQ 使用已绑定开发者 OpenID，控制请求不进入玩家反馈。支持三栏目导航、详情、未改写原文的逐段分页，以及 `/reports`、`/bugs`、`/suggestions`、`/steam-negative`、`/open TOKEN`。按钮使用不透明令牌并绑定操作者、项目与修订；回调持久入队后 ACK，耗时处理另行进行。Gateway 的 intents 变化会使旧 Resume 会话失效并重新 Identify。
 
-原文页使用带分页键盘的字面 Markdown；数据库和请求中的原文不变，发送层转义格式字符。正常正文不展开长 `/open` 指令，令牌只放在按钮数据和客户端不兼容提示中。
+发送样式由 [原始 Markdown 模板](../packages/reporting/templates/qq/README.md)定义：半日报先展示本期统计，列表突出条目，详情突出中文状态，原文独立展示。时间为北京时间，按钮全部中文。原文页的字面转义在展示层完成，数据库原文和旧投递请求不改写；正常正文不展开长 `/open` 指令。
+
+运行 `pnpm preview:qq` 可生成六种消息的填充示例和离线排版预览，不发送任何 QQ 消息。新模板用 Host 私有选项避免重复标题，旧记录继续使用原选项。新样式尚未追加 QQ 客户端验收；之前的真实链路和分页证据仍按原版本留档。
 
 报告只在已知、明确的格式拒绝下逐级降级为无键盘 Markdown 或纯文本命令。超时、连接中断或崩溃后的 unknown 保持未知，不重发。accepted 仅为 API 受理；实际送达必须另有客户端确认。按钮回调和原文回复需要真实平台权限，模拟成功不证明该账号已开通。
 

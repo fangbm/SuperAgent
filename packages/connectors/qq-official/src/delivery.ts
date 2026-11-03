@@ -14,7 +14,7 @@ export interface QQDeliveryOptions {
   api?: QQAPIOptions;
   /** Host-issued opaque, authenticated navigation tokens. */
   navigationTokens?: (request: DeliveryRequestV1) => Promise<readonly string[]>;
-  messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text';literalText?:boolean}>;
+  messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean}>;
 }
 export class QQC2CDelivery implements DeliveryPluginV1 {
   readonly manifest = deliveryManifest;
@@ -39,10 +39,10 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
     if (request.projectId !== this.options.projectId || request.recipientRef !== this.options.recipientRef) return { status: 'blocked', errorCode: 'QQ_RECIPIENT_NOT_AUTHORIZED' };
     let dispatched = false;
     try {
-      const content = `${request.title}\n\n${request.text}`;
+      const custom = this.options.messageOptions ? await this.options.messageOptions(request) : {};
+      const content = custom.bodyIncludesTitle?request.text:`${request.title}\n\n${request.text}`;
       // Never silently truncate a report or split it into an untracked set of sends.
       if (!content.trim() || content.length > 3500) return { status: 'rejected', errorCode: 'QQ_CONTENT_LIMIT' };
-      const custom = this.options.messageOptions ? await this.options.messageOptions(request) : {};
       if(custom.requireReplyContext&&!custom.replyTo)return{status:'blocked',errorCode:'QQ_REPLY_CONTEXT_REQUIRED'};
       const markdown = (custom.format ?? this.options.format) !== 'text';
       const payload: Record<string, unknown> = markdown ? { msg_type: 2, markdown: { content:custom.literalText?literalMarkdown(content):content } } : { msg_type: 0, content };

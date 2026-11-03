@@ -105,6 +105,8 @@ JSON 校验只能证明结构符合约定。Host 仍须验证项目/来源归属
 ```powershell
 pnpm build
 pnpm demo:m5
+# 生成 QQ Markdown 示例与离线预览，不发送消息：
+pnpm preview:qq
 # 已有数据库；仅准备报告，不开启外部发送：
 pnpm start:m5 --database .artifacts/local.sqlite --project my-game
 ```

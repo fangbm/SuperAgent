@@ -5,6 +5,7 @@ import { QQC2CDelivery, QQSource } from '@superagent/qq-official';
 import { DurableDeliveryService, deliveryHost, ReportDeliveryCoordinator } from '@superagent/plugin-host';
 import { m5Fixture } from './m5-helpers.mjs';
 import { binding, scope, count, event } from './helpers.mjs';
+import { originalFromMarkdown } from './qq-markdown-helpers.mjs';
 import { fixtureAnswer } from './m3-helpers.mjs';
 import { qqSecrets, readSecret, signed } from './qq-helpers.mjs';
 
@@ -20,6 +21,7 @@ async function setup(t,options={}){
 test('report delivery renders three scoped navigation buttons, persists accepted once and never patches report',async t=>{
   const f=await setup(t);assert.equal(f.coordinator.prepare(binding.projectId,'developer').prepared,1);assert.equal((await f.service.tick({purpose:'report'})).state,'succeeded');f.coordinator.prepare(binding.projectId,'developer');
   assert.equal(f.requests.length,1);const buttons=f.requests[0].body.keyboard.content.rows[0].buttons;assert.equal(buttons.length,3);assert.ok(buttons.every(b=>b.action.data.length===43));assert.equal(f.runtime.store.get('SELECT status FROM deliveries').status,'accepted');
+  assert.equal(f.requests[0].body.markdown.content.match(/^# 社区反馈半日报$/gm).length,1);assert.ok(f.requests[0].body.markdown.content.startsWith('# 社区反馈半日报\n'));
   assert.equal((await f.service.tick()).processed,false);assert.equal(f.reports.getExact(binding.projectId,f.report.reportId,1).revision,1);
 });
 test('only definitive Markdown denial permits a durable plain-text fallback; unknown never does',async t=>{
@@ -31,21 +33,21 @@ test('QQ unknown reply send remains unknown and receives no format fallback or r
 });
 test('duplicate QQ command creates one reply and original queries use the frozen report revision',async t=>{
   const f=await setup(t);const one=f.receive('command-1','command','/suggestions');assert.equal(one.options.buttons.some(b=>b.label==='详情 1'),true);assert.equal(f.receive('command-1','command','/suggestions'),null);
-  const detail=f.receive('detail-1','button',one.options.buttons.find(b=>b.label==='详情 1').token);assert.match(detail.request.text,/candidate/);const accept=detail.options.buttons.find(b=>b.label==='Accept');assert.ok(accept);
+  const detail=f.receive('detail-1','button',one.options.buttons.find(b=>b.label==='详情 1').token);assert.match(detail.request.text,/待复核/);const accept=detail.options.buttons.find(b=>b.label==='接受建议');assert.ok(accept);
   f.receive('accept-1','button',accept.token);const work=f.control.listWorks(f.principal,binding.projectId,'suggestion')[0];assert.equal(work.status,'accepted');f.receive('accept-1','button',accept.token);assert.equal(count(f.runtime.store,'suggestion_status_history'),1);
   f.coordinator.enqueueReplies(binding.projectId,'developer');for(let i=0;i<3;i++)await f.service.tick({purpose:'interaction'});assert.equal(f.requests.length,3);assert.equal((await f.service.tick({purpose:'interaction'})).processed,false);
   for(const request of f.requests)for(const row of request.body.keyboard?.content.rows??[])for(const button of row.buttons)assert.deepEqual(button.action.permission,{type:2});
 });
 test('QQ original text is segmented without loss or broken emoji',async t=>{
-  const original='联机崩溃：'+'🙂'.repeat(3000);const f=await setup(t,{text:original});const section=f.receive('bugs','command','/bugs');const detail=f.receive('work','button',section.options.buttons.find(b=>b.label==='详情 1').token);let response=f.receive('evidence','button',detail.options.buttons.find(b=>b.label==='Details 原文').token);let recovered='';let n=0;
-  while(response){recovered+=response.request.text.split('\n\n')[1];assert.equal(response.options.format,'markdown');assert.equal(response.options.literalText,true);const next=response.options.buttons.find(b=>b.label==='Next 续文');if(!next)break;response=f.receive('more-'+(++n),'button',next.token);}
+  const original='联机崩溃：'+'🙂'.repeat(3000);const f=await setup(t,{text:original});const section=f.receive('bugs','command','/bugs');const detail=f.receive('work','button',section.options.buttons.find(b=>b.label==='详情 1').token);let response=f.receive('evidence','button',detail.options.buttons.find(b=>b.label==='查看原文').token);let recovered='';let n=0;
+  while(response){recovered+=originalFromMarkdown(response.request.text);assert.equal(response.options.format,'markdown');assert.equal(response.options.bodyIncludesTitle,true);const next=response.options.buttons.find(b=>b.label==='继续阅读');if(!next)break;response=f.receive('more-'+(++n),'button',next.token);}
   assert.equal(recovered,original);assert.equal(n,2);
 });
 
 test('original pages keep raw evidence but send literal Markdown with native pagination instead of visible open commands',async t=>{
   const original='多人联机90%崩溃\n# [原文](https://example.invalid)\n1. **不要改写** <qqbot-at-everyone /> C:\\game\n'+'🙂'.repeat(1500);
-  const f=await setup(t,{text:original});const section=f.receive('literal-list','command','/bugs'),detail=f.receive('literal-work','button',section.options.buttons.find(b=>b.label==='详情 1').token),page=f.receive('literal-page','button',detail.options.buttons.find(b=>b.label==='Details 原文').token);
-  const next=page.options.buttons.find(b=>b.label==='Next 续文');assert.ok(next);assert.equal(page.options.literalText,true);assert.ok(page.request.text.includes(Array.from(original).slice(0,1200).join('')));
+  const f=await setup(t,{text:original});const section=f.receive('literal-list','command','/bugs'),detail=f.receive('literal-work','button',section.options.buttons.find(b=>b.label==='详情 1').token),page=f.receive('literal-page','button',detail.options.buttons.find(b=>b.label==='查看原文').token);
+  const next=page.options.buttons.find(b=>b.label==='继续阅读');assert.ok(next);assert.equal(page.options.bodyIncludesTitle,true);assert.equal(originalFromMarkdown(page.request.text),Array.from(original).slice(0,1200).join(''));
   f.coordinator.enqueueReplies(binding.projectId,'developer');const operation=f.runtime.store.get('SELECT operation_id FROM operator_reply_plans WHERE delivery_id=?',page.request.deliveryId);assert.equal((await f.service.tick({purpose:'interaction',operationId:operation.operation_id})).state,'succeeded');
   const payload=f.requests[0].body;assert.equal(payload.msg_type,2);assert.equal(payload.content,undefined);assert.equal(payload.markdown.content.includes('/open '),false);assert.equal(payload.markdown.content.includes('操作命令'),false);assert.ok(payload.markdown.content.includes('\\# \\[原文\\]\\(https://example.invalid\\)'));assert.ok(payload.markdown.content.includes('\\*\\*不要改写\\*\\*'));assert.ok(payload.markdown.content.includes('\\<qqbot\\-at\\-everyone /\\>'));
   const buttons=payload.keyboard.content.rows.flatMap(r=>r.buttons);assert.ok(buttons.some(b=>b.action.data===next.token));assert.ok(buttons.every(b=>b.action.type===1));assert.ok(payload.markdown.content.length<=3500);
@@ -53,14 +55,14 @@ test('original pages keep raw evidence but send literal Markdown with native pag
 });
 
 test('QQ read-only operators can query frozen details and originals without receiving action tokens',async t=>{
-  const f=await setup(t);f.runtime.store.run("UPDATE operator_accounts SET role='reader' WHERE actor_ref='developer'");const section=f.receive('reader-bugs','command','/bugs');const detail=f.receive('reader-work','button',section.options.buttons.find(b=>b.label==='详情 1').token);assert.equal(detail.options.buttons.length,1);assert.match(detail.request.text,/当前状态/);const original=f.receive('reader-original','button',detail.options.buttons[0].token);assert.match(original.request.text,/联机/);assert.equal(count(f.runtime.store,'operator_commands'),0);
+  const f=await setup(t);f.runtime.store.run("UPDATE operator_accounts SET role='reader' WHERE actor_ref='developer'");const section=f.receive('reader-bugs','command','/bugs');const detail=f.receive('reader-work','button',section.options.buttons.find(b=>b.label==='详情 1').token);assert.equal(detail.options.buttons.length,1);assert.match(detail.request.text,/状态/);const original=f.receive('reader-original','button',detail.options.buttons[0].token);assert.match(original.request.text,/联机/);assert.equal(count(f.runtime.store,'operator_commands'),0);
 });
 
 test('C2C button replies use the outer event id rather than the interaction UUID or a new active send',async t=>{
   const f=await setup(t);const section=f.receive('passive-command','command','/bugs');const detailToken=section.options.buttons.find(b=>b.label==='详情 1').token;
   f.qq.receive({interactionId:'button:interaction-uuid',kind:'button',content:detailToken,reply:{eventId:'INTERACTION_CREATE:outer-event-id'}});f.qq.tick();f.coordinator.enqueueReplies(binding.projectId,'developer');
   await f.service.tick({purpose:'interaction'});await f.service.tick({purpose:'interaction'});assert.equal(f.requests.length,2);
-  const passive=f.requests.find(r=>r.body.msg_id==='passive-command'),button=f.requests.find(r=>r.body.event_id==='INTERACTION_CREATE:outer-event-id');assert.ok(passive);assert.ok(button);assert.equal(button.body.msg_id,undefined);assert.equal(button.body.msg_seq,1);assert.match(button.body.markdown.content,/当前状态/);
+  const passive=f.requests.find(r=>r.body.msg_id==='passive-command'),button=f.requests.find(r=>r.body.event_id==='INTERACTION_CREATE:outer-event-id');assert.ok(passive);assert.ok(button);assert.equal(button.body.msg_id,undefined);assert.equal(button.body.msg_seq,1);assert.match(button.body.markdown.content,/状态/);
 });
 
 test('missing passive reply context blocks before POST and cannot silently become an active message',async t=>{
@@ -72,7 +74,7 @@ test('QQ evidence navigation continues beyond fifty independent source objects w
   while((await f.worker.tick()).processed){}const report=f.generate();assert.equal(f.domain.getWork(binding.projectId,'defect',report.issueIds[0]).feedbackCount,51);
   const qq=new QQOperatorService(f.control,{projectId:binding.projectId,actorRef:'developer',recipientRef:'developer',clock:f.clock});let n=0;
   const click=(kind,content)=>{qq.receive({interactionId:'many-'+n++,kind,content,reply:kind==='button'?{eventId:'INTERACTION_CREATE:reply-'+n}:{messageId:'reply-'+n}});const result=qq.tick();return JSON.parse(f.runtime.store.get('SELECT message_options_json FROM operator_reply_plans WHERE delivery_id=?',result.deliveryId).message_options_json);};
-  let buttons=click('command','/bugs');buttons=click('button',buttons.buttons.find(b=>b.label==='详情 1').token);buttons=click('button',buttons.buttons.find(b=>b.label==='Details 原文').token);let pages=1;
+  let buttons=click('command','/bugs');buttons=click('button',buttons.buttons.find(b=>b.label==='详情 1').token);buttons=click('button',buttons.buttons.find(b=>b.label==='查看原文').token);let pages=1;
   while(buttons.buttons.some(b=>b.label==='下一条原文')){buttons=click('button',buttons.buttons.find(b=>b.label==='下一条原文').token);pages++;}
   assert.equal(pages,51);assert.equal(count(f.runtime.store,'operator_reply_plans'),53);
 });

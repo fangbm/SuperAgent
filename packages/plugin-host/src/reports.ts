@@ -2,6 +2,7 @@ import type { DeliveryRequestV1, ReportV2, JSONValue } from '@superagent/contrac
 import { canonicalJSON, SqliteStore, stableId, systemClock, timestamp } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
 import type { DurableDeliveryService } from './index.js';
+import { qqReport } from '@superagent/reporting';
 interface Plan {plan_id:string;project_id:string;report_id:string;revision:number;recipient_ref:string;stage:number;operation_id:string|null;created_at:string}
 function uuid(key:string):string{const h=stableId('uuid',key).slice(-32);return`${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20)}`;}
 export class ReportDeliveryCoordinator {
@@ -24,10 +25,9 @@ export class ReportDeliveryCoordinator {
       }
       const report=this.options.getReport(plan.project_id,plan.report_id,plan.revision);if(!report)throw new Error('SEALED_REPORT_NOT_FOUND');
       const deliveryId=uuid(plan.plan_id+':'+plan.stage);
-      const local=(v:string)=>new Date(Date.parse(v)+8*3_600_000).toISOString().slice(0,16).replace('T',' ');
-      const text=[`# 社区反馈半日报`,`北京时间 ${local(report.window.startInclusive)} — ${local(report.window.endExclusive)}`,`修订 ${report.revision} · 来源事件 ${report.uniqueSourceEventCount}`,`\nBug ${report.counts.uniqueDefects} · 建议 ${report.counts.uniqueSuggestions} · Steam 差评 ${report.steamNegativeReviews.length}`,`新反馈项 ${report.counts.newFeedbackItems} · 待分析 ${report.counts.pendingAnalysis}`,`\n覆盖：${report.coverage.filter(c=>c.status==='full').length}/${report.coverage.length} 个来源完整。仅统计已接入来源。`,...(plan.stage?['\n私聊命令：/bugs /suggestions /steam-negative /reports']:[])].join('\n');
+      const rendered=qqReport(report);const text=(plan.stage===2?rendered.plainText:rendered.text)+(plan.stage?'\n\n私聊命令：/bugs /suggestions /steam-negative /reports':'');
       const request:DeliveryRequestV1={deliveryId,idempotencyKey:`report-delivery:${plan.plan_id}:${plan.stage}`,projectId:plan.project_id,reportId:plan.report_id,reportRevision:plan.revision,recipientRef:plan.recipient_ref,title:'社区反馈半日报',text,requestedAt:plan.created_at,...(plan.stage===0?{presentation:{schemaVersion:'1.0',kind:'report_summary',format:'markdown',reportId:plan.report_id,revision:plan.revision,actions:[{kind:'report.open_section',section:'bugs',label:'查看 Bug'},{kind:'report.open_section',section:'suggestions',label:'查看建议'},{kind:'report.open_section',section:'steam_negative_reviews',label:'查看 Steam 差评'}]}}:{})};
-      this.store.run('INSERT INTO report_delivery_requests VALUES(?,?,?,?)',deliveryId,plan.plan_id,plan.stage,canonicalJSON({format:plan.stage===2?'text':'markdown'}));
+      this.store.run('INSERT INTO report_delivery_requests VALUES(?,?,?,?)',deliveryId,plan.plan_id,plan.stage,canonicalJSON({format:plan.stage===2?'text':'markdown',bodyIncludesTitle:plan.stage!==2}));
       const operationId=this.delivery.enqueue(request,'report');
       this.store.run('UPDATE report_delivery_plans SET operation_id=? WHERE plan_id=?',operationId,plan.plan_id);
       const existing=this.store.get('SELECT 1 FROM deliveries WHERE report_id=? AND channel=? AND recipient_ref=?',plan.report_id,'qq-c2c',plan.recipient_ref);
@@ -44,7 +44,7 @@ export class ReportDeliveryCoordinator {
   enqueueReplies(projectId:string,recipientRef:string):number{
     return this.store.transaction(()=>{const rows=this.store.all<{delivery_id:string;request_json:string}>('SELECT delivery_id,request_json FROM operator_reply_plans WHERE project_id=? AND recipient_ref=? AND operation_id IS NULL ORDER BY rowid LIMIT 20',projectId,recipientRef);for(const row of rows){const id=this.delivery.enqueue(JSON.parse(row.request_json) as DeliveryRequestV1,'interaction');this.store.run('UPDATE operator_reply_plans SET operation_id=? WHERE delivery_id=?',id,row.delivery_id);}return rows.length;});
   }
-  messageOptions(deliveryId:string):{format?:'markdown'|'text';literalText?:boolean;replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[]}{
+  messageOptions(deliveryId:string):{format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean;replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[]}{
     const reply=this.store.get<{message_options_json:string}>('SELECT message_options_json FROM operator_reply_plans WHERE delivery_id=?',deliveryId);if(reply)return JSON.parse(reply.message_options_json) as ReturnType<ReportDeliveryCoordinator['messageOptions']>;
     const report=this.store.get<{options_json:string}>('SELECT options_json FROM report_delivery_requests WHERE delivery_id=?',deliveryId);return report?JSON.parse(report.options_json) as {format:'markdown'|'text'}:{};
   }

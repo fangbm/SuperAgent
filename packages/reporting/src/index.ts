@@ -7,6 +7,8 @@ import { DomainService } from '@superagent/domain';
 import { DurableJobQueue } from '@superagent/job-queue';
 import { latestClosedWindow, nextReportEnd, reportWindow } from './windows.js';
 export { latestClosedWindow, nextReportEnd, reportWindow } from './windows.js';
+export { qqReport,qqList,qqWork,qqEvidence,qqNotice,qqStatus,qqActionLabel,qqLiteral,beijingTime } from './presentation.js';
+export type { QQMessageView } from './presentation.js';
 const json = (v: unknown) => canonicalJSON(v as JSONValue);
 const digest = (v: string) => createHash('sha256').update(v).digest('hex');
 const title = (v: string) => v.replace(/[\r\n]/g,' ').replace(/[<>\[\]()]/g,'').slice(0,160);
