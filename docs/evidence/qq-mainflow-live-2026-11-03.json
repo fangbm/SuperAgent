@@ -176,7 +176,8 @@
     "originalExtractionPreserved": true,
     "newSuccessfulRevision": false,
     "automaticRetryRemaining": false,
-    "legacyPipelineRetryCompatibility": "passed; persisted triage-v2.1 analysis identity retained across default upgrade, new batch uses triage-v2.2"
+    "legacyPipelineRetryCompatibility": "passed; persisted triage-v2.1 analysis identity retained across default upgrade, new batch uses triage-v2.2",
+    "latestRealModelRetest": "2026-11-03 18:17 Asia/Shanghai: both new attempts HTTP 503 service_unavailable_error; correction remains unverified"
   },
   "checks": {
     "command": "pnpm check",
@@ -199,5 +200,92 @@
     "allGitHubCalls": 0,
     "rawPrivateMessagesCommitted": false,
     "rawOpenidsCommitted": false
+  },
+  "countCorrectionRetest1816": {
+    "startedAt": "2026-11-03T10:17:14.970Z",
+    "status": "stopped",
+    "modelCalls": 2,
+    "maximumModelCalls": 6,
+    "input": "backup of prior real QQ sample analysis and its failed retries; no new collection",
+    "pipelineVersion": "triage-v2.2",
+    "qqMessagesSent": 0,
+    "githubCalls": 0,
+    "events": [
+      {
+        "at": "2026-11-03T10:17:14.973Z",
+        "phase": "waiting_model_config",
+        "echo": false
+      },
+      {
+        "at": "2026-11-03T10:17:24.362Z",
+        "phase": "reanalyze",
+        "batchId": "batch-b6abd8ed71ecd908e0a3a7594b333390a5cf8fdf627282cbbe014dc2b1c20d58",
+        "revision": 4,
+        "maximumRequests": 6
+      },
+      {
+        "at": "2026-11-03T10:17:24.394Z",
+        "phase": "model_request",
+        "call": 1
+      },
+      {
+        "at": "2026-11-03T10:17:24.626Z",
+        "phase": "model_http_error",
+        "status": 503,
+        "code": "service_unavailable_error"
+      },
+      {
+        "at": "2026-11-03T10:17:24.631Z",
+        "phase": "analysis",
+        "processed": true,
+        "status": "MODEL_HTTP_503",
+        "runId": "run-b0ae2ef2f0276242d197c009408f31fd560b1c6727700651432a9cae2017ef2f"
+      },
+      {
+        "at": "2026-11-03T10:17:39.654Z",
+        "phase": "model_request",
+        "call": 2
+      },
+      {
+        "at": "2026-11-03T10:17:39.755Z",
+        "phase": "model_http_error",
+        "status": 503,
+        "code": "service_unavailable_error"
+      },
+      {
+        "at": "2026-11-03T10:17:39.758Z",
+        "phase": "analysis",
+        "processed": true,
+        "status": "MODEL_HTTP_503",
+        "runId": "run-2807291fabcaf7f7db5b4136e38c337482c3bada4c173a52462c2a8581064959"
+      },
+      {
+        "at": "2026-11-03T10:17:39.760Z",
+        "phase": "failed",
+        "code": "ERR_ASSERTION"
+      },
+      {
+        "at": "2026-11-03T10:17:39.769Z",
+        "phase": "closed",
+        "status": "stopped",
+        "modelCalls": 2,
+        "pendingJobs": 0
+      }
+    ],
+    "jobId": "job-93bc24131278074c011b191d95a8a31dc5cbcc8aff2faba20521342f993d429b",
+    "revision": 4,
+    "quickCheck": "ok",
+    "pendingJobs": 0,
+    "readbackVerification": {
+      "sourceEventsUnchanged": true,
+      "priorExtractionsUnchanged": true,
+      "domainWorksAndCountsUnchanged": true,
+      "oldFailedJobsRetried": false,
+      "externalOperations": 0,
+      "newJobState": "dead_letter",
+      "newJobAttempts": 2,
+      "finalError": "MODEL_HTTP_503",
+      "foreignKeyCheck": "ok"
+    }
   }
 }
