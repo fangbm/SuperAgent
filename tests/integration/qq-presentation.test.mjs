@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Parser,HtmlRenderer } from 'commonmark';
-import { qqReport,qqList,qqWork,qqEvidence,beijingTime } from '@superagent/reporting';
+import { qqReport,qqList,qqWork,qqFeedback,qqEvidence,beijingTime } from '@superagent/reporting';
 import { m5Fixture } from './m5-helpers.mjs';
 import { binding } from './helpers.mjs';
 import { originalFromMarkdown } from './qq-markdown-helpers.mjs';
@@ -23,5 +23,13 @@ test('list and detail use Chinese UI, local time and literal untrusted titles in
 test('new original layout decodes to the exact evidence text and stays bounded at Unicode page limits',()=>{
   for(const original of ['# 标题\n1. **原话**\n\n[链接](https://invalid.example) <qqbot-at-everyone /> {{不要插值}}','🙂'.repeat(1200),'\\'.repeat(1200)]){
     const card=qqEvidence({platform:'qq-official',createdAt:'2026-11-02T12:34:29.962Z',original,item:1,items:2,start:1,end:Array.from(original).length,characters:Array.from(original).length,revision:1,hasNavigation:true});assert.equal(originalFromMarkdown(card.text),original);assert.match(card.text,/\*\*来源\*\*：QQ/);assert.match(card.text,/20:34:29/);assert.doesNotMatch(card.text,/\/open /);assert.ok(card.text.length<=3500);
+  }
+});
+
+test('combined feedback card keeps an exact original prefix and fits one QQ message with hostile fields',async t=>{
+  const f=await m5Fixture(t);f.add('combined');await f.worker.tick();const report=f.generate();
+  for(const originalText of ['# 原话\n\n1. **内容** <qqbot-cmd-enter /> [链接](https://invalid.example)', '🙂'.repeat(2000), '\\'.repeat(2000)]){
+    const card=qqFeedback(report,{section:'bugs',index:0,total:30,title:'<qqbot-cmd-enter /> '.repeat(100),status:'open',feedbackCount:100,summary:'![img](https://invalid.example)\n'.repeat(100),original:{platform:'qq-official',createdAt:'2026-11-02T12:34:29.962Z',originalText},originals:2});
+    assert.equal(originalFromMarkdown(card.text),Array.from(originalText).slice(0,800).join(''));assert.ok(card.text.length<=3500);const output=render(card.text);assert.doesNotMatch(output,/<img|<a |<qqbot-cmd/);assert.equal((output.match(/<h1>/g)??[]).length,1);assert.match(card.text,/报告修订 1/);assert.match(card.text,/20:34:29/);
   }
 });

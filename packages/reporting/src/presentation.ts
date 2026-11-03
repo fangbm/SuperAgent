@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { ReportV2, ReportSectionV1, ReportNavigationEntryV1 } from '@superagent/contracts';
 
 export interface QQMessageView {title:string;text:string;bodyIncludesTitle:true}
-const templates=Object.fromEntries(['report','list','list-work-item','list-steam-item','work','evidence','notice'].map(name=>[name,readFileSync(new URL(`../templates/qq/${name}.md`,import.meta.url),'utf8').replace(/\r\n/g,'\n').trim()]));
+const templates=Object.fromEntries(['report','list','list-work-item','list-steam-item','work','feedback','evidence','notice'].map(name=>[name,readFileSync(new URL(`../templates/qq/${name}.md`,import.meta.url),'utf8').replace(/\r\n/g,'\n').trim()]));
 const clip=(text:string,limit:number)=>{const chars=Array.from(text);return chars.length>limit?chars.slice(0,limit).join('')+'…':text;};
 /** Escape presentation data without altering the underlying source text. */
 export const qqLiteral=(value:string):string=>value.replace(/[\\`*_{}\[\]()<>!#|~+\-&]/g,'\\$&').replace(/^(\s*\d+)\./gm,'$1\\.').replace(/\n/g,'\\\n');
@@ -29,7 +29,14 @@ export function qqWork(report:ReportV2,kind:'defect'|'suggestion',work:{title:st
   return view('work',kind==='defect'?'Bug 详情':'建议详情',{heading:kind==='defect'?'Bug 详情':'建议详情',title:inline(work.title),status:qqStatus(work.status),feedback:work.feedbackCount,summary:summary||'> 暂无摘要。',hint:canAct?'点击下方按钮查看玩家原文或更新处理状态。':'点击「查看原文」阅读玩家的完整反馈。',version:work.version,revision:report.revision});
 }
 export function qqEvidence(input:{platform:string;createdAt:string;original:string;item:number;items:number;start:number;end:number;characters:number;revision:number;hasNavigation:boolean}):QQMessageView{
-  const platform=({'qq-official':'QQ',discord:'Discord','steam-reviews':'Steam 评价','steam-discussions':'Steam 讨论区'} as Record<string,string>)[input.platform]??'社区来源';
+  const platform=platformLabel(input.platform);
   return view('evidence','玩家原文',{platform,item:input.item,items:input.items,time:beijingTime(input.createdAt,true),original:qqLiteral(input.original),start:input.start,end:input.end,characters:input.characters,revision:input.revision,hint:input.hasNavigation?'使用下方按钮切换原文或继续阅读。':'本条原文已完整展示。'});
+}
+const platformLabel=(value:string)=>({'qq-official':'QQ',discord:'Discord','steam-reviews':'Steam 评价','steam-discussions':'Steam 讨论区'} as Record<string,string>)[value]??'社区来源';
+export function qqFeedback(report:ReportV2,input:{section:ReportSectionV1;index:number;total:number;title:string;status?:string;feedbackCount?:number;summary?:string;original?:{platform:string;createdAt:string;originalText:string};originals:number}):QQMessageView{
+  const chars=Array.from(input.original?.originalText??''),snippet=chars.slice(0,800).join('');
+  const heading=input.section==='bugs'?'Bug':input.section==='suggestions'?'建议':'Steam 差评';
+  const summary=input.summary?.trim()?`## 反馈摘要\n\n${qqLiteral(clip(input.summary,300)).split('\n').map(line=>'> '+line).join('\n')}\n`:'';
+  return view('feedback',heading,{heading,index:input.index+1,total:input.total,title:inline(input.title),metadata:input.status?`**状态**：${qqStatus(input.status)} · **来源反馈**：${input.feedbackCount??0} 条`:'本期收录的 Steam 差评',summary,originalInfo:input.original?`${platformLabel(input.original.platform)} · ${beijingTime(input.original.createdAt,true)}（北京时间） · 原文 1 / ${input.originals}`:'暂无可见原文',original:input.original?qqLiteral(snippet):'暂无可见原文。',originalHint:chars.length>800?`已展示前 800 / ${chars.length} 字，点击「继续原文」阅读剩余内容。`:input.originals>1?'本条原文已完整展示，点击「下一条原文」查看其他来源反馈。':'本条原文已完整展示。',revision:report.revision,window:windowText(report)});
 }
 export const qqNotice=(title:string,message:string,hint=''):QQMessageView=>view('notice',title,{heading:inline(title),message:qqLiteral(message),hint:qqLiteral(hint)});

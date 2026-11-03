@@ -6,11 +6,11 @@ import type { Principal } from './auth.js';
 import { ControlError, hash } from './auth.js';
 import type { ControlPlane } from './index.js';
 import type { StatusCommand } from './index.js';
-import { qqReport,qqList,qqWork,qqEvidence,qqNotice,qqStatus,qqActionLabel } from '@superagent/reporting';
+import { qqReport,qqList,qqWork,qqFeedback,qqEvidence,qqNotice,qqStatus,qqActionLabel } from '@superagent/reporting';
 export interface QQOperatorRequest {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}
 export interface QQButton {label:string;token:string}
 export interface QQReplyOptions {replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons:QQButton[];format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean}
-interface Navigation {route:'section'|'work'|'evidence';reportId:string;revision:number;section?:ReportSectionV1;kind?:'defect'|'suggestion';workId?:string;cursor?:string;sectionOffset?:number;itemOffset?:number;charOffset?:number;steamOrdinal?:number}
+interface Navigation {route:'report'|'browse'|'section'|'work'|'evidence';reportId:string;revision:number;section?:ReportSectionV1;entryOffset?:number;kind?:'defect'|'suggestion';workId?:string;cursor?:string;sectionOffset?:number;itemOffset?:number;charOffset?:number;steamOrdinal?:number}
 interface Message {title:string;text:string;buttons:QQButton[];report?:ReportV2;format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean}
 export class QQOperatorService {
   constructor(readonly control:ControlPlane,private readonly options:{projectId:string;actorRef:string;recipientRef:string;clock?:Clock}){}
@@ -19,7 +19,7 @@ export class QQOperatorService {
   navigationTokens(request:DeliveryRequestV1):readonly string[]{
     const principal=this.principal();this.control.auth.authorize(principal,this.options.projectId);
     if(request.projectId!==this.options.projectId||request.recipientRef!==this.options.recipientRef||!request.reportRevision||!this.control.reports.getExact(request.projectId,request.reportId,request.reportRevision))throw new ControlError('REPORT_NOT_AUTHORIZED',403);
-    return(['bugs','suggestions','steam_negative_reviews'] as const).map(section=>this.navToken(principal,{route:'section',reportId:request.reportId,revision:request.reportRevision!,section},request.deliveryId+':'+section));
+    return(['bugs','suggestions','steam_negative_reviews'] as const).map(section=>this.navToken(principal,{route:'browse',reportId:request.reportId,revision:request.reportRevision!,section,entryOffset:0},request.deliveryId+':browse:'+section));
   }
   private navToken(principal:Principal,payload:Navigation,stableKey?:string):string{return this.control.tokens.issue(principal,this.options.projectId,'qq_navigation',payload as unknown as JSONValue,{ttlMs:7*24*3_600_000,...(stableKey?{stableKey}:{})});}
   receive(request:QQOperatorRequest):{accepted:boolean;duplicate:boolean}{
@@ -56,7 +56,7 @@ export class QQOperatorService {
       else{
         const report=this.control.reports.list(this.options.projectId,1)[0];if(!report)return{...qqNotice('报告尚未生成','还没有已归档的报告。','请在 Web 工作台生成最近已结束的报告。'),buttons:[]};
         if(command==='/reports')return{...qqReport(report),buttons:this.sectionButtons(principal,report),report};
-        const section=command==='/bugs'?'bugs':command==='/suggestions'?'suggestions':'steam_negative_reviews';return this.render(principal,{route:'section',reportId:report.reportId,revision:report.revision,section});
+        const section=command==='/bugs'?'bugs':command==='/suggestions'?'suggestions':'steam_negative_reviews';return this.render(principal,{route:'browse',reportId:report.reportId,revision:report.revision,section,entryOffset:0});
       }
     }
     if(!token)throw new ControlError('QQ_TOKEN_REQUIRED');
@@ -68,9 +68,39 @@ export class QQOperatorService {
     }
     return this.render(principal,this.control.tokens.read(principal,this.options.projectId,'qq_navigation',token) as unknown as Navigation);
   }
-  private sectionButtons(principal:Principal,report:ReportV2):QQButton[]{return(['bugs','suggestions','steam_negative_reviews'] as const).map((section,i)=>({label:['查看 Bug','查看建议','查看 Steam 差评'][i]!,token:this.navToken(principal,{route:'section',reportId:report.reportId,revision:report.revision,section})}));}
+  private sectionButtons(principal:Principal,report:ReportV2):QQButton[]{return(['bugs','suggestions','steam_negative_reviews'] as const).map((section,i)=>({label:['查看 Bug','查看建议','查看 Steam 差评'][i]!,token:this.navToken(principal,{route:'browse',reportId:report.reportId,revision:report.revision,section,entryOffset:0})}));}
+  private reportButton(principal:Principal,report:ReportV2):QQButton{return{label:'返回半日报',token:this.navToken(principal,{route:'report',reportId:report.reportId,revision:report.revision})};}
   private render(principal:Principal,nav:Navigation):Message{
     const project=this.options.projectId,report=this.control.reports.getExact(project,nav.reportId,nav.revision);if(!report)throw new ControlError('REPORT_NOT_FOUND',404);
+    if(nav.route==='report')return{...qqReport(report),buttons:this.sectionButtons(principal,report),report};
+    if(nav.route==='browse'){
+      const section=nav.section,offset=nav.entryOffset??0;
+      if(!section||!['bugs','suggestions','steam_negative_reviews'].includes(section)||!Number.isSafeInteger(offset)||offset<0)throw new ControlError('INVALID_FEEDBACK_PAGE');
+      const total=section==='bugs'?report.issueIds.length:section==='suggestions'?report.suggestionIds.length:report.steamNegativeReviews.length;
+      if(!total){if(offset)throw new ControlError('INVALID_FEEDBACK_PAGE');return{...qqNotice(section==='bugs'?'Bug':section==='suggestions'?'建议':'Steam 差评','本期暂无此类记录。','仅统计已接入来源；没有记录不代表没有反馈。'),buttons:[this.reportButton(principal,report)],report};}
+      if(offset>=total)throw new ControlError('INVALID_FEEDBACK_PAGE');
+      const buttons:QQButton[]=[];
+      if(offset>0)buttons.push({label:'上一条',token:this.navToken(principal,{...nav,entryOffset:offset-1})});
+      if(offset+1<total)buttons.push({label:'下一条',token:this.navToken(principal,{...nav,entryOffset:offset+1})});
+      buttons.push(this.reportButton(principal,report));
+      let original:{originalText:string;platform:string;createdAt:string}|undefined,originals=1,title='',summary:string|undefined,status:string|undefined,feedbackCount:number|undefined;
+      let evidenceNav:Navigation;
+      if(section==='steam_negative_reviews'){
+        const member=report.steamNegativeReviews[offset]!;const e=this.control.domain.evidence(project,member.evidenceEventId);
+        original={originalText:e&&!e.deleted?e.text:'[原文已删除或不可见]',platform:'steam-reviews',createdAt:member.occurredAt};title='玩家差评';
+        evidenceNav={...nav,route:'evidence',steamOrdinal:offset,charOffset:800};
+      }else{
+        const kind=section==='bugs'?'defect':'suggestion',id=(kind==='defect'?report.issueIds:report.suggestionIds)[offset]!;
+        const page=this.control.evidence(principal,project,kind,id,{reportId:report.reportId,revision:report.revision,limit:1});original=page.items[0];originals=page.total;
+        const work=this.control.work(principal,project,kind,id);({title,summary,status,feedbackCount}=work);
+        evidenceNav={...nav,route:'evidence',kind,workId:id,itemOffset:0,charOffset:800};
+        for(const action of work.allowedActions){const command:StatusCommand={kind,id,action,expectedVersion:work.version,...(['decline','dismiss'].includes(action)?{rationale:'开发者通过 QQ 明确选择此操作'}:{})};buttons.push({label:qqActionLabel(action),token:this.control.issueActionToken(principal,project,command)});}
+      }
+      // Reading never requires an intermediate list or work-detail message.
+      if(Array.from(original?.originalText??'').length>800)buttons.splice(buttons.findIndex(b=>b.label==='返回半日报')+1,0,{label:'继续原文',token:this.navToken(principal,evidenceNav)});
+      else if(originals>1)buttons.splice(buttons.findIndex(b=>b.label==='返回半日报')+1,0,{label:'下一条原文',token:this.navToken(principal,{...evidenceNav,itemOffset:1,charOffset:0})});
+      return{...qqFeedback(report,{section,index:offset,total,title,...(summary!==undefined?{summary}:{}),...(status!==undefined?{status}:{}),...(feedbackCount!==undefined?{feedbackCount}:{}),...(original?{original}:{}),originals}),buttons,report,format:'markdown'};
+    }
     if(nav.route==='section'){
       const page=this.control.reportPage(principal,project,report.reportId,report.revision,nav.section!,nav.cursor,3);const buttons:QQButton[]=[];
       page.entries.forEach((entry,i)=>{
@@ -103,12 +133,13 @@ export class QQOperatorService {
         const scope={projectId:project,kind:nav.kind!,id:nav.workId!,reportId:report.reportId,revision:report.revision,limit:1};
         const page=this.control.evidence(principal,project,nav.kind!,nav.workId!,{reportId:report.reportId,revision:report.revision,limit:1,...(itemOffset?{cursor:this.control.tokens.cursor(principal,scope,itemOffset)}:{})});total=page.total;item=page.items[0];
       }
-      if(!item)return{...qqNotice('玩家原文','暂无可见原文。','可以返回详情查看其他反馈。'),buttons:[],report};
+      if(!item)return{...qqNotice('玩家原文','暂无可见原文。','可以返回半日报查看其他反馈。'),buttons:[this.reportButton(principal,report)],report};
       const chars=Array.from(item.originalText),snippet=chars.slice(charOffset,charOffset+1200).join('');const buttons:QQButton[]=[];
       if(charOffset>0)buttons.push({label:'上一段',token:this.navToken(principal,{...nav,charOffset:Math.max(0,charOffset-1200)})});
       else if(itemOffset>0)buttons.push({label:'上一条原文',token:this.navToken(principal,{...nav,itemOffset:itemOffset-1,charOffset:0})});
       if(charOffset+1200<chars.length)buttons.push({label:'继续阅读',token:this.navToken(principal,{...nav,charOffset:charOffset+1200})});
       else if(itemOffset+1<total)buttons.push({label:'下一条原文',token:this.navToken(principal,{...nav,itemOffset:itemOffset+1,charOffset:0})});
+      if(nav.entryOffset!==undefined)buttons.push({label:'返回反馈',token:this.navToken(principal,{route:'browse',reportId:report.reportId,revision:report.revision,section:nav.section!,entryOffset:nav.entryOffset})},this.reportButton(principal,report));
       return{...qqEvidence({platform:item.platform,createdAt:item.createdAt,original:snippet,item:itemOffset+1,items:total,start:chars.length?charOffset+1:0,end:Math.min(charOffset+1200,chars.length),characters:chars.length,revision:report.revision,hasNavigation:buttons.length>0}),buttons,report,format:'markdown'};
     }
     throw new ControlError('QQ_NAVIGATION_INVALID');
