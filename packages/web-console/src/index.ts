@@ -5,6 +5,8 @@ import { ControlError, ControlPlane } from '@superagent/control-plane';
 import type { CorrectionCommand, Principal, StatusCommand } from '@superagent/control-plane';
 import type { ReportSectionV1 } from '@superagent/contracts';
 import { latestClosedWindow } from '@superagent/reporting';
+import { renderReportMarkdown } from './markdown.js';
+export { renderReportMarkdown } from './markdown.js';
 
 export function createConsoleServer(control:ControlPlane,options:{demo?:boolean;now?:()=>string}={}){
   const attempts=new Map<string,{n:number;reset:number}>();
@@ -44,10 +46,10 @@ export function createConsoleServer(control:ControlPlane,options:{demo?:boolean;
         const body=await readJSON(req);const report=control.reports.getExact(projectId,String(body.reportId),Number(body.revision));if(!report)throw new ControlError('REPORT_NOT_FOUND',404);
         const revised=control.store.transaction(()=>{const payload=control.tokens.read(principal,projectId,'report_revise',String(body.token),true);if(JSON.stringify(payload)!==JSON.stringify({id:report.reportId,revision:report.revision}))throw new ControlError('TOKEN_SCOPE_INVALID',403);return control.reports.generate(report.window,{revise:true,expectedRevision:report.revision});});send(200,revised);return;
       }
-      const reportPath=path.match(/^\/api\/reports\/([^/]+)\/(\d+)(?:\/(section))?$/);
+      const reportPath=path.match(/^\/api\/reports\/([^/]+)\/(\d+)(?:\/(section|content))?$/);
       if(reportPath&&method==='GET'){
-        const id=decodeURIComponent(reportPath[1]!),revision=Number(reportPath[2]);if(reportPath[3])send(200,control.reportPage(principal,projectId,id,revision,url.searchParams.get('section') as ReportSectionV1,url.searchParams.get('cursor')??undefined));
-        else{const report=control.reports.getExact(projectId,id,revision);if(!report)throw new ControlError('REPORT_NOT_FOUND',404);send(200,report);}return;
+        const id=decodeURIComponent(reportPath[1]!),revision=Number(reportPath[2]);if(reportPath[3]==='section')send(200,control.reportPage(principal,projectId,id,revision,url.searchParams.get('section') as ReportSectionV1,url.searchParams.get('cursor')??undefined));
+        else{const report=control.reports.getExact(projectId,id,revision);if(!report)throw new ControlError('REPORT_NOT_FOUND',404);send(200,reportPath[3]==='content'?{html:renderReportMarkdown(report.markdown)}:report);}return;
       }
       const worksPath=path.match(/^\/api\/works\/(defect|suggestion)(?:\/([^/]+)(?:\/(evidence|items|history))?)?$/);
       if(worksPath&&method==='GET'){

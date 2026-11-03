@@ -48,6 +48,7 @@
     "@superagent/web-console": "workspace:*",
     "@types/node": "24.0.15",
     "commonmark": "0.31.2",
+    "linkedom": "0.18.15",
     "typescript": "5.9.3"
   }
 }

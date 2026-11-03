@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-03T05:04:11.895Z",
+  "url": "http://127.0.0.1:51510",
+  "existingDemoDatabasePreserved": true,
+  "reportSnapshotsUnchanged": true,
+  "http": {
+    "login": 200,
+    "content": 200
+  },
+  "renderedDOM": {
+    "heading": "社区反馈半日报",
+    "headings": 4,
+    "listItems": 9
+  },
+  "updatedClientAndStylesServed": true,
+  "fullCheck": {
+    "nodeTests": 184,
+    "referenceSuites": 6,
+    "frozenFiles": 45
+  },
+  "boundary": "HTTP and parsed HTML plus simulated DOM tests; visible browser client confirmation pending",
+  "reportedIssue": "report_markdown_displayed_as_plain_text",
+  "verification": {
+    "visibleBrowserAutomation": "blocked_by_untrusted_bridge",
+    "simulatedDOM": "passed_with_actual_client_script_and_local_HTTP",
+    "manualClientConfirmation": "pending"
+  }
+}

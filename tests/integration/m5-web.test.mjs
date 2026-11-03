@@ -4,7 +4,11 @@ import { once } from 'node:events';
 import { createConsoleServer } from '@superagent/web-console';
 import { m5Fixture, accessKey, readerKey } from './m5-helpers.mjs';
 import { binding } from './helpers.mjs';
-async function serverFixture(t){const f=await m5Fixture(t);f.add('one');await f.worker.tick();const report=f.generate();const server=createConsoleServer(f.control,{now:f.clock});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));const base=`http://127.0.0.1:${server.address().port}`;
+import { parseHTML } from 'linkedom';
+import { runInNewContext } from 'node:vm';
+import { setTimeout as delay } from 'node:timers/promises';
+import { webcrypto } from 'node:crypto';
+async function serverFixture(t,original){const f=await m5Fixture(t);f.add('one',original);await f.worker.tick();const report=f.generate();const server=createConsoleServer(f.control,{now:f.clock});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));const base=`http://127.0.0.1:${server.address().port}`;
   const login=async(key=accessKey)=>{const response=await fetch(base+'/api/session',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({accessKey:key})});assert.equal(response.status,200);const cookies=response.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');const csrf=response.headers.getSetCookie().find(c=>c.startsWith('sa_csrf=')).split(';')[0].slice(8);return{cookies,csrf};};
   const call=(path,session,body,extra={})=>fetch(base+path+(path.includes('?')?'&':'?')+'project='+encodeURIComponent(binding.projectId),{method:body?'POST':'GET',headers:{Origin:base,...(session?{Cookie:session.cookies,'X-CSRF-Token':session.csrf}:{}),...(body?{'Content-Type':'application/json'}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})});return{...f,report,base,login,call};}
 test('HTTP console serves local assets but requires session, project authorization and CSRF for data and writes',async t=>{
@@ -27,4 +31,25 @@ test('HTTP actions change only authorized state, return optimistic conflicts and
 test('read-only and revoked operator sessions cannot issue commands or read another project',async t=>{
   const f=await serverFixture(t);const reader=await f.login(readerKey);assert.equal((await f.call('/api/reports/generate',reader,{})).status,403);
   const writer=await f.login();f.runtime.store.run('UPDATE operator_accounts SET enabled=0 WHERE actor_ref=?','developer');assert.equal((await f.call('/api/reports',writer)).status,401);
+});
+
+test('authenticated report content renders the frozen revision while original evidence stays literal in client DOM',async t=>{
+  const original='联机崩溃\n# [原文](https://invalid.example) <script>opaque</script>';
+  const f=await serverFixture(t,original),path=`/api/reports/${f.report.reportId}/1/content`;
+  assert.equal((await f.call(path)).status,401);const session=await f.login(readerKey);
+  assert.equal((await fetch(f.base+path+'?project=other',{headers:{Cookie:session.cookies}})).status,403);
+  assert.equal((await f.call(`/api/reports/${f.report.reportId}/99/content`,session)).status,404);
+  const rendered=await (await f.call(path,session)).json();assert.match(rendered.html,/<h1>社区反馈半日报<\/h1>/);assert.match(rendered.html,/<h2>Bug/);assert.match(rendered.html,/<ul>/);
+  const before=await (await f.call(`/api/reports/${f.report.reportId}/1`,session)).json();
+  const {window,document}=parseHTML(await (await fetch(f.base)).text());document.cookie=`sa_csrf=${session.csrf}`;
+  // A simulated DOM executes the actual client and talks to the real local HTTP server.
+  // This is a component/integration test, not a visible browser acceptance result.
+  runInNewContext(await (await fetch(f.base+'/app.js')).text(),{document,Node:window.Node,Intl,crypto:webcrypto,setTimeout:()=>0,fetch:(url,options={})=>fetch(new URL(url,f.base),{...options,headers:{...options.headers,Origin:f.base,Cookie:session.cookies}})});
+  const waitFor=async predicate=>{const end=Date.now()+3000;while(!predicate()&&Date.now()<end)await delay(10);assert.ok(predicate(),document.getElementById('toast').textContent);};
+  const button=label=>{const found=[...document.querySelectorAll('button')].filter(b=>b.textContent===label);assert.equal(found.length,1);return found[0];};
+  await waitFor(()=>document.querySelector('.report-cover'));button('打开报告 →').click();await waitFor(()=>document.querySelector('.report-content h1'));
+  assert.equal(document.querySelector('.report-content').tagName,'DIV');assert.equal(document.querySelector('.report-content h1').textContent,'社区反馈半日报');assert.ok(document.querySelectorAll('.report-content li').length>0);assert.equal(document.querySelector('.report-content').innerHTML,rendered.html);
+  button('查看原文与当前进展').click();await waitFor(()=>document.querySelector('pre.original'));assert.equal(document.querySelector('pre.original').textContent,original);assert.equal(document.querySelector('pre.original script'),null);
+  f.setTime('2026-11-02T10:06:00.000Z');f.reports.generate(f.report.window,{revise:true,expectedRevision:1});
+  assert.deepEqual(await (await f.call(path,session)).json(),rendered);assert.deepEqual(await (await f.call(`/api/reports/${f.report.reportId}/1`,session)).json(),before);
 });
