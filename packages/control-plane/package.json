@@ -1,0 +1,1 @@
+{"name":"@superagent/control-plane","version":"0.1.0","private":true,"type":"module","files":["dist"],"exports":{".":{"types":"./dist/index.d.ts","default":"./dist/index.js"}},"dependencies":{"@superagent/contracts":"workspace:*","@superagent/persistence":"workspace:*","@superagent/domain":"workspace:*","@superagent/memory":"workspace:*","@superagent/reporting":"workspace:*"}}

@@ -1,9 +1,6 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/connectors/steam-reviews" },
-    { "path": "packages/connectors/discord" },
-    { "path": "packages/connectors/steam-discussions" },
     {
       "path": "packages/contracts"
     },
@@ -48,6 +45,24 @@
     },
     {
       "path": "packages/plugin-host"
+    },
+    {
+      "path": "packages/connectors/steam-reviews"
+    },
+    {
+      "path": "packages/reporting"
+    },
+    {
+      "path": "packages/control-plane"
+    },
+    {
+      "path": "packages/web-console"
+    },
+    {
+      "path": "packages/connectors/discord"
+    },
+    {
+      "path": "packages/connectors/steam-discussions"
     }
   ]
 }

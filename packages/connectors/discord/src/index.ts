@@ -74,7 +74,7 @@ export function discordPermissions(guildId: string, userId: string, roleIds: str
 interface Channel { id: string; guild_id: string; type: number; parent_id?: string; permission_overwrites?: Overwrite[] }
 interface History { after: string; before: string | null; high: string }
 interface Gateway { sessionId: string; resumeUrl: string; sequence: number }
-interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean }
+interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean; observedMessages?: Record<string, Record<string, string>> }
 export interface DiscordOptions { fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void> }
 export class DiscordConnector implements SourcePluginV1 {
   readonly manifest: PluginManifestV1;
@@ -119,11 +119,43 @@ export class DiscordConnector implements SourcePluginV1 {
   }
   private async state(host: SourcePluginHostV1): Promise<State> {
     const input = await host.getCheckpoint();
-    if (input === null) return { version: 1, signature: this.signature, gateway: null, history: {}, gap: true };
+    if (input === null) return { version: 1, signature: this.signature, gateway: null, history: {}, gap: true, observedMessages: {} };
     if (!object(input) || input.version !== 1 || input.signature !== this.signature || typeof input.gap !== 'boolean' || !object(input.history)
       || (input.gateway !== null && (!object(input.gateway) || typeof input.gateway.sessionId !== 'string' || !Number.isSafeInteger(input.gateway.sequence) || Number(input.gateway.sequence) < 0 || typeof input.gateway.resumeUrl !== 'string'))
-      || Object.entries(input.history).some(([id, item]) => !this.ids.includes(id) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))) throw new Error('INVALID_CHECKPOINT');
-    return structuredClone(input) as unknown as State;
+      || Object.entries(input.history).some(([id, item]) => !this.ids.includes(id) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))
+      || (input.observedMessages !== undefined && (!object(input.observedMessages) || Object.entries(input.observedMessages).some(([channelId, messages]) => !this.ids.includes(channelId)
+        || !object(messages) || Object.entries(messages).some(([messageId, revision]) => !snowflake(messageId) || typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)))))) throw new Error('INVALID_CHECKPOINT');
+    const state = structuredClone(input) as unknown as State;
+    state.observedMessages ??= {};
+    return state;
+  }
+  private fullMessageRevision(input: unknown): string | undefined {
+    if (!object(input) || !snowflake(input.id) || !snowflake(input.channel_id) || !iso(input.timestamp) || typeof input.content !== 'string'
+      || !object(input.author) || !snowflake(input.author.id)) return undefined;
+    const comparable = { ...input };
+    delete comparable.guild_id;
+    delete comparable.member;
+    delete comparable.nonce;
+    if (Array.isArray(comparable.mentions)) comparable.mentions = comparable.mentions.map(mention => {
+      if (!object(mention)) return mention;
+      const normalized = { ...mention };
+      delete normalized.member;
+      return normalized;
+    });
+    return hash(comparable);
+  }
+  private rememberMessage(state: State, message: Native): void {
+    const revision = this.fullMessageRevision(message);
+    if (revision) {
+      const channelId = String(message.channel_id);
+      state.observedMessages ??= {};
+      (state.observedMessages[channelId] ??= {})[String(message.id)] = revision;
+    }
+  }
+  private trimObservedMessages(state: State, channelId: string): void {
+    const messages = state.observedMessages?.[channelId];
+    if (!messages) return;
+    for (const id of Object.keys(messages).sort((a, b) => BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0).slice(100)) delete messages[id];
   }
   private async get(route: string, signal: AbortSignal): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
@@ -198,9 +230,21 @@ export class DiscordConnector implements SourcePluginV1 {
             const next = structuredClone(state);
             const oldest = messages.reduce((a, item) => a === '0' || BigInt(String(item.id)) < BigInt(a) ? String(item.id) : a, '0');
             next.history[channelId] = complete ? { after: high, before: null, high } : { after: progress.after, before: oldest, high };
-            const events = selected.map(item => normalizeDiscordMessage(item, item.edited_timestamp ? 'updated' : 'created', this.config, host,
-              { eventKey: 'snapshot:' + hash(item), receivedAt: String(item.edited_timestamp ?? item.timestamp),
-                ...([10, 11, 12].includes(this.channels.get(channelId)!.type) ? { threadId: channelId } : {}) }));
+            const events: FeedbackEventV1[] = [];
+            for (const item of selected) {
+              const revision = this.fullMessageRevision(item);
+              const messageId = String(item.id);
+              const observed = state.observedMessages?.[channelId]?.[messageId];
+              if (revision && observed === revision) {
+                if (progress.before) delete next.observedMessages?.[channelId]?.[messageId];
+                continue;
+              }
+              events.push(normalizeDiscordMessage(item, item.edited_timestamp ? 'updated' : 'created', this.config, host,
+                { eventKey: 'snapshot:' + hash(item), receivedAt: String(item.edited_timestamp ?? item.timestamp),
+                  ...([10, 11, 12].includes(this.channels.get(channelId)!.type) ? { threadId: channelId } : {}) }));
+              if (observed || progress.before) delete next.observedMessages?.[channelId]?.[messageId];
+            }
+            if (complete) this.trimObservedMessages(next, channelId);
             await host.commitBatch(events, { sourceId: host.sourceId, cursor: next as unknown as JSONValue }); state = next;
             if (complete) break;
           }
@@ -292,7 +336,10 @@ export class DiscordConnector implements SourcePluginV1 {
                   if (type === 'MESSAGE_DELETE_BULK') {
                     if (!Array.isArray(payload.ids) || payload.ids.some(id => !snowflake(id))) throw new Error('INVALID_EVENT: bulk delete');
                     for (const id of payload.ids) events.push(normalizeDiscordMessage({ id, guild_id: payload.guild_id, channel_id: payload.channel_id }, 'deleted', this.config, host, context));
-                  } else events.push(normalizeDiscordMessage(payload, type === 'MESSAGE_CREATE' ? 'created' : type === 'MESSAGE_UPDATE' ? 'updated' : 'deleted', this.config, host, context));
+                  } else {
+                    events.push(normalizeDiscordMessage(payload, type === 'MESSAGE_CREATE' ? 'created' : type === 'MESSAGE_UPDATE' ? 'updated' : 'deleted', this.config, host, context));
+                    if (type === 'MESSAGE_CREATE' || type === 'MESSAGE_UPDATE') this.rememberMessage(state, payload);
+                  }
                 }
                 state.gateway = { ...session, sequence };
                 await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });

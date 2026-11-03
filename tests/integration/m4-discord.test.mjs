@@ -118,7 +118,9 @@ test('Discord Gateway failed commit cannot let later queued dispatches advance o
     if (packet.op === 2) { ready(socket); dispatch(socket, 'MESSAGE_CREATE', 2, native()); dispatch(socket, 'MESSAGE_CREATE', 3, { ...native(), id: '1434510000000000002' }); }
   }) });
   await assert.rejects(connector.start(failing, signal()), /Injected disk failure/);
-  assert.equal((await f.host.getCheckpoint()).gateway.sequence, 1);
+  const checkpoint = await f.host.getCheckpoint();
+  assert.equal(checkpoint.gateway.sequence, 1);
+  assert.deepEqual(checkpoint.observedMessages, {});
   assert.equal(f.events(f.runtime).length, 0);
   await connector.stop();
 });
@@ -157,6 +159,73 @@ test('Discord history pagination resumes after process restart and preserves sep
   assert.equal(f.events(reopened).length, 102);
   assert.equal((await host.getCheckpoint()).history['300'].after, '1099');
   assert.equal(reopened.store.all('SELECT DISTINCT conversation_key FROM source_event_routes WHERE source_id=?', f.scope.sourceId).length, 2);
+});
+
+test('Discord history skips an unchanged full Gateway message but archives a changed full revision', async t => {
+  const f = connectorFixture(t, 'discord', ['DISCORD_BOT_TOKEN']);
+  const controller = new AbortController(); t.after(() => controller.abort());
+  let restMessages = [];
+  const gatewayMessage = { ...native(), member: { joined_at: '2026-01-01T00:00:00.000Z', roles: [] }, nonce: 'gateway-nonce',
+    mentions: [{ id: '76561198000000001', member: { nick: 'member snapshot' } }] };
+  const restMessage = { ...gatewayMessage };
+  delete restMessage.guild_id; delete restMessage.member; delete restMessage.nonce;
+  restMessage.mentions = gatewayMessage.mentions.map(({ id }) => ({ id }));
+  const secondGatewayMessage = { ...gatewayMessage, id: '1434510000000000002' };
+  const secondRestMessage = { ...restMessage, id: secondGatewayMessage.id };
+  const connector = new DiscordConnector(config(f), { fetch: discordFetch({ messages: url => url.pathname.includes('/300/') ? restMessages : [] }), webSocket: () => new FakeSocket((packet, socket) => {
+    if (packet.op === 2) {
+      ready(socket); dispatch(socket, 'MESSAGE_CREATE', 2, gatewayMessage);
+      dispatch(socket, 'MESSAGE_UPDATE', 3, { id: native().id, channel_id: '300', guild_id: '100', edited_timestamp: '2026-11-02T00:01:00Z' });
+      dispatch(socket, 'MESSAGE_CREATE', 4, secondGatewayMessage);
+      controller.abort();
+    }
+    if (packet.op === 1) socket.receive({ op: 11 });
+  }) });
+  await connector.start(f.host, controller.signal);
+  assert.equal(f.events(f.runtime).length, 3);
+  assert.equal(f.events(f.runtime)[1].data.attributes.partialUpdate, true);
+  assert.notEqual(f.events(f.runtime)[0].data.object.externalId, f.events(f.runtime)[2].data.object.externalId);
+  assert.equal(f.events(f.runtime)[0].data.attributes.native.member.joined_at, '2026-01-01T00:00:00.000Z');
+  assert.equal(f.events(f.runtime)[0].data.attributes.native.mentions[0].member.nick, 'member snapshot');
+  assert.equal(f.events(f.runtime)[0].data.attributes.native.nonce, 'gateway-nonce');
+
+  restMessages = [restMessage, secondRestMessage];
+  await connector.sync(f.host, signal());
+  assert.equal(f.events(f.runtime).length, 3);
+
+  restMessages = [{ ...restMessage, content: '已补充日志', edited_timestamp: '2026-11-02T00:01:00Z' }, secondRestMessage];
+  await connector.sync(f.host, signal());
+  assert.equal(f.events(f.runtime).length, 4);
+  assert.equal(f.events(f.runtime)[3].data.content.text, '已补充日志');
+});
+
+test('Discord incomplete history keeps older Gateway observations until their page is consumed', async t => {
+  const f = connectorFixture(t, 'discord', ['DISCORD_BOT_TOKEN']);
+  const controller = new AbortController(); t.after(() => controller.abort());
+  const messages = Array.from({ length: 150 }, (_, i) => ({ ...native(), id: String(1000 + i) }));
+  let history = [];
+  const connector = new DiscordConnector({ ...config(f), historyPagesPerSync: 1 }, { fetch: discordFetch({ messages: url => {
+    if (!url.pathname.includes('/300/')) return [];
+    const before = url.searchParams.get('before');
+    const ordered = [...history].sort((a, b) => BigInt(b.id) > BigInt(a.id) ? 1 : -1);
+    return before ? ordered.filter(message => BigInt(message.id) < BigInt(before)).slice(0, 100) : ordered.slice(0, 100);
+  } }), webSocket: () => new FakeSocket((packet, socket) => {
+    if (packet.op === 2) {
+      ready(socket);
+      messages.forEach((message, i) => dispatch(socket, 'MESSAGE_CREATE', i + 2, message));
+      controller.abort();
+    }
+    if (packet.op === 1) socket.receive({ op: 11 });
+  }) });
+  await connector.start(f.host, controller.signal);
+  history = messages;
+  await connector.sync(f.host, signal());
+  assert.equal((await f.host.getCheckpoint()).history['300'].before, '1050');
+  assert.equal(Object.keys((await f.host.getCheckpoint()).observedMessages['300']).length, 150);
+  await connector.sync(f.host, signal());
+  assert.equal((await f.host.getCheckpoint()).history['300'].before, null);
+  assert.equal(Object.keys((await f.host.getCheckpoint()).observedMessages['300']).length, 100);
+  assert.equal(f.events(f.runtime).length, 150);
 });
 
 test('Discord rate limits and network failures retry without losing the durable cursor', async t => {

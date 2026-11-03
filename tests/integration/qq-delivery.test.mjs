@@ -24,11 +24,23 @@ test('QQ token cache refreshes early, coalesces concurrent requests, and handles
     await assert.rejects(invalid.accessToken(), error => error.code === `QQ_API_${code}` && !error.message.includes('sensitive'));
   }
 });
+
+test('QQ C2C recall uses the bound recipient, accepts empty 200/204, and never retries an unknown DELETE',async()=>{
+  for(const status of [200,204]){const calls=[];const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch((url,init)=>{calls.push({url:String(url),method:init.method});return new Response(null,{status});})}});assert.deepEqual(await plugin.recallMessage('owned-message',deliveryHost(plugin,readSecret)),{status:'accepted'});assert.deepEqual(calls,[{url:`https://api.bot.qq.com/v2/users/${qqSecrets.QQ_RECIPIENT_OPENID}/messages/owned-message`,method:'DELETE'}]);}
+  let calls=0;const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch(()=>{calls++;throw new Error('RESPONSE_LOST');})}});assert.equal((await plugin.recallMessage('owned-message',deliveryHost(plugin,readSecret))).status,'unknown');assert.equal(calls,1);
+});
 test('QQ Gateway rejects non-platform WebSocket destinations and plaintext remote URLs', async () => {
   for (const url of ['wss://attacker.invalid/socket', 'ws://api.sgroup.qq.com/socket', 'wss://user:password@api.bot.qq.com/socket']) {
     const api = new QQAPI(readSecret, { fetch: async endpoint => Response.json(String(endpoint).endsWith('/app/getAppAccessToken') ? { access_token: 'fixture-token', expires_in: 7200 } : { url }) });
     await assert.rejects(api.gateway(), /QQ_INVALID_GATEWAY/);
   }
+});
+
+test('interaction ACK uses callback AppID and accepts empty HTTP 200; HTTP errors expose only numeric codes',async t=>{
+  const seen=[];const server=createServer(async(req,res)=>{let body='';for await(const chunk of req)body+=chunk;seen.push({path:req.url,headers:req.headers,body});if(req.url==='/app/getAppAccessToken'){res.end(JSON.stringify({access_token:'fixture-token',expires_in:7200}));return;}if(req.url.startsWith('/interactions/')){if(req.headers['x-callback-appid']!==qqSecrets.QQ_APP_ID){res.writeHead(400);res.end(JSON.stringify({code:40034025}));return;}res.writeHead(200);res.end();return;}res.writeHead(400);res.end(JSON.stringify({code:40034025,message:'fixture-private-identifier'}));});
+  server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
+  const api=new QQAPI(readSecret,{baseURL:`http://127.0.0.1:${server.address().port}`,allowLoopbackHTTP:true});await api.acknowledgeInteraction('fixture-interaction');assert.deepEqual(JSON.parse(seen[1].body),{code:0});
+  await assert.rejects(api.sendC2C(qqSecrets.QQ_RECIPIENT_OPENID,{}),error=>error.code==='QQ_API_40034025'&&error.outcome==='rejected'&&!error.message.includes('private'));
 });
 test('QQ sends only to the approved C2C recipient, with Markdown or explicit text and no group API', async () => {
   const requests = []; const plugin = new QQC2CDelivery({ projectId: binding.projectId, recipientRef: 'developer', api: { fetch: apiFetch(() => Response.json({ id: 'sent-1' }), requests) } });
@@ -50,12 +62,16 @@ test('QQ response classification is conservative and never sends a second POST o
     assert.equal(result.status, status); assert.equal(posts, 1); assert.equal(JSON.stringify(result).includes('private raw'), false); assert.equal(JSON.stringify(result).includes('sensitive'), false);
   }
 });
+
+test('documented err_code failures override apparent success and never leak provider messages or retry',async()=>{
+  for(const payload of [{err_code:40034025,id:'not-a-success',message:'private-value'},{err_code:40034025,code:0},{err_code:0,code:40034025}]){let sends=0;const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch(()=>{sends++;return Response.json(payload);})}});const result=await plugin.send(deliveryRequest(),deliveryHost(plugin,readSecret));assert.equal(result.status,'rejected');assert.equal(result.errorCode,'QQ_API_40034025');assert.equal(sends,1);assert.equal(JSON.stringify(result).includes('private-value'),false);}
+});
 test('report Keyboard uses three opaque Host tokens and fixed snapshot; missing handler produces no dead buttons', async () => {
   const request = { ...deliveryRequest(), reportRevision: 2, presentation: { schemaVersion: '1.0', kind: 'report_summary', format: 'markdown', reportId: 'qq-fixture-report', revision: 2, actions: [{ kind: 'report.open_section', section: 'bugs', label: '查看 Bug' }, { kind: 'report.open_section', section: 'suggestions', label: '查看建议' }, { kind: 'report.open_section', section: 'steam_negative_reviews', label: '查看 Steam 差评' }] } };
   const sent = []; const options = { projectId: binding.projectId, recipientRef: 'developer', api: { fetch: apiFetch((_url, init) => { sent.push(JSON.parse(init.body)); return Response.json({ id: 'sent' }); }) } };
   const plugin = new QQC2CDelivery({ ...options, navigationTokens: async () => ['opaque_token_000001', 'opaque_token_000002', 'opaque_token_000003'] });
   assert.equal((await plugin.send(request, deliveryHost(plugin, readSecret))).status, 'accepted');
-  const buttons = sent[0].keyboard.content.rows[0].buttons; assert.equal(buttons.length, 3); assert.deepEqual(buttons.map(b => b.action.permission.specify_user_ids), Array(3).fill([qqSecrets.QQ_RECIPIENT_OPENID]));
+  const buttons = sent[0].keyboard.content.rows[0].buttons; assert.equal(buttons.length, 3); assert.deepEqual(buttons.map(b => b.action.permission), Array(3).fill({type:2}));
   assert.equal((await plugin.send({ ...request, reportRevision: 1 }, deliveryHost(plugin, readSecret))).status, 'rejected'); assert.equal(sent.length, 1);
   const plain = new QQC2CDelivery(options); await plain.send(request, deliveryHost(plain, readSecret));
   assert.equal(sent[1].keyboard, undefined); assert.match(sent[1].markdown.content, /未启用报告交互导航/);

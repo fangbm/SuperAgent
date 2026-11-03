@@ -25,7 +25,9 @@ flowchart LR
 
 M1 实现 Ingress、SQLite Store、outbox/jobs、轻量 Admission、持久 Feedback Buffer 和定时扫描。M3 新增 `agent-workers → llm + memory + domain` 与独立 `issue-tracker → domain`。模型通过受限 AgentContext 形成结构化提案，领域服务校验后原子提交；GitHub Provider 不进入 Agent Core，模型不持有凭据或发送方法。
 
-`worker:m1` 保留轻量运行模式；显式启用的 `worker:m3` 消费批次任务。QQ 官方插件通过 SDK Host 入库，支持 WebSocket 和签名回调；独立 C2C Delivery 由 plugin-host 持久发送意图。真实群 @ 接入与开发者私聊已验证，群全量权限未证明。报告生成、通知调度和交互查询仍属后续工作。
+`worker:m1` 保留轻量运行模式；显式启用的 `worker:m3` 消费批次任务。QQ 官方插件通过 SDK Host 入库，支持 WebSocket 和签名回调；独立 C2C Delivery 由 plugin-host 持久发送意图。真实群 @ 接入与开发者私聊已验证，群全量权限未证明。
+
+M5 新增 `reporting → domain + job-queue`，在独立 report 队列生成固定窗口和封存修订；`control-plane → reporting + domain` 为 Web 与 QQ 共享查询、鉴权、状态动作及关联纠错；`web-console → control-plane` 仅提供本机 HTTP。QQ Source 只调用注入的持久收件箱回调，实际查询和投递由 Host 异步执行。可信启动脚本组合平台插件，Core 不导入它们。GitHub 状态操作先远端确认再改变本地状态。P0 实时调度仍未安装。
 
 M0 参考 SQL 回归继续保留。M1 集成测试另行通过真实文件数据库和子进程终止测试运行实际 TypeScript 实现，不能将其表述为真实 QQ/GitHub 联调。
 
