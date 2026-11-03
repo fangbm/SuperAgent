@@ -112,3 +112,7 @@ Stop the bot before each handoff backup. Use a new output filename each time; th
 For rollback, stop the new bot, wait for its lease to release/expire, create a validated backup of the current archive to a new filename, and restore the last known-good validated backup only while no process is writing. Keep the failed/current archive and the original 148-record Steam archive untouched until recovery is confirmed. Start only one writer after the restore check passes.
 
 A verified offline 148-record backup has been prepared at the documented data path. The original archive has not been moved or activated on another PC. Setup and continuous operation still require the owner application/token and friend-PC startup. See DISCORD-BOT.md for the guild installation URL command and live acceptance checklist.
+
+## Prepared creator lobby
+
+The live VOICE category now contains ➕・创建房间-create-room (1567192297181814804), temporarily locked until a controller runs. Use the updated code: --setup reuses this lobby, enables Connect and resets its capacity to unlimited so simultaneous parties can enter. Do not run two room controllers on this entry. The existing permanent four-place voice channel remains available while activation is pending.

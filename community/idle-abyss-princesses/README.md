@@ -4,7 +4,7 @@ Dedicated Discord setup for [Steam AppID 5335850](https://store.steampowered.com
 
 Live server: **1567099916126527530**. [Join the community](https://discord.gg/pCKZvmNhFe) (nonexpiring, unlimited uses). Discord's public invite endpoint verified the guild and welcome-channel IDs. Existing members can [open the welcome channel](https://discord.com/channels/1567099916126527530/1567099917372227679).
 
-The live setup includes five categories, 19 channels (three forums and one four-person voice room), 21 self-selectable roles plus two unassigned staff labels, four onboarding questions, Server Guide, and 51 forum tags. All 15 content items were applied: 12 messages and three native forum guidelines. See [ACCEPTANCE.md](ACCEPTANCE.md) for evidence and remaining limitations.
+The live setup includes five categories, 20 channels (three forums, one four-person voice room and one paused creator lobby), 21 self-selectable roles plus two unassigned staff labels, four onboarding questions, Server Guide, and 51 forum tags. All 15 content items were applied: 12 messages and three native forum guidelines. See [ACCEPTANCE.md](ACCEPTANCE.md) for evidence and remaining limitations.
 
 ## Work records and configuration
 
@@ -40,3 +40,5 @@ The desktop helper is Windows-only and must be used by one controller at a time,
 ## Prepared Discord automation
 
 The SuperAgent-native bot implementation, private tickets, and join-to-create voice rooms are ready for friend-PC setup. See [behavior and privacy](../../docs/DISCORD-BOT.md) and [deployment](../../docs/DISCORD-BOT-DEPLOYMENT.md). `bot-config.json` targets this existing guild. The live bot remains uninstalled/unactivated; server-state.json continues to describe actual live settings.
+
+The missing creator lobby is now present in the live VOICE category as [➕・创建房间-create-room](https://discord.com/channels/1567099916126527530/1567192297181814804). It is visible but Connect is paused until a room bot is active. LFG has a bilingual status notice; bot activation and actual room creation remain unverified.

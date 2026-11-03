@@ -34,6 +34,8 @@ The default run starts continuous archive-only collection, including the existin
 
 ## Voice rooms
 
+The live server now has the prepared creator lobby1567192297181814804. It is visible but Connect is paused while the bot is offline. Updated --setup adopts this same ID and explicitly enables View/Connect, preserving the ordinary party room. The latest follow-up records preparation, not a successful live auto-room test.
+
 Join **➕・创建房间-create-room** to create a four-place room and move into it. Multiple parties get independent rooms. Hosts use `/room rename` and `/room capacity` from the room text chat or existing LFG controls channel; `/room transfer` selects an occupant. The longest-present remaining member takes over when a host leaves.
 
 Only managed rooms expire, after 60 seconds empty and a successful text-history flush. Startup cleanup waits for a fresh guild voice snapshot and rechecks occupancy after the flush. No voice audio is captured.
@@ -48,6 +50,6 @@ Controller leases fence old writers. Ticket/room lifecycle records reconcile unc
 
 ## Verification and live checklist
 
-Frozen install and `pnpm check` pass: **208 Node tests, six Python suites**, build/typecheck, package boundaries and the 45-file freeze. Coverage includes real Host ticket replay/isolation, shared Gateway ACK ordering/split replay, dynamic private capture, permission changes, lifecycle races, unknown outcomes, lease fencing and WAL-safe backups.
+Frozen install and `pnpm check` pass: **209 Node tests, six Python suites**, build/typecheck, package boundaries and the 45-file freeze. Coverage includes real Host ticket replay/isolation, shared Gateway ACK ordering/split replay, dynamic private capture, permission changes, lifecycle races, unknown outcomes, lease fencing and WAL-safe backups.
 
 Before live acceptance, verify the actual bot's intent/permissions, use two ordinary accounts to test ticket isolation, create two voice parties, test host departure/empty cleanup, and restart the actual process to check archive recovery. Record live results separately. The friend PC must remain awake and connected.

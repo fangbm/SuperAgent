@@ -98,6 +98,24 @@ test('setup reconciles an accepted unknown create and refuses to retry an unreso
   }
 });
 
+test('setup reuses and enables a prepared paused voice creator instead of duplicating it', async t => {
+  const f = fixture(t);
+  const c = config();
+  const state = new DurableCommunityState(f.runtime.store, 'paused-voice');
+  const a = apiFixture(c);
+  a.channels.push({ id: '80', guild_id: c.guildId, type: 2, parent_id: '40', name: c.voiceLobbyName, user_limit: 4,
+    permission_overwrites: [{ id: c.guildId, type: 0, allow: '1024', deny: String(1n << 20n) }] });
+  const result = await provisionCommunity(c, state, a.api, new AbortController().signal);
+  assert.equal(result.voiceLobbyChannelId, '80');
+  assert.equal(a.calls.some(call => call.method === 'POST' && call.body?.name === c.voiceLobbyName), false);
+  const activation = a.calls.find(call => call.method === 'PATCH' && call.route === '/channels/80');
+  assert.equal(activation.body.user_limit, 0);
+  const everyone = activation.body.permission_overwrites.find(item => item.id === c.guildId);
+  assert.ok(BigInt(everyone.allow) & (1n << 20n));
+  assert.ok(BigInt(everyone.allow) & 1024n);
+  assert.equal(BigInt(everyone.deny) & (1n << 20n), 0n);
+});
+
 test('activation privacy notice is bounded, bot-owned and reconciles unknown sends without resending', async t => {
   const f = fixture(t);
   const state = new DurableCommunityState(f.runtime.store, 'notice-test');

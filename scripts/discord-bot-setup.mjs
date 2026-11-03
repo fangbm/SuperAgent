@@ -1,6 +1,7 @@
 const snowflake = value => typeof value === 'string' && /^[0-9]+$/.test(value);
 const VIEW = 1024n, SEND = 2048n, HISTORY = 65536n, THREAD_SEND = 1n << 38n;
 const CREATE_THREADS = (1n << 35n) | (1n << 36n);
+const CONNECT = 1n << 20n;
 const overwrite = (id, type, allow, deny = 0n) => ({ id, type, allow: String(allow), deny: String(deny) });
 
 /** Only explicit --setup calls this; discovery/run never provisions channels. */
@@ -44,7 +45,8 @@ export async function provisionCommunity(config, state, api, signal) {
       if (!snowflake(channel?.id) || channel.type !== body.type) throw new Error('SETUP_UNKNOWN_RESPONSE');
       channels.push(channel);
     }
-    if (enforcePermissions) await api.request('PATCH', '/channels/' + channel.id, { permission_overwrites: body.permission_overwrites }, signal);
+    if (enforcePermissions) await api.request('PATCH', '/channels/' + channel.id, { permission_overwrites: body.permission_overwrites,
+      ...(body.type === 2 ? { user_limit: body.user_limit } : {}) }, signal);
     await state.set('setup:resource:' + key, { phase: 'ready', channelId: channel.id, name: body.name });
     return channel.id;
   };
@@ -58,7 +60,8 @@ export async function provisionCommunity(config, state, api, signal) {
   if (faq.length !== 1) throw new Error('FAQ_CHANNEL_AMBIGUOUS_OR_MISSING');
   const ticketPanelChannelId = await ensure('ticket-panel', { name: config.ticketPanelName, type: 0, parent_id: feedback[0].id,
     topic: '私密工单入口 · Private ticket entry. Ticket contents are visible only to the requester and authorized staff.', permission_overwrites: publicOverwrites }, { enforcePermissions: true });
-  const voiceLobbyChannelId = await ensure('voice-lobby', { name: config.voiceLobbyName, type: 2, parent_id: voiceCategoryId, user_limit: 0 });
+  const voiceLobbyChannelId = await ensure('voice-lobby', { name: config.voiceLobbyName, type: 2, parent_id: voiceCategoryId, user_limit: 0,
+    permission_overwrites: [overwrite(config.guildId, 0, VIEW | CONNECT), overwrite(bot.id, 1, VIEW | CONNECT | SEND | HISTORY)] }, { enforcePermissions: true });
   const result = { guildId: config.guildId, ownerId: guild.owner_id, botUserId: bot.id, applicationId: application.id, staffRoleIds,
     ticketCategoryId, ticketPanelChannelId, voiceCategoryId, voiceLobbyChannelId, roomControlsChannelId: controls[0].id,
     privacyNoticeChannelId: faq[0].id,

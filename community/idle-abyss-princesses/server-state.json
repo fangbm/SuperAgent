@@ -4,7 +4,7 @@
   "guildId": "1567099916126527530",
   "createdBy": "Discord desktop UI",
   "starterChannelId": "1567099917372227679",
-  "liveVerificationUpdatedAt": "2026-11-03T11:47:50.764956+00:00",
+  "liveVerificationUpdatedAt": "2026-11-03T15:10:04.308315+00:00",
   "community": {
     "enabled": true,
     "primaryLocale": "zh-CN",
@@ -103,7 +103,7 @@
   },
   "execution": {
     "desktopController": "root",
-    "currentBatch": "community_setup_complete_handover",
+    "currentBatch": "voice_lobby_prepared_waiting_activation",
     "remainingAutomation": [
       "authorized archive bot installation and live capture/recovery verification",
       "archive-backed analysis activation",
@@ -171,7 +171,20 @@
     "category": "🎙️ 冒险者语音 · VOICE",
     "channel": "🔊・冒险者语音-party-voice",
     "userLimit": 4,
-    "verification": "Native owner and role-preview views show 0/04; voice was not joined."
+    "verification": "Native owner and role-preview views show 0/04; voice was not joined.",
+    "creatorLobby": {
+      "name": "➕・创建房间-create-room",
+      "channelId": "1567192297181814804",
+      "url": "https://discord.com/channels/1567099916126527530/1567192297181814804",
+      "status": "prepared_waiting_for_bot",
+      "everyoneView": true,
+      "everyoneConnect": false,
+      "userLimit": 0,
+      "verification": "Native desktop create/settings save and ordinary cosmetic-role preview: visible locked lobby; no bot/member connection test; existing four-place room remains available."
+    },
+    "automaticRoomCreationActive": false,
+    "installedBotObserved": false,
+    "memberCountObserved": 1
   },
   "publishedContent": {
     "indexedItems": 15,
@@ -180,7 +193,14 @@
     "welcomeAttachment": "assets/source/steam-main-capsule.jpg",
     "rolesAttachment": "assets/source/gameplay-02.jpg",
     "broadPings": false,
-    "verification": "onboarding_research published 10 message files and 3 native guidelines; root posted archive/privacy to FAQ and staff checklist to private staff-ops, visibly confirmed."
+    "verification": "onboarding_research published 10 message files and 3 native guidelines; root posted archive/privacy to FAQ and staff checklist to private staff-ops, visibly confirmed.",
+    "additionalSetupNotices": [
+      {
+        "file": "content/voice-room-setup-status.md",
+        "channel": "🤝・组队招募-lfg",
+        "visiblyVerified": true
+      }
+    ]
   },
   "memberPreview": {
     "role": "⚔️ 绯娜 · 战士",
@@ -193,11 +213,12 @@
   },
   "liveInventory": {
     "categories": 5,
-    "channels": 19,
+    "channels": 20,
     "forums": 3,
-    "voiceRooms": 1,
+    "voiceRooms": 2,
     "selfSelectableRoles": 21,
     "additionalUnassignedStaffRoles": 2,
-    "verifiedBy": "Native desktop controller handoffs and root final role preview; names recorded, uncollected channel IDs not fabricated."
+    "verifiedBy": "Native desktop controller handoffs and root final role preview; names recorded, uncollected channel IDs not fabricated.",
+    "voiceRoomsNote": "One usable permanent party room plus one paused creator lobby; no generated rooms."
   }
 }
