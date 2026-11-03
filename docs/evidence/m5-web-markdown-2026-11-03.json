@@ -18,11 +18,20 @@
     "referenceSuites": 6,
     "frozenFiles": 45
   },
-  "boundary": "HTTP and parsed HTML plus simulated DOM tests; visible browser client confirmation pending",
+  "boundary": "HTTP, parsed HTML and simulated DOM passed; visible Web display and operations confirmed manually by user; automated visual browser unavailable",
   "reportedIssue": "report_markdown_displayed_as_plain_text",
   "verification": {
     "visibleBrowserAutomation": "blocked_by_untrusted_bridge",
     "simulatedDOM": "passed_with_actual_client_script_and_local_HTTP",
-    "manualClientConfirmation": "pending"
-  }
+    "manualClientConfirmation": "user_confirmed_display_and_operations_normal",
+    "confirmationText": "显示和操作都正常",
+    "recordedAt": "2026-11-03T05:13:17.600Z",
+    "demoAuditObserved": {
+      "sessions": 2,
+      "operatorCommands": 0,
+      "reportRevisions": 1
+    },
+    "newPersistedStatusActionClaimed": false
+  },
+  "milestone": "M5_accepted_with_documented_scope_and_verification_boundaries"
 }
