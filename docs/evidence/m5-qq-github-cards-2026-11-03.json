@@ -829,7 +829,7 @@
     "frozenFiles": 45
   },
   "recallDocumentation": "https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/reset.md",
-  "verificationBoundary": "state_card_refresh_and_two_recalls_live_client_confirmed; retained_report_preview_accepted; expanded_navigation_retirement_and_report_retention_client_confirmation_pending",
+  "verificationBoundary": "State cards and Bug/original/suggestion retirement plus report retention verified within recorded rounds; Steam retirement and other unclicked branches remain local-only.",
   "allInteractionRound": {
     "startedAt": "2026-11-03T07:15:08.660Z",
     "expiresAt": "2026-11-03T07:45:08.662Z",
@@ -878,28 +878,48 @@
     "limitSeconds": 120,
     "unknownRetry": false,
     "localVerification": "198 Node tests, including report retention, prepared legacy recall blocking, same-version/category transitions and migration uncertainty preservation.",
-    "liveVerification": "State-card refresh and two recalls confirmed in prior round; expanded navigation and report retention are local-only."
+    "liveVerification": "State cards previously confirmed. This round: Bug/original/suggestion retirements and retention of initial and returned reports verified with QQ HTTP 200, ledger readback and user completion confirmation; Steam not clicked."
   },
   "retainedReportPreviewRound": {
     "startedAt": "2026-11-03T07:27:21.407Z",
     "expiresAt": "2026-11-03T07:57:21.409Z",
-    "status": "listening",
+    "status": "completed",
     "maximumReportAttempts": 1,
     "maximumQueryAttempts": 5,
     "maximumRecalls": 4,
-    "posts": 1,
+    "posts": 6,
     "reportAttempts": 1,
-    "queryAttempts": 0,
-    "recalls": 0,
+    "queryAttempts": 5,
+    "recalls": 3,
     "githubCalls": 0,
     "pendingOperation": null,
     "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
     "revision": 1,
     "commit": "6a7d6a8",
-    "clientReceipt": "unconfirmed",
+    "clientReceipt": "user_confirmed_completion",
     "sent": [
       {
         "operationId": "external-4d92473a85fe507c86e933aa597c7bbd1b2124df058630e1aaff0cd8854155cb",
+        "retained": true
+      },
+      {
+        "operationId": "external-95c918584800662411c67a4fa7a1d983adc8de2f1eb4987a76443b5b315b1f21",
+        "retained": false
+      },
+      {
+        "operationId": "external-1029d54abd25b7e6eff51ef0b7c2ffb0f3723dca2a9c2848f9e9e1e1e2c99544",
+        "retained": false
+      },
+      {
+        "operationId": "external-b0618eef81b61c1ffac3290a03a024afd40de33bbc61e7976f008da9a604397f",
+        "retained": true
+      },
+      {
+        "operationId": "external-11c2e79108d61b18fa5e45b61a6481d57b85883b60d780a83db5c88eff28140d",
+        "retained": false
+      },
+      {
+        "operationId": "external-82f8175af829697b71bc741dfa252f29565e35f8c4f9bec57d240cd105ba686f",
         "retained": true
       }
     ],
@@ -942,6 +962,275 @@
         "remainingQueries": 5,
         "cancelledBacklog": 0,
         "reportPreserved": true
+      },
+      {
+        "at": "2026-11-03T07:28:45.079Z",
+        "phase": "query_attempt",
+        "attempt": 1,
+        "title": "Bug",
+        "retained": false,
+        "operationId": "external-95c918584800662411c67a4fa7a1d983adc8de2f1eb4987a76443b5b315b1f21"
+      },
+      {
+        "at": "2026-11-03T07:28:45.454Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:46.503Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:46.505Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:46.507Z",
+        "phase": "retirement",
+        "processed": false
+      },
+      {
+        "at": "2026-11-03T07:28:48.514Z",
+        "phase": "query_attempt",
+        "attempt": 2,
+        "title": "玩家原文",
+        "retained": false,
+        "operationId": "external-1029d54abd25b7e6eff51ef0b7c2ffb0f3723dca2a9c2848f9e9e1e1e2c99544"
+      },
+      {
+        "at": "2026-11-03T07:28:48.799Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:49.316Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "上一条原文",
+          "返回反馈",
+          "返回半日报"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:49.323Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:49.755Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "e4894111a2bdbaf8b1bfa684ef4c10904fa2ee763afbe5c4dd25d3ff6656947b"
+      },
+      {
+        "at": "2026-11-03T07:28:49.763Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-47aebd886ae19168ff159048a8bd4475c90b7f82ab710eb22c1184b7354b08a2",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:28:52.529Z",
+        "phase": "query_attempt",
+        "attempt": 3,
+        "title": "社区反馈半日报",
+        "retained": true,
+        "operationId": "external-b0618eef81b61c1ffac3290a03a024afd40de33bbc61e7976f008da9a604397f"
+      },
+      {
+        "at": "2026-11-03T07:28:52.650Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:53.560Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:53.568Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:54.030Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "efdacafb9d41d2806422871a8fd3c33c22c588d963086aed963c48b6c969b07d"
+      },
+      {
+        "at": "2026-11-03T07:28:54.038Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-bb93bf05ad3bc030f1b7c910537c24f79a253caf90692a4c61d7044f34007600",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:28:56.303Z",
+        "phase": "query_attempt",
+        "attempt": 4,
+        "title": "建议",
+        "retained": false,
+        "operationId": "external-11c2e79108d61b18fa5e45b61a6481d57b85883b60d780a83db5c88eff28140d"
+      },
+      {
+        "at": "2026-11-03T07:28:56.350Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:57.068Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:57.076Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:57.078Z",
+        "phase": "retirement",
+        "processed": false
+      },
+      {
+        "at": "2026-11-03T07:28:58.842Z",
+        "phase": "query_attempt",
+        "attempt": 5,
+        "title": "社区反馈半日报",
+        "retained": true,
+        "operationId": "external-82f8175af829697b71bc741dfa252f29565e35f8c4f9bec57d240cd105ba686f"
+      },
+      {
+        "at": "2026-11-03T07:28:59.010Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:59.742Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:59.750Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:29:00.181Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "3ca9bd54c44212f5ccb31a97468038108cc2b2575e3b7956ad07af088795ff8d"
+      },
+      {
+        "at": "2026-11-03T07:29:00.183Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-2ca1740bbdca1c1694e41e6aea4e747db508e0acd255a03deaf3bd25936034ba",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:29:00.184Z",
+        "phase": "complete",
+        "status": "completed",
+        "queryAttempts": 5,
+        "recalls": 3,
+        "githubCalls": 0,
+        "reportPreserved": true,
+        "newCommands": 0
+      },
+      {
+        "at": "2026-11-03T07:29:00.201Z",
+        "phase": "closed",
+        "status": "completed",
+        "pendingOperation": null,
+        "cancelledPending": 0
+      }
+    ],
+    "clientFeedback": "完成",
+    "verifiedSequence": [
+      "Bug",
+      "original evidence",
+      "return half-day report",
+      "suggestion",
+      "return half-day report"
+    ],
+    "verificationBoundary": "User confirmed completion; backend verifies 6 accepted sends and 3 successful recalls, all 3 report messages retained. Steam not clicked in this round.",
+    "retirementReadback": [
+      {
+        "retained": true,
+        "retirement": []
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": true,
+        "retirement": []
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": true,
+        "retirement": []
       }
     ]
   }
