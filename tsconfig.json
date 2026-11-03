@@ -60,6 +60,9 @@
     },
     {
       "path": "packages/connectors/discord"
+    },
+    {
+      "path": "packages/connectors/steam-discussions"
     }
   ]
 }

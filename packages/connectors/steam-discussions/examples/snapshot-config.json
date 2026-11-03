@@ -1,0 +1,4 @@
+{
+  "sourceUri": "urn:superagent:source:steam-discussions-snapshot", "appId": 570,
+  "mode": "snapshot", "snapshotPath": "tests/fixtures/m4/discussions.json", "pollIntervalMs": 60000
+}

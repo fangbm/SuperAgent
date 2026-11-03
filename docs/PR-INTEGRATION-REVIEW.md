@@ -19,3 +19,9 @@ Validation: `pnpm install --frozen-lockfile` and the full `pnpm check` pass on t
 Found and fixed duplicate REST backfill records for full messages already archived from Gateway. Checkpointed message fingerprints ignore transport-only guild/member/nonce fields while retaining the complete original payload and distinct Gateway dispatch history. Different message IDs and real revisions remain independent; partial updates do not fabricate full content. Failed commits retain the prior observation state, and incomplete backfill retains older observations until consumed. See `DISCORD-PR-REVIEW-FIX-NOTES.md`.
 
 Updated onto #1/current main. Frozen install and full `pnpm check` pass: 240 Node tests and six Python reference suites, including the 13 dedicated Discord tests. Live Discord bot/Intent permissions remain untested.
+
+## PR #3 — Steam Discussions
+
+Reviewed the opt-in snapshot envelope, size/count limits, stable object/revision identity, thread/reply consistency, explicit deletion handling and atomic checkpoint recovery. No blocking defect found. The default remote capability remains unavailable; local snapshots report partial. An absent snapshot record never implies deletion.
+
+Updated onto reviewed #2/current main. Frozen install and full `pnpm check` pass: 244 Node tests and six Python reference suites. This validates the local fallback, not continuous or complete remote Steam Discussions access.

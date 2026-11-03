@@ -4,13 +4,14 @@ import path from 'node:path';
 import { M1Runtime } from '@superagent/agent-core';
 import { DiscordConnector } from '@superagent/connector-discord';
 import { SteamReviewsConnector } from '@superagent/connector-steam-reviews';
+import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
 
 const { values } = parseArgs({ options: {
   connector: { type: 'string' }, config: { type: 'string' }, database: { type: 'string' },
   project: { type: 'string' }, source: { type: 'string' }, once: { type: 'boolean', default: false }, probe: { type: 'boolean', default: false },
 } });
-const constructors = { "steam-reviews": SteamReviewsConnector, "discord": DiscordConnector };
-if (!Object.hasOwn(constructors, values.connector ?? '') || !values.config) throw new Error('Usage: pnpm source:m4 --connector steam-reviews|discord --config <JSON> [--probe | --database <SQLite> --project <id> --source <id> [--once]]');
+const constructors = { discord: DiscordConnector, 'steam-reviews': SteamReviewsConnector, 'steam-discussions': SteamDiscussionsConnector };
+if (!Object.hasOwn(constructors, values.connector ?? '') || !values.config) throw new Error('Usage: pnpm source:m4 --connector discord|steam-reviews|steam-discussions --config <JSON> [--probe | --database <SQLite> --project <id> --source <id> [--once]]');
 const config = JSON.parse(readFileSync(values.config, 'utf8'));
 const plugin = new constructors[values.connector](config);
 if (values.probe) {
