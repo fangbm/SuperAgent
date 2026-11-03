@@ -9,9 +9,10 @@ import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussio
 const { values } = parseArgs({ options: {
   connector: { type: 'string' }, config: { type: 'string' }, database: { type: 'string' },
   project: { type: 'string' }, source: { type: 'string' }, once: { type: 'boolean', default: false }, probe: { type: 'boolean', default: false },
+  'archive-only': { type: 'boolean', default: false },
 } });
 const constructors = { discord: DiscordConnector, 'steam-reviews': SteamReviewsConnector, 'steam-discussions': SteamDiscussionsConnector };
-if (!Object.hasOwn(constructors, values.connector ?? '') || !values.config) throw new Error('Usage: pnpm source:m4 --connector discord|steam-reviews|steam-discussions --config <JSON> [--probe | --database <SQLite> --project <id> --source <id> [--once]]');
+if (!Object.hasOwn(constructors, values.connector ?? '') || !values.config) throw new Error('Usage: pnpm source:m4 --connector discord|steam-reviews|steam-discussions --config <JSON> [--probe | --database <SQLite> --project <id> --source <id> [--once] [--archive-only]]');
 const config = JSON.parse(readFileSync(values.config, 'utf8'));
 const plugin = new constructors[values.connector](config);
 if (values.probe) {
@@ -35,12 +36,15 @@ if (values.probe) {
     });
     if (values.once) {
       await plugin.sync(host, controller.signal);
-      runtime.tick();
+      if (!values['archive-only']) runtime.tick();
       // Do not print source text, credentials or checkpoint contents.
       console.log(JSON.stringify({ capability: await plugin.probe(), metrics: runtime.metrics() }));
     } else {
-      worker = runtime.run(controller.signal);
-      await Promise.race([plugin.start(host, controller.signal), worker]);
+      if (values['archive-only']) await plugin.start(host, controller.signal);
+      else {
+        worker = runtime.run(controller.signal);
+        await Promise.race([plugin.start(host, controller.signal), worker]);
+      }
     }
   } catch (error) {
     const code = error instanceof Error ? error.message.split(':')[0] : '';

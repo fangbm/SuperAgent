@@ -3,17 +3,19 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { ConnectorCapabilityV1, FeedbackEventV1, JSONValue, PluginManifestV1, SourcePluginHostV1, SourcePluginV1 } from '@superagent/plugin-sdk';
 
 export interface DiscordConfig {
-  sourceUri: string; guildId: string; channelIds: string[]; threadIds?: string[];
+  sourceUri: string; guildId: string; channelIds: string[]; threadIds?: string[]; discovery?: 'public';
   tokenSecret?: string; historyPagesPerSync?: number; historyPollMs?: number;
 }
 export const discordConfigSchema = {
   type: 'object', additionalProperties: false, required: ['sourceUri', 'guildId', 'channelIds'],
   properties: { sourceUri: { type: 'string', format: 'uri' }, guildId: { type: 'string', pattern: '^[0-9]+$' },
-    channelIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, minItems: 1, uniqueItems: true },
+    channelIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, minItems: 0, uniqueItems: true },
     threadIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, uniqueItems: true },
+    discovery: { enum: ['public'] },
     tokenSecret: { type: 'string', minLength: 1 }, historyPagesPerSync: { type: 'integer', minimum: 1, maximum: 10000 },
     historyPollMs: { type: 'integer', minimum: 1000, maximum: 86400000 } },
 };
+export interface DiscordDispatch { type: string; data: Record<string, JSONValue>; sequence: number; sessionId: string; receivedAt: string }
 type Native = Record<string, JSONValue>;
 const object = (input: unknown): input is Record<string, unknown> => !!input && typeof input === 'object' && !Array.isArray(input);
 const snowflake = (input: unknown): input is string => typeof input === 'string' && /^[0-9]+$/.test(input);
@@ -71,46 +73,79 @@ export function discordPermissions(guildId: string, userId: string, roleIds: str
   apply(overwrites.filter(item => item.type === 1 && item.id === userId));
   return bits;
 }
-interface Channel { id: string; guild_id: string; type: number; parent_id?: string; permission_overwrites?: Overwrite[] }
+interface Channel { id: string; guild_id: string; type: number; parent_id?: string; permission_overwrites?: Overwrite[]; thread_metadata?: { archive_timestamp?: string } }
 interface History { after: string; before: string | null; high: string }
 interface Gateway { sessionId: string; resumeUrl: string; sequence: number }
-interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean; observedMessages?: Record<string, Record<string, string>> }
-export interface DiscordOptions { fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void> }
+interface ArchiveScan { initialized: boolean; before: string | null; cutoff: string | null; lastSeen: string | null }
+interface PendingDispatch { sessionId: string; sequence: number; type: string; receivedAt: string }
+interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean;
+  pendingDispatch?: PendingDispatch; discoveredChannels?: string[]; discoveredThreads?: Record<string, { parentId: string; type: number }>;
+  archivedThreads?: Record<string, ArchiveScan>; archiveParentCursor?: string; deletedThreads?: string[];
+  observedMessages?: Record<string, Record<string, string>> }
+export interface DiscordOptions {
+  fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  onDispatch?: (packet: DiscordDispatch, signal: AbortSignal) => Promise<void>;
+  onDispatchImmediate?: (packet: DiscordDispatch) => Promise<void>;
+  additionalIntents?: number; channelResolver?: () => Promise<string[]>;
+  channelExcluder?: (channel: { id: string; parent_id?: string }) => boolean | Promise<boolean>;
+}
 export class DiscordConnector implements SourcePluginV1 {
   readonly manifest: PluginManifestV1;
-  private readonly ids: string[];
+  private readonly staticIds: string[];
+  private ids: string[];
   private readonly signature: string;
   private readonly fetcher: typeof fetch;
   private readonly socketFactory: (url: string) => WebSocket;
   private readonly pause: (ms: number, signal: AbortSignal) => Promise<void>;
+  private readonly onDispatch: DiscordOptions['onDispatch'];
+  private readonly onDispatchImmediate: DiscordOptions['onDispatchImmediate'];
+  private readonly additionalIntents: number;
+  private readonly channelResolver: DiscordOptions['channelResolver'];
+  private readonly channelExcluder: DiscordOptions['channelExcluder'];
   private readonly controller = new AbortController();
   private host: SourcePluginHostV1 | undefined;
   private token: string | undefined;
   private channels = new Map<string, Channel>();
+  private publicParents = new Map<string, Channel>();
+  private permissionRoles: Role[] = [];
+  private botUserId = '';
+  private botRoleIds: string[] = [];
+  private inspectedAt = 0;
+  private permissionsDirty = false;
   private tail: Promise<void> = Promise.resolve();
   private socket: WebSocket | undefined;
   private running: Promise<void> | undefined;
   private lastIdentifyAt = 0;
+  private readonly immediateInFlight = new Set<string>();
   constructor(private readonly config: DiscordConfig, options: DiscordOptions = {}) {
     new URL(config.sourceUri);
     if (Object.keys(config).some(key => !Object.hasOwn(discordConfigSchema.properties, key)) || !snowflake(config.guildId)
-      || !Array.isArray(config.channelIds) || !config.channelIds.length || config.channelIds.some(id => !snowflake(id))
+      || !Array.isArray(config.channelIds) || config.channelIds.some(id => !snowflake(id))
       || (config.threadIds !== undefined && (!Array.isArray(config.threadIds) || config.threadIds.some(id => !snowflake(id))))
+      || (config.discovery !== undefined && config.discovery !== 'public')
       || (config.tokenSecret !== undefined && (typeof config.tokenSecret !== 'string' || !config.tokenSecret.trim()))) throw new Error('INVALID_CONFIG');
-    this.ids = [...config.channelIds, ...(config.threadIds ?? [])];
-    if (new Set(this.ids).size !== this.ids.length) throw new Error('INVALID_CONFIG: duplicate channel');
+    this.staticIds = [...config.channelIds, ...(config.threadIds ?? [])]; this.ids = [...this.staticIds];
+    if (new Set(this.staticIds).size !== this.staticIds.length) throw new Error('INVALID_CONFIG: duplicate channel');
+    if (!this.staticIds.length && config.discovery !== 'public' && !options.channelResolver) throw new Error('INVALID_CONFIG: no channels');
+    if (config.discovery === 'public' && options.channelResolver) throw new Error('INVALID_CONFIG: public discovery cannot use a private resolver');
+    if (options.additionalIntents !== undefined && (!Number.isSafeInteger(options.additionalIntents) || options.additionalIntents < 0 || options.additionalIntents > 0x7fffffff)) throw new Error('INVALID_CONFIG: additionalIntents');
     for (const [value, max] of [[config.historyPagesPerSync ?? 10, 10000], [config.historyPollMs ?? 60000, 86400000]]) if (!Number.isInteger(value) || value! < 1 || value! > max!) throw new Error('INVALID_CONFIG');
     if ((config.historyPollMs ?? 60000) < 1000) throw new Error('INVALID_CONFIG');
-    this.signature = hash({ guild: config.guildId, channels: [...this.ids].sort(), source: config.sourceUri });
+    const scope = config.discovery === 'public' ? 'public' : options.channelResolver ? 'resolver' : 'static';
+    this.signature = scope === 'static' ? hash({ guild: config.guildId, channels: [...this.staticIds].sort(), source: config.sourceUri })
+      : hash({ guild: config.guildId, channels: [...this.staticIds].sort(), source: config.sourceUri, policy: scope });
     this.fetcher = options.fetch ?? fetch;
     this.socketFactory = options.webSocket ?? (url => new WebSocket(url));
     this.pause = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); });
+    this.onDispatch = options.onDispatch; this.onDispatchImmediate = options.onDispatchImmediate;
+    this.additionalIntents = options.additionalIntents ?? 0; this.channelResolver = options.channelResolver; this.channelExcluder = options.channelExcluder;
     this.manifest = { apiVersion: 'superagent.io/plugin/v1', id: 'superagent.discord', version: '0.1.0', displayName: 'Discord Gateway', kind: 'source', engine: { sdk: '^0.1.0' },
       permissions: { networkHosts: ['discord.com', 'gateway.discord.gg', '*.discord.gg'], secretKeys: [config.tokenSecret ?? 'DISCORD_BOT_TOKEN'], eventPublish: true }, configSchema: discordConfigSchema };
   }
   private async bind(host: SourcePluginHostV1): Promise<void> {
     if (this.host && (this.host.sourceId !== host.sourceId || this.host.projectId !== host.projectId)) throw new Error('SOURCE_IDENTITY_CONFLICT');
     this.host = host;
+    if (this.token) return;
     this.token = await host.getSecret(this.config.tokenSecret ?? 'DISCORD_BOT_TOKEN');
     if (!this.token.trim()) throw new Error('UNAUTHORIZED');
   }
@@ -120,10 +155,21 @@ export class DiscordConnector implements SourcePluginV1 {
   private async state(host: SourcePluginHostV1): Promise<State> {
     const input = await host.getCheckpoint();
     if (input === null) return { version: 1, signature: this.signature, gateway: null, history: {}, gap: true, observedMessages: {} };
+    const dynamic = this.config.discovery === 'public' || !!this.channelResolver;
     if (!object(input) || input.version !== 1 || input.signature !== this.signature || typeof input.gap !== 'boolean' || !object(input.history)
       || (input.gateway !== null && (!object(input.gateway) || typeof input.gateway.sessionId !== 'string' || !Number.isSafeInteger(input.gateway.sequence) || Number(input.gateway.sequence) < 0 || typeof input.gateway.resumeUrl !== 'string'))
-      || Object.entries(input.history).some(([id, item]) => !this.ids.includes(id) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))
-      || (input.observedMessages !== undefined && (!object(input.observedMessages) || Object.entries(input.observedMessages).some(([channelId, messages]) => !this.ids.includes(channelId)
+      || Object.entries(input.history).some(([id, item]) => !(dynamic ? snowflake(id) : this.staticIds.includes(id)) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))
+      || (input.pendingDispatch !== undefined && (!object(input.pendingDispatch) || typeof input.pendingDispatch.sessionId !== 'string'
+        || !Number.isSafeInteger(input.pendingDispatch.sequence) || Number(input.pendingDispatch.sequence) < 0 || typeof input.pendingDispatch.type !== 'string' || !iso(input.pendingDispatch.receivedAt)))
+      || (input.discoveredChannels !== undefined && (!Array.isArray(input.discoveredChannels) || input.discoveredChannels.some(id => !snowflake(id))))
+      || (input.discoveredThreads !== undefined && (!object(input.discoveredThreads) || Object.entries(input.discoveredThreads).some(([id, value]) => !snowflake(id)
+        || !object(value) || !snowflake(value.parentId) || ![10, 11].includes(Number(value.type)))))
+      || (input.archivedThreads !== undefined && (!object(input.archivedThreads) || Object.entries(input.archivedThreads).some(([id, value]) => !snowflake(id)
+        || !object(value) || typeof value.initialized !== 'boolean' || (value.before !== null && !iso(value.before))
+        || (value.cutoff !== null && !iso(value.cutoff)) || (value.lastSeen !== null && !iso(value.lastSeen)))))
+      || (input.archiveParentCursor !== undefined && !snowflake(input.archiveParentCursor))
+      || (input.deletedThreads !== undefined && (!Array.isArray(input.deletedThreads) || input.deletedThreads.some(id => !snowflake(id))))
+      || (input.observedMessages !== undefined && (!object(input.observedMessages) || Object.entries(input.observedMessages).some(([channelId, messages]) => !(dynamic ? snowflake(channelId) : this.staticIds.includes(channelId))
         || !object(messages) || Object.entries(messages).some(([messageId, revision]) => !snowflake(messageId) || typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)))))) throw new Error('INVALID_CHECKPOINT');
     const state = structuredClone(input) as unknown as State;
     state.observedMessages ??= {};
@@ -174,7 +220,7 @@ export class DiscordConnector implements SourcePluginV1 {
       try { return await response.json(); } catch { throw new Error('INVALID_EVENT: discord JSON'); }
     }
   }
-  private async inspect(signal: AbortSignal): Promise<ConnectorCapabilityV1> {
+  private async loadPermissions(signal: AbortSignal): Promise<void> {
     const application = await this.get('/oauth2/applications/@me', signal);
     if (!object(application) || typeof application.flags !== 'number') throw new Error('INVALID_EVENT: application');
     if ((application.flags & ((1 << 18) | (1 << 19))) === 0) throw new Error('PERMISSION_DENIED: Message Content Intent not enabled/approved');
@@ -184,23 +230,256 @@ export class DiscordConnector implements SourcePluginV1 {
     const roles = await this.get('/guilds/' + this.config.guildId + '/roles', signal);
     if (!object(member) || !object(member.user) || !snowflake(member.user.id) || !Array.isArray(member.roles) || member.roles.some(id => !snowflake(id))
       || !Array.isArray(roles) || roles.some(role => !object(role) || !snowflake(role.id) || !snowflake(role.permissions))) throw new Error('INVALID_EVENT: permissions');
+    this.botUserId = member.user.id; this.botRoleIds = member.roles as string[]; this.permissionRoles = roles as Role[];
+  }
+  private channel(value: unknown, expectedId?: string): Channel {
+    if (!object(value) || !snowflake(value.id) || (expectedId !== undefined && value.id !== expectedId) || value.guild_id !== this.config.guildId
+      || !Number.isInteger(value.type)) throw new Error('PERMISSION_DENIED: channel identity/type');
+    return value as unknown as Channel;
+  }
+  private overwrites(channel: Channel): Overwrite[] {
+    if (channel.permission_overwrites === undefined) return [];
+    if (!Array.isArray(channel.permission_overwrites) || channel.permission_overwrites.some(item => !object(item) || !snowflake(item.id)
+      || ![0, 1].includes(Number(item.type)) || !snowflake(item.allow) || !snowflake(item.deny))) throw new Error('INVALID_EVENT: channel permissions');
+    return channel.permission_overwrites;
+  }
+  private async ensureBotPermissions(channel: Channel, signal: AbortSignal): Promise<void> {
+    const parent = [10, 11, 12].includes(channel.type) ? this.publicParents.get(channel.parent_id ?? '')
+      ?? this.channel(await this.get('/channels/' + channel.parent_id, signal)) : channel;
+    const bits = discordPermissions(this.config.guildId, this.botUserId, this.botRoleIds, this.permissionRoles, this.overwrites(parent));
+    if ((bits & 1024n) === 0n || (bits & 65536n) === 0n) throw new Error('PERMISSION_DENIED: VIEW_CHANNEL/READ_MESSAGE_HISTORY');
+    if (channel.type === 12 && (bits & (1n << 34n)) === 0n) await this.get('/channels/' + channel.id + '/thread-members/@me', signal);
+  }
+  private async fetchChannel(id: string, signal: AbortSignal): Promise<Channel> {
+    const channel = this.channel(await this.get('/channels/' + id, signal), id);
+    if (![0, 2, 4, 5, 10, 11, 12, 13, 15, 16].includes(channel.type)) throw new Error('PERMISSION_DENIED: channel identity/type');
+    await this.ensureBotPermissions(channel, signal);
+    return channel;
+  }
+  private async everyoneCanView(channel: Channel): Promise<boolean> {
+    return (discordPermissions(this.config.guildId, this.config.guildId, [], this.permissionRoles, this.overwrites(channel)) & 1024n) !== 0n;
+  }
+  private async excluded(channel: Channel): Promise<boolean> { return this.channelExcluder ? !!(await this.channelExcluder({ id: channel.id, ...(channel.parent_id ? { parent_id: channel.parent_id } : {}) })) : false; }
+  private async resolvedIds(): Promise<string[]> {
+    const extra = this.channelResolver ? await this.channelResolver() : [];
+    if (!Array.isArray(extra) || extra.some(id => !snowflake(id))) throw new Error('INVALID_CONFIG: resolved channel IDs');
+    return [...new Set([...this.staticIds, ...extra])];
+  }
+  private async inspect(signal: AbortSignal, saved?: State): Promise<ConnectorCapabilityV1> {
+    await this.loadPermissions(signal);
     const channels = new Map<string, Channel>();
-    for (const id of this.ids) {
-      const data = await this.get('/channels/' + id, signal);
-      if (!object(data) || data.id !== id || data.guild_id !== this.config.guildId || ![0, 5, 10, 11, 12].includes(Number(data.type))) throw new Error('PERMISSION_DENIED: channel identity/type');
-      const channel = data as unknown as Channel;
-      if (this.config.threadIds?.includes(id) && ![10, 11, 12].includes(channel.type)) throw new Error('INVALID_CONFIG: threadIds');
-      const permissionChannel = [10, 11, 12].includes(channel.type) ? await this.get('/channels/' + channel.parent_id, signal) : data;
-      if (!object(permissionChannel) || permissionChannel.guild_id !== this.config.guildId || !Array.isArray(permissionChannel.permission_overwrites)
-        || permissionChannel.permission_overwrites.some(item => !object(item) || !snowflake(item.id) || ![0, 1].includes(Number(item.type)) || !snowflake(item.allow) || !snowflake(item.deny))) throw new Error('INVALID_EVENT: channel permissions');
-      const bits = discordPermissions(this.config.guildId, member.user.id, member.roles as string[], roles as Role[], permissionChannel.permission_overwrites as Overwrite[]);
-      if ((bits & 1024n) === 0n || (bits & 65536n) === 0n) throw new Error('PERMISSION_DENIED: VIEW_CHANNEL/READ_MESSAGE_HISTORY');
-      if (channel.type === 12 && (bits & (1n << 34n)) === 0n) await this.get('/channels/' + id + '/thread-members/@me', signal);
-      channels.set(id, channel);
+    if (this.config.discovery === 'public') {
+      const list = await this.get('/guilds/' + this.config.guildId + '/channels', signal);
+      if (!Array.isArray(list)) throw new Error('INVALID_EVENT: guild channels');
+      const parents = new Map<string, Channel>();
+      for (const item of list) {
+        const channel = this.channel(item);
+        if (![0, 5, 15, 16].includes(channel.type) || !(await this.everyoneCanView(channel)) || await this.excluded(channel)) continue;
+        await this.ensureBotPermissions(channel, signal);
+        parents.set(channel.id, channel);
+        if ([0, 5].includes(channel.type)) channels.set(channel.id, channel);
+      }
+      for (const item of list) {
+        const channel = this.channel(item);
+        if (![2, 13].includes(channel.type) || !(await this.everyoneCanView(channel)) || await this.excluded(channel)) continue;
+        await this.ensureBotPermissions(channel, signal); channels.set(channel.id, channel);
+      }
+      const active = await this.get('/guilds/' + this.config.guildId + '/threads/active', signal);
+      if (!object(active) || !Array.isArray(active.threads)) throw new Error('INVALID_EVENT: active threads');
+      const known = { ...(saved?.discoveredThreads ?? {}) };
+      const deleted = new Set(saved?.deletedThreads ?? []);
+      for (const item of active.threads) {
+        if (!object(item) || !snowflake(item.id) || !snowflake(item.parent_id) || item.guild_id !== this.config.guildId || ![10, 11].includes(Number(item.type))
+          || !parents.has(item.parent_id) || await this.excluded(item as unknown as Channel) || await this.excluded(parents.get(item.parent_id)!)) continue;
+        known[item.id] = { parentId: item.parent_id, type: Number(item.type) };
+        channels.set(item.id, item as unknown as Channel);
+      }
+      for (const [id, thread] of Object.entries(known)) {
+        if (deleted.has(id) || !parents.has(thread.parentId) || channels.has(id)) continue;
+        const channel = { id, guild_id: this.config.guildId, type: thread.type, parent_id: thread.parentId };
+        if (await this.excluded(channel) || await this.excluded(parents.get(thread.parentId)!)) continue;
+        channels.set(id, channel);
+      }
+      for (const id of this.staticIds) {
+        if (channels.has(id) || parents.has(id)) continue;
+        const channel = await this.fetchChannel(id, signal);
+        if (![10, 11].includes(channel.type) || !channel.parent_id || !parents.has(channel.parent_id)
+          || await this.excluded(channel) || await this.excluded(parents.get(channel.parent_id)!)) throw new Error('PERMISSION_DENIED: public channel policy');
+        channels.set(id, channel); known[id] = { parentId: channel.parent_id, type: channel.type };
+      }
+      this.publicParents = parents;
+      this.channels = channels;
+      this.ids = [...channels.keys()];
+      if (saved) saved.discoveredThreads = known;
+      this.permissionsDirty = false;
+      this.inspectedAt = Date.now();
+      return { connection: 'hybrid', coverage: 'partial', readMessages: true, readHistory: true, readEdits: true, readAttachments: true,
+        reason: 'Public visible channels and public threads only; archived-thread discovery is resumable and bounded; offline deletes and intermediate edits may be unavailable' };
     }
-    this.channels = channels;
+    const ids = await this.resolvedIds();
+    for (const id of ids) channels.set(id, await this.fetchChannel(id, signal));
+    this.publicParents.clear(); this.channels = channels; this.ids = ids; this.permissionsDirty = false; this.inspectedAt = Date.now();
     return { connection: 'hybrid', coverage: 'partial', readMessages: true, readHistory: true, readEdits: true, readAttachments: true,
-      reason: 'Configured channels/threads only; REST cannot recover offline deletes or intermediate/old edits after an unresumable session; no automatic thread discovery' };
+      reason: this.channelResolver ? 'Only configured/resolved channels; private channels are resolved dynamically; unresumable gaps remain' : 'Configured channels/threads only; REST cannot recover offline deletes or intermediate/old edits after an unresumable session' };
+  }
+  private async discoverArchivedThreads(host: SourcePluginHostV1, state: State, signal: AbortSignal): Promise<State> {
+    if (this.config.discovery !== 'public') return state;
+    const parents = [...this.publicParents.values()].filter(channel => [0, 5, 15, 16].includes(channel.type)).sort((a, b) => a.id.localeCompare(b.id));
+    if (!parents.length) return state;
+    state.archivedThreads ??= {}; state.discoveredThreads ??= {};
+    const maxPages = this.config.historyPagesPerSync ?? 10;
+    let start = 0;
+    if (state.archiveParentCursor) {
+      const previous = parents.findIndex(parent => parent.id === state.archiveParentCursor);
+      if (previous >= 0) start = (previous + 1) % parents.length;
+    }
+    const ordered = [...parents.slice(start), ...parents.slice(0, start)];
+    for (const parent of ordered.slice(0, maxPages)) {
+      signal.throwIfAborted();
+      let scan = state.archivedThreads[parent.id] ?? { initialized: false, before: null, cutoff: null, lastSeen: null };
+      if (scan.initialized && scan.before === null && scan.cutoff === null) scan = { ...scan, before: null, cutoff: scan.lastSeen };
+      const url = new URL('https://discord.com/api/v10/channels/' + parent.id + '/threads/archived/public');
+      url.searchParams.set('limit', '100'); if (scan.before) url.searchParams.set('before', scan.before);
+      const response = await this.get(url.pathname + url.search, signal);
+      if (!object(response) || !Array.isArray(response.threads) || typeof response.has_more !== 'boolean') throw new Error('INVALID_EVENT: archived threads');
+      const threads: Channel[] = [];
+      let oldest: string | null = null; let newest = scan.lastSeen;
+      let foundOlderThanCutoff = false;
+      for (const item of response.threads) {
+        const thread = this.channel(item);
+        if (thread.parent_id !== parent.id || ![10, 11].includes(thread.type) || !object(thread.thread_metadata)
+          || !iso(thread.thread_metadata.archive_timestamp)) throw new Error('INVALID_EVENT: public archived thread');
+        const archivedAt = thread.thread_metadata.archive_timestamp;
+        if (oldest === null || Date.parse(archivedAt) < Date.parse(oldest)) oldest = archivedAt;
+        if (newest === null || Date.parse(archivedAt) > Date.parse(newest)) newest = archivedAt;
+        if (scan.cutoff !== null && Date.parse(archivedAt) < Date.parse(scan.cutoff)) foundOlderThanCutoff = true;
+        if ((scan.cutoff === null || Date.parse(archivedAt) >= Date.parse(scan.cutoff))
+          && !(await this.excluded(thread)) && !(await this.excluded(parent))) threads.push(thread);
+      }
+      if (response.has_more && !response.threads.length) throw new Error('INVALID_EVENT: empty archived page with has_more');
+      if (response.has_more && oldest === null) throw new Error('INVALID_EVENT: missing archived thread timestamp');
+      for (const thread of threads) {
+        state.discoveredThreads[thread.id] = { parentId: parent.id, type: thread.type };
+        this.channels.set(thread.id, thread);
+        if (!this.ids.includes(thread.id)) this.ids.push(thread.id);
+      }
+      const complete = !response.has_more || foundOlderThanCutoff;
+      state.archivedThreads[parent.id] = complete
+        ? { initialized: true, before: null, cutoff: null, lastSeen: newest }
+        : { initialized: true, before: oldest, cutoff: scan.cutoff, lastSeen: newest };
+      state.archiveParentCursor = parent.id;
+      await host.commitBatch([], { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+    }
+    return state;
+  }
+  private async publicParent(id: string, signal: AbortSignal): Promise<Channel | undefined> {
+    const cached = this.publicParents.get(id);
+    if (cached) return await this.excluded(cached) ? undefined : cached;
+    let channel: Channel;
+    try { channel = await this.fetchChannel(id, signal); }
+    catch (error) { if (error instanceof Error && error.message.startsWith('PERMISSION_DENIED')) return undefined; throw error; }
+    if (![0, 5, 15, 16].includes(channel.type) || !(await this.everyoneCanView(channel)) || await this.excluded(channel)) return undefined;
+    this.publicParents.set(id, channel);
+    if ([0, 5].includes(channel.type)) { this.channels.set(id, channel); if (!this.ids.includes(id)) this.ids.push(id); }
+    return channel;
+  }
+  private async dispatchChannel(channelId: string, state: State, signal: AbortSignal): Promise<Channel | undefined> {
+    if (!snowflake(channelId)) return undefined;
+    if (this.config.discovery !== 'public') {
+      if (!(await this.resolvedIds()).includes(channelId)) return undefined;
+      const cached = this.channels.get(channelId); if (cached) return cached;
+      const channel = await this.fetchChannel(channelId, signal);
+      this.channels.set(channelId, channel); this.ids.push(channelId); return channel;
+    }
+    if (this.permissionsDirty) await this.inspect(signal, state);
+    const cached = this.channels.get(channelId);
+    if (cached) {
+      if (await this.excluded(cached) || (cached.parent_id && !(await this.publicParent(cached.parent_id, signal)))) {
+        this.channels.delete(channelId); this.ids = this.ids.filter(id => id !== channelId); return undefined;
+      }
+      return cached;
+    }
+    let channel: Channel;
+    try { channel = await this.fetchChannel(channelId, signal); }
+    catch (error) { if (error instanceof Error && error.message.startsWith('PERMISSION_DENIED')) return undefined; throw error; }
+    if ([0, 2, 5, 13].includes(channel.type)) {
+      if (!(await this.everyoneCanView(channel)) || await this.excluded(channel)) return undefined;
+      if ([0, 5].includes(channel.type)) this.publicParents.set(channel.id, channel);
+      this.channels.set(channel.id, channel); this.ids.push(channel.id);
+      state.discoveredChannels ??= []; if (!state.discoveredChannels.includes(channel.id)) state.discoveredChannels.push(channel.id);
+      return channel;
+    }
+    if (![10, 11].includes(channel.type) || !channel.parent_id) return undefined;
+    const parent = await this.publicParent(channel.parent_id, signal);
+    if (!parent || await this.excluded(channel)) return undefined;
+    await this.ensureBotPermissions(channel, signal);
+    state.discoveredThreads ??= {}; state.discoveredThreads[channel.id] = { parentId: parent.id, type: channel.type };
+    this.channels.set(channel.id, channel); this.ids.push(channel.id); return channel;
+  }
+  private async rememberPublicChannelEvent(type: string, data: Native, state: State, signal: AbortSignal): Promise<void> {
+    if (this.config.discovery !== 'public' || data.guild_id !== this.config.guildId) return;
+    if (['GUILD_ROLE_CREATE', 'GUILD_ROLE_UPDATE', 'GUILD_ROLE_DELETE', 'CHANNEL_UPDATE'].includes(type)) { this.permissionsDirty = true; return; }
+    if (!snowflake(data.id)) return;
+    const id = data.id;
+    if (type === 'THREAD_DELETE') {
+      if (this.channels.get(id) && [10, 11].includes(this.channels.get(id)!.type)) {
+        state.deletedThreads ??= []; if (!state.deletedThreads.includes(id)) state.deletedThreads.push(id);
+        delete state.discoveredThreads?.[id]; this.channels.delete(id); this.ids = this.ids.filter(value => value !== id);
+      }
+      return;
+    }
+    if (type === 'CHANNEL_DELETE') {
+      this.channels.delete(id); this.publicParents.delete(id);
+      for (const [threadId, thread] of Object.entries(state.discoveredThreads ?? {})) if (thread.parentId === id) {
+        state.deletedThreads ??= []; if (!state.deletedThreads.includes(threadId)) state.deletedThreads.push(threadId);
+        this.channels.delete(threadId);
+      }
+      this.ids = this.ids.filter(value => value !== id && this.channels.has(value));
+      return;
+    }
+    if (!['CHANNEL_CREATE', 'CHANNEL_UPDATE', 'THREAD_CREATE', 'THREAD_UPDATE'].includes(type)) return;
+    let channel: Channel;
+    try { channel = await this.fetchChannel(id, signal); }
+    catch (error) {
+      if (!(error instanceof Error && error.message.startsWith('PERMISSION_DENIED'))) throw error;
+      this.channels.delete(id); this.publicParents.delete(id); this.ids = this.ids.filter(value => value !== id); return;
+    }
+    if ([10, 11].includes(channel.type)) {
+      const parent = channel.parent_id ? await this.publicParent(channel.parent_id, signal) : undefined;
+      if (!parent || await this.excluded(channel)) { this.channels.delete(id); this.ids = this.ids.filter(value => value !== id); return; }
+      state.discoveredThreads ??= {}; state.discoveredThreads[id] = { parentId: parent.id, type: channel.type };
+    } else if ([0, 2, 5, 13].includes(channel.type)) {
+      if (!(await this.everyoneCanView(channel)) || await this.excluded(channel)) {
+        this.channels.delete(id); this.publicParents.delete(id);
+        for (const [threadId, thread] of Object.entries(state.discoveredThreads ?? {})) if (thread.parentId === id) {
+          state.deletedThreads ??= []; if (!state.deletedThreads.includes(threadId)) state.deletedThreads.push(threadId);
+          this.channels.delete(threadId);
+        }
+        this.ids = this.ids.filter(value => value !== id && this.channels.has(value)); return;
+      }
+      if ([0, 5].includes(channel.type)) this.publicParents.set(id, channel);
+      state.discoveredChannels ??= []; if (!state.discoveredChannels.includes(id)) state.discoveredChannels.push(id);
+    } else { this.channels.delete(id); this.ids = this.ids.filter(value => value !== id); return; }
+    this.channels.set(id, channel); if (!this.ids.includes(id)) this.ids.push(id);
+  }
+  private async dispatchEvents(host: SourcePluginHostV1, packet: DiscordDispatch, state: State, signal: AbortSignal): Promise<FeedbackEventV1[]> {
+    const { type, data } = packet;
+    await this.rememberPublicChannelEvent(type, data as Native, state, signal);
+    if (!['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE', 'MESSAGE_DELETE_BULK'].includes(type)
+      || data.guild_id !== this.config.guildId || !snowflake(data.channel_id)) return [];
+    const channel = await this.dispatchChannel(data.channel_id, state, signal);
+    if (!channel || ![0, 2, 5, 10, 11, 12, 13].includes(channel.type)) return [];
+    const context = { eventKey: packet.sessionId + ':' + packet.sequence, receivedAt: packet.receivedAt,
+      ...([10, 11, 12].includes(channel.type) ? { threadId: channel.id } : {}) };
+    const events: FeedbackEventV1[] = [];
+    if (type === 'MESSAGE_DELETE_BULK') {
+      if (!Array.isArray(data.ids) || data.ids.some(id => !snowflake(id))) throw new Error('INVALID_EVENT: bulk delete');
+      for (const id of data.ids) events.push(normalizeDiscordMessage({ id, guild_id: data.guild_id, channel_id: data.channel_id }, 'deleted', this.config, host, context));
+    } else {
+      events.push(normalizeDiscordMessage(data, type === 'MESSAGE_CREATE' ? 'created' : type === 'MESSAGE_UPDATE' ? 'updated' : 'deleted', this.config, host, context));
+      if (type === 'MESSAGE_CREATE' || type === 'MESSAGE_UPDATE') this.rememberMessage(state, data);
+    }
+    return events;
   }
   async probe(): Promise<ConnectorCapabilityV1> {
     if (!this.host) return { connection: 'hybrid', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'Host not bound; bot credentials and permissions have not been checked' };
@@ -212,9 +491,18 @@ export class DiscordConnector implements SourcePluginV1 {
     return this.serial(async () => {
       const combined = AbortSignal.any([signal, this.controller.signal]);
       try {
-        await this.bind(host); await this.inspect(combined);
+        await this.bind(host);
         let state = await this.state(host);
+        await this.inspect(combined, state);
+        if (this.config.discovery === 'public') {
+          // Persist discovered active threads before bounded archived-thread pagination or history reads.
+          state.discoveredThreads ??= {};
+          await host.commitBatch([], { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+          state = await this.discoverArchivedThreads(host, state, combined);
+        }
         for (const channelId of this.ids) {
+          const channel = this.channels.get(channelId);
+          if (!channel || ![0, 2, 5, 10, 11, 12, 13].includes(channel.type)) continue;
           for (let page = 0; page < (this.config.historyPagesPerSync ?? 10); page++) {
             combined.throwIfAborted();
             const progress = state.history[channelId] ?? { after: '0', before: null, high: '0' };
@@ -249,11 +537,26 @@ export class DiscordConnector implements SourcePluginV1 {
             if (complete) break;
           }
         }
-        await host.reportHealth({ coverage: 'partial', checkedAt: new Date().toISOString(), reason: 'Configured channel history synced/resumable; offline deletions and old edits are not reconstructible; unfinished pages remain in checkpoint' });
+        await host.reportHealth({ coverage: 'partial', checkedAt: new Date().toISOString(), reason: this.config.discovery === 'public'
+          ? 'Public channel/thread discovery and history are resumable; private channels are excluded; offline deletions and older edits are not reconstructible'
+          : 'Configured/resolved channel history synced/resumable; offline deletions and old edits are not reconstructible; unfinished pages remain in checkpoint' });
       } catch (error) {
         if (!combined.aborted) await host.reportHealth({ coverage: 'unavailable', checkedAt: new Date().toISOString(), reason: 'Discord sync failed; committed checkpoint retained; inspect bot permissions and connectivity' });
         throw error;
       }
+    });
+  }
+  /** Archive a shared Gateway packet into this source without opening a second Gateway connection. */
+  consumeDispatch(host: SourcePluginHostV1, packet: DiscordDispatch, signal: AbortSignal): Promise<void> {
+    return this.serial(async () => {
+      const combined = AbortSignal.any([signal, this.controller.signal]);
+      if (typeof packet.type !== 'string' || !packet.type || !object(packet.data) || !Number.isSafeInteger(packet.sequence)
+        || packet.sequence < 0 || typeof packet.sessionId !== 'string' || !packet.sessionId || !iso(packet.receivedAt)) throw new Error('INVALID_EVENT: dispatch');
+      await this.bind(host);
+      if (!this.inspectedAt || Date.now() - this.inspectedAt > 60_000) await this.inspect(combined, await this.state(host));
+      const state = await this.state(host);
+      const events = await this.dispatchEvents(host, packet, state, combined);
+      if (events.length) await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
     });
   }
   private gatewayUrl(value: string): string {
@@ -278,6 +581,8 @@ export class DiscordConnector implements SourcePluginV1 {
     const socket = this.socketFactory(this.gatewayUrl(gateway?.resumeUrl ?? String((discovered as Record<string, unknown>).url)));
     this.socket = socket;
     let session = gateway;
+    let dispatchSessionId = gateway?.sessionId;
+    let lastCommittedSequence = gateway?.sequence ?? -1;
     let receivedSequence: number | null = gateway?.sequence ?? null;
     let pending = 0;
     let heartbeat: ReturnType<typeof setTimeout> | undefined;
@@ -305,7 +610,7 @@ export class DiscordConnector implements SourcePluginV1 {
               const interval = Number(packet.d.heartbeat_interval);
               heartbeat = setTimeout(() => beat(interval), interval * Math.random());
               if (gateway) send(6, { token: this.token, session_id: gateway.sessionId, seq: gateway.sequence });
-              else { this.lastIdentifyAt = Date.now(); send(2, { token: this.token, intents: 1 | 512 | 32768, properties: { os: process.platform, browser: 'superagent', device: 'superagent' } }); }
+              else { this.lastIdentifyAt = Date.now(); send(2, { token: this.token, intents: 1 | 512 | 32768 | this.additionalIntents, properties: { os: process.platform, browser: 'superagent', device: 'superagent' } }); }
             } else if (packet.op === 11) acked = true;
             else if (packet.op === 1) send(1, receivedSequence);
             else if (packet.op === 7) socket.close(4000, 'Reconnect');
@@ -318,6 +623,23 @@ export class DiscordConnector implements SourcePluginV1 {
               const sequence = Number(packet.s);
               const type = packet.t;
               const receivedAt = new Date().toISOString();
+              if (type === 'READY' && typeof payload.session_id === 'string') dispatchSessionId = payload.session_id;
+              const sessionId = type === 'READY' && typeof payload.session_id === 'string' ? payload.session_id : dispatchSessionId;
+              const provisional: DiscordDispatch | undefined = sessionId ? { type, data: structuredClone(payload), sequence, sessionId: sessionId!, receivedAt } : undefined;
+              const dispatchKey = sessionId ? sessionId + ':' + sequence : '';
+              let immediate: Promise<void> | undefined;
+              if (type === 'INTERACTION_CREATE' && provisional && this.onDispatchImmediate
+                && !(sessionId === session?.sessionId && sequence <= lastCommittedSequence) && !this.immediateInFlight.has(dispatchKey)) {
+                this.immediateInFlight.add(dispatchKey);
+                try {
+                  immediate = Promise.resolve(this.onDispatchImmediate(provisional)).catch(error => {
+                    host.logger.warn('Discord immediate interaction acknowledgement failed', { code: error instanceof Error ? error.message.split(':')[0] ?? 'UNKNOWN' : 'UNKNOWN' });
+                  }).finally(() => this.immediateInFlight.delete(dispatchKey));
+                } catch (error) {
+                  host.logger.warn('Discord immediate interaction acknowledgement failed', { code: error instanceof Error ? error.message.split(':')[0] ?? 'UNKNOWN' : 'UNKNOWN' });
+                  this.immediateInFlight.delete(dispatchKey);
+                }
+              }
               void this.serial(async () => {
                 if (failure) throw failure;
                 const state = await this.state(host);
@@ -327,22 +649,27 @@ export class DiscordConnector implements SourcePluginV1 {
                   session = { sessionId: payload.session_id, resumeUrl: payload.resume_gateway_url, sequence };
                 }
                 if (!session) throw new Error('INVALID_EVENT: dispatch before READY');
-                if (type !== 'READY' && state.gateway?.sessionId === session.sessionId && sequence <= state.gateway.sequence) return;
-                const events: FeedbackEventV1[] = [];
-                if (['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE', 'MESSAGE_DELETE_BULK'].includes(type)
-                  && payload.guild_id === this.config.guildId && typeof payload.channel_id === 'string' && this.channels.has(payload.channel_id)) {
-                  const context = { eventKey: session.sessionId + ':' + sequence, receivedAt,
-                    ...([10, 11, 12].includes(this.channels.get(payload.channel_id)!.type) ? { threadId: payload.channel_id } : {}) };
-                  if (type === 'MESSAGE_DELETE_BULK') {
-                    if (!Array.isArray(payload.ids) || payload.ids.some(id => !snowflake(id))) throw new Error('INVALID_EVENT: bulk delete');
-                    for (const id of payload.ids) events.push(normalizeDiscordMessage({ id, guild_id: payload.guild_id, channel_id: payload.channel_id }, 'deleted', this.config, host, context));
-                  } else {
-                    events.push(normalizeDiscordMessage(payload, type === 'MESSAGE_CREATE' ? 'created' : type === 'MESSAGE_UPDATE' ? 'updated' : 'deleted', this.config, host, context));
-                    if (type === 'MESSAGE_CREATE' || type === 'MESSAGE_UPDATE') this.rememberMessage(state, payload);
-                  }
+                const pendingMatches = state.pendingDispatch?.sessionId === session.sessionId && state.pendingDispatch.sequence === sequence && state.pendingDispatch.type === type;
+                if (state.pendingDispatch && !pendingMatches && !(type === 'READY' && state.gateway === null)) throw new Error('DISPATCH_PENDING_MISMATCH');
+                if (state.gateway?.sessionId === session.sessionId && sequence <= state.gateway.sequence && !pendingMatches) return;
+                if (type === 'READY' && state.gateway === null && state.pendingDispatch && !pendingMatches) {
+                  delete state.pendingDispatch; state.gap = true;
                 }
-                state.gateway = { ...session, sequence };
+                const stableReceivedAt = pendingMatches ? state.pendingDispatch!.receivedAt : receivedAt;
+                const durablePacket: DiscordDispatch = { type, data: structuredClone(payload), sequence, sessionId: session.sessionId, receivedAt: stableReceivedAt };
+                if (!pendingMatches) {
+                  state.pendingDispatch = { sessionId: session.sessionId, sequence, type, receivedAt: stableReceivedAt };
+                  await host.commitBatch([], { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+                }
+                const events = await this.dispatchEvents(host, durablePacket, state, signal);
                 await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+                // The ACK starts outside this serial queue; wait here so handlers can safely finish a deferred response.
+                if (immediate) await immediate;
+                if (this.onDispatch) await this.onDispatch(durablePacket, signal);
+                state.gateway = { ...session, sequence };
+                delete state.pendingDispatch;
+                await host.commitBatch([], { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+                session = state.gateway; dispatchSessionId = session.sessionId; lastCommittedSequence = sequence;
               }).catch(error => { failure ??= error; socket.close(4000, 'Host commit failed'); }).finally(() => { pending--; });
             }
           } catch (error) { failure = error; socket.close(4000, 'Invalid payload'); }
@@ -363,6 +690,7 @@ export class DiscordConnector implements SourcePluginV1 {
   }
   start(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {
     if (this.running) throw new Error('ALREADY_RUNNING');
+    if (this.channelResolver && !this.config.discovery) throw new Error('UNSUPPORTED_CAPABILITY: shared-Gateway collectors use consumeDispatch');
     this.running = this.run(host, signal); return this.running;
   }
   private async run(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {

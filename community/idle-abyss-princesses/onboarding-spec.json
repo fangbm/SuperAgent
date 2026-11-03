@@ -1,0 +1,569 @@
+{
+  "schemaVersion": 1,
+  "status": "proposal_only_not_live_configuration",
+  "server": {
+    "name": "深渊放置姬 · Idle Abyss Princesses",
+    "steamAppId": 5335850,
+    "sources": [
+      "https://store.steampowered.com/app/5335850/",
+      "https://store.steampowered.com/api/appdetails?appids=5335850&l=english",
+      "https://store.steampowered.com/api/appdetails?appids=5335850&l=schinese"
+    ]
+  },
+  "discordConstraints": {
+    "defaultChannelsMinimum": 7,
+    "defaultChannelsWithEveryoneViewAndSendMinimum": 5,
+    "source": "https://support.discord.com/hc/en-us/articles/11074987197975-Community-Onboarding-FAQ",
+    "forumTagNameLimitCharacters": 20,
+    "forumTagSource": "https://docs.discord.com/developers/resources/channel#forum-tag-object-forum-tag-structure",
+    "serverGuideTodoCount": "3-5",
+    "serverGuideSource": "https://support.discord.com/hc/en-us/articles/13497665141655-Server-Guide-FAQ",
+    "forumTagPlanningTargetPerForum": 20,
+    "forumTagPlanningTargetPerPost": 5,
+    "forumTagHistoricalEvidenceNote": "20 per forum and 5 per post are reported in archived community feedback only; they are not stated as current official hard limits. Verify current UI/API before creation."
+  },
+  "roles": {
+    "permissionPolicy": "All roles granted by onboarding or available for self-selection are cosmetic only. No permissions, channel access restrictions, staff powers, or staff-area access. Keep all notification roles opt-in and separate from language, interest, and favorite-character choices.",
+    "languages": [
+      {
+        "id": "lang_zh_cn",
+        "name": "语言 · 简体中文",
+        "native": "简体中文",
+        "code": "zh-CN"
+      },
+      {
+        "id": "lang_zh_tw",
+        "name": "語言 · 繁體中文",
+        "native": "繁體中文",
+        "code": "zh-TW"
+      },
+      {
+        "id": "lang_en",
+        "name": "Language · English",
+        "native": "English",
+        "code": "en"
+      },
+      {
+        "id": "lang_ja",
+        "name": "言語 · 日本語",
+        "native": "日本語",
+        "code": "ja"
+      },
+      {
+        "id": "lang_ko",
+        "name": "언어 · 한국어",
+        "native": "한국어",
+        "code": "ko"
+      }
+    ],
+    "characters": [
+      {
+        "id": "char_feina",
+        "name": "⚔️ 绯娜 · 战士",
+        "class": "战士",
+        "steamEnglishClass": "Warrior"
+      },
+      {
+        "id": "char_nuoai_er",
+        "name": "🔮 诺艾尔 · 法师",
+        "class": "法师",
+        "steamEnglishClass": "Mage"
+      },
+      {
+        "id": "char_saixiliya",
+        "name": "🛡️ 塞西莉亚 · 圣骑士",
+        "class": "圣骑士",
+        "steamEnglishClass": "Paladin"
+      },
+      {
+        "id": "char_linya",
+        "name": "🏹 琳恩 · 猎人",
+        "class": "猎人",
+        "steamEnglishClass": "Hunter"
+      },
+      {
+        "id": "char_tiya",
+        "name": "⚙️ 缇亚 · 机械师",
+        "class": "机械师",
+        "steamEnglishClass": "Machinist"
+      },
+      {
+        "id": "char_yigeni",
+        "name": "🐉 伊格妮 · 龙姬",
+        "class": "龙姬",
+        "steamEnglishClass": "Dragon Princess"
+      },
+      {
+        "id": "char_weila",
+        "name": "💀 薇拉 · 死灵法师",
+        "class": "死灵法师",
+        "steamEnglishClass": "Necromancer"
+      },
+      {
+        "id": "char_yunyao",
+        "name": "☯️ 云遥 · 修仙者",
+        "class": "修仙者",
+        "steamEnglishClass": "Cultivator"
+      }
+    ],
+    "interests": [
+      {
+        "id": "interest_buildcraft",
+        "name": "🛠️ 配装研究员",
+        "intent": "buildcraft"
+      },
+      {
+        "id": "interest_loot",
+        "name": "🎁 刷宝收藏家",
+        "intent": "loot"
+      },
+      {
+        "id": "interest_rifts",
+        "name": "🌀 秘境挑战者",
+        "intent": "rifts/endgame"
+      },
+      {
+        "id": "interest_story",
+        "name": "📖 剧情考据党",
+        "intent": "story"
+      },
+      {
+        "id": "interest_coop",
+        "name": "🤝 联机搭子",
+        "intent": "co-op"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "ping_updates",
+        "name": "🔔 更新提醒",
+        "default": "not_assigned"
+      },
+      {
+        "id": "ping_events",
+        "name": "🎉 活动提醒",
+        "default": "not_assigned"
+      },
+      {
+        "id": "ping_playtests",
+        "name": "🧪 测试招募",
+        "default": "not_assigned"
+      }
+    ],
+    "staffRoles": {
+      "selfAssignable": false,
+      "grantedByOnboarding": false,
+      "permissions": "Staff roles are managed manually by the owner; never grant through onboarding."
+    }
+  },
+  "channels": {
+    "default": [
+      {
+        "name": "👋・欢迎-welcome",
+        "permission": "read_only_for_members",
+        "everyoneView": true,
+        "everyoneSend": false
+      },
+      {
+        "name": "📢・公告-announcements",
+        "permission": "read_only_for_members",
+        "everyoneView": true,
+        "everyoneSend": false
+      },
+      {
+        "name": "💬・闲聊-general",
+        "permission": "public_writable",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "🙋・新手求助-help",
+        "permission": "public_writable",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "🧩・配装交流-build-chat",
+        "permission": "public_writable",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "🎁・掉落展示-loot",
+        "permission": "public_writable",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "🤝・组队招募-lfg",
+        "permission": "public_writable",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "🐞・问题反馈-bug-reports",
+        "type": "forum",
+        "permission": "public_forum_posting",
+        "everyoneView": true,
+        "everyoneSend": true
+      },
+      {
+        "name": "💡・建议-suggestions",
+        "type": "forum",
+        "permission": "public_forum_posting",
+        "everyoneView": true,
+        "everyoneSend": true
+      }
+    ],
+    "defaultCount": 9,
+    "defaultEveryoneWritableCount": 7,
+    "optional": [
+      {
+        "name": "🌐・国际交流-international",
+        "type": "text",
+        "assignWhen": "Language answer is 繁體中文, English, 日本語, or 한국어",
+        "permission": "public_writable",
+        "note": "Do not assign by default to 简体中文 answer; the channel remains discoverable through Browse Channels."
+      },
+      {
+        "name": "📘・攻略配装-builds",
+        "type": "forum",
+        "assignWhen": "Optional buildcraft interest",
+        "permission": "public_writable",
+        "status": "desired_addition_not_live"
+      },
+      {
+        "name": "🔊・冒险者语音-party-voice",
+        "type": "voice",
+        "assignWhen": "Optional co-op/voice area",
+        "permission": "public_voice",
+        "status": "candidate_not_live"
+      }
+    ],
+    "feedbackForums": [
+      {
+        "name": "🐞・问题反馈-bug-reports",
+        "permission": "public_forum",
+        "memberPosting": "open",
+        "status": "proposed_in_forum-tags.json"
+      },
+      {
+        "name": "💡・建议-suggestions",
+        "permission": "public_forum",
+        "memberPosting": "open",
+        "status": "proposed_in_forum-tags.json"
+      },
+      {
+        "name": "📍・已知问题-known-issues",
+        "type": "text",
+        "permission": "read_only_for_members",
+        "status": "desired_addition_not_live"
+      },
+      {
+        "name": "🔒・私密求助-private-help",
+        "type": "private_text_or_staff-created_private_thread",
+        "permission": "hidden_from_everyone_and_cosmetic_roles; staff grants access manually per case",
+        "status": "desired_addition_not_live",
+        "note": "No automatic ticket workflow; private support is outside the proposed public archive scope."
+      }
+    ],
+    "permissionsPrinciple": "Keep public member discussion public and writable; use read-only permissions only for reference/announcement channels. Do not use onboarding choices to gate channels or grant staff access. Private staff area remains owner/staff-only through explicit permissions, not cosmetic roles.",
+    "defaultRegularWritableChats": 5
+  },
+  "onboardingQuestions": [
+    {
+      "id": "language",
+      "title": {
+        "zh": "你希望使用哪种语言？",
+        "en": "Which language do you prefer?"
+      },
+      "description": {
+        "zh": "请选择一种。之后仍可在“频道与身份组”中更改。",
+        "en": "Choose one. You can change it later in Channels & Roles."
+      },
+      "required": true,
+      "multipleAnswers": false,
+      "askBeforeJoin": true,
+      "choices": [
+        {
+          "label": "简体中文",
+          "role": "语言 · 简体中文",
+          "channels": []
+        },
+        {
+          "label": "繁體中文",
+          "role": "語言 · 繁體中文",
+          "channels": [
+            "🌐・国际交流-international"
+          ]
+        },
+        {
+          "label": "English",
+          "role": "Language · English",
+          "channels": [
+            "🌐・国际交流-international"
+          ]
+        },
+        {
+          "label": "日本語",
+          "role": "言語 · 日本語",
+          "channels": [
+            "🌐・国际交流-international"
+          ]
+        },
+        {
+          "label": "한국어",
+          "role": "언어 · 한국어",
+          "channels": [
+            "🌐・国际交流-international"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interests",
+      "title": {
+        "zh": "你最喜欢聊什么？（可多选）",
+        "en": "What do you like to discuss?"
+      },
+      "description": {
+        "zh": "这些兴趣身份组只是展示偏好，不会开启通知。",
+        "en": "These interest roles show what you enjoy; they do not turn on notifications."
+      },
+      "required": false,
+      "multipleAnswers": true,
+      "askBeforeJoin": true,
+      "choices": [
+        {
+          "label": {
+            "zh": "🛠️ 配装与理论构筑",
+            "en": "🛠️ Builds and theorycraft"
+          },
+          "role": "🛠️ 配装研究员",
+          "channels": [
+            "🧩・配装交流-build-chat",
+            "📘・攻略配装-builds"
+          ]
+        },
+        {
+          "label": {
+            "zh": "🎁 掉落、装备与收藏",
+            "en": "🎁 Loot, gear, and collecting"
+          },
+          "role": "🎁 刷宝收藏家",
+          "channels": []
+        },
+        {
+          "label": {
+            "zh": "🌀 秘境与终局挑战",
+            "en": "🌀 Rifts and endgame"
+          },
+          "role": "🌀 秘境挑战者",
+          "channels": []
+        },
+        {
+          "label": {
+            "zh": "📖 剧情与世界观",
+            "en": "📖 Story and lore"
+          },
+          "role": "📖 剧情考据党",
+          "channels": []
+        },
+        {
+          "label": {
+            "zh": "🤝 联机与组队",
+            "en": "🤝 Co-op and finding a party"
+          },
+          "role": "🤝 联机搭子",
+          "channels": []
+        }
+      ]
+    },
+    {
+      "id": "favorite_character",
+      "title": {
+        "zh": "你最喜欢哪些角色？（可多选）",
+        "en": "Which characters do you like?"
+      },
+      "description": {
+        "zh": "可跳过，也可以之后修改。角色名称来自 Steam 角色选择画面。",
+        "en": "Optional; you can change this later. Names match the Steam character-select screen."
+      },
+      "required": false,
+      "multipleAnswers": true,
+      "askBeforeJoin": true,
+      "choices": [
+        {
+          "label": "⚔️ 绯娜 · 战士",
+          "role": "⚔️ 绯娜 · 战士"
+        },
+        {
+          "label": "🔮 诺艾尔 · 法师",
+          "role": "🔮 诺艾尔 · 法师"
+        },
+        {
+          "label": "🛡️ 塞西莉亚 · 圣骑士",
+          "role": "🛡️ 塞西莉亚 · 圣骑士"
+        },
+        {
+          "label": "🏹 琳恩 · 猎人",
+          "role": "🏹 琳恩 · 猎人"
+        },
+        {
+          "label": "⚙️ 缇亚 · 机械师",
+          "role": "⚙️ 缇亚 · 机械师"
+        },
+        {
+          "label": "🐉 伊格妮 · 龙姬",
+          "role": "🐉 伊格妮 · 龙姬"
+        },
+        {
+          "label": "💀 薇拉 · 死灵法师",
+          "role": "💀 薇拉 · 死灵法师"
+        },
+        {
+          "label": "☯️ 云遥 · 修仙者",
+          "role": "☯️ 云遥 · 修仙者"
+        }
+      ]
+    },
+    {
+      "id": "notifications",
+      "title": {
+        "zh": "你想接收哪些提醒？（全部可选）",
+        "en": "Which pings do you want? (Optional)"
+      },
+      "description": {
+        "zh": "默认不订阅；仅勾选你愿意被提及的提醒。不要与语言或兴趣选项捆绑。",
+        "en": "Pings are off by default. Select only those you want; this is separate from your other choices."
+      },
+      "required": false,
+      "multipleAnswers": true,
+      "askBeforeJoin": false,
+      "defaultAssignedRoles": [],
+      "choices": [
+        {
+          "label": "🔔 更新提醒",
+          "role": "🔔 更新提醒",
+          "default": "opt_in_only"
+        },
+        {
+          "label": "🎉 活动提醒",
+          "role": "🎉 活动提醒",
+          "default": "opt_in_only"
+        },
+        {
+          "label": "🧪 测试招募",
+          "role": "🧪 测试招募",
+          "default": "opt_in_only"
+        }
+      ]
+    }
+  ],
+  "guildTag": {
+    "type": "native_discord_server_tag_additional_perk",
+    "candidate": "ABYS",
+    "separateFrom": "member roles and forum tags",
+    "activation": "Current Discord Help Center says Server Tags require three available Server Boosts as an additional perk, independent of server boost level. This proposal does not check availability, unlock, claim, purchase, or activate the perk. Keep ABYS as a candidate only; it may require paid boosts if none are already available.",
+    "label": "Discord calls this a Server Tag; distinguish it from member roles, forum tags, and the separate Discord Guilds product."
+  },
+  "serverGuide": {
+    "welcomeSign": {
+      "zh": "欢迎来到深渊放置姬 · Idle Abyss Princesses 社区！这里可以聊配装、掉落、秘境和组队。请选择你熟悉的语言，按需领取兴趣与角色身份组；通知提醒完全自愿。",
+      "en": "Welcome to the Idle Abyss Princesses community! Talk builds, loot, rifts, and co-op. Choose your preferred language, add any interest or character roles you like, and opt into notifications only if you want them."
+    },
+    "todos": [
+      {
+        "title": {
+          "zh": "先看规则",
+          "en": "Read the rules"
+        },
+        "channel": "📜・规则-rules",
+        "action": "阅读简明社区守则后再发帖。 / Read the short community rules before posting."
+      },
+      {
+        "title": {
+          "zh": "打个招呼",
+          "en": "Say hello"
+        },
+        "channel": "💬・闲聊-general",
+        "action": "在这个公开聊天频道自我介绍，或分享你为何喜欢这款游戏。 / Introduce yourself or share what brought you to the game in this writable public chat."
+      },
+      {
+        "title": {
+          "zh": "看看新手频道",
+          "en": "Visit player help"
+        },
+        "channel": "🙋・新手求助-help",
+        "action": "提出游戏问题，或用清晰、友善的回答帮助其他玩家。 / Ask a question or help another player with a clear, friendly answer."
+      },
+      {
+        "title": {
+          "zh": "分享你的配装",
+          "en": "Share a build"
+        },
+        "channel": "🧩・配装交流-build-chat",
+        "action": "写明角色、技能/天赋、装备，以及目标玩法。 / Include the heroine, skills/talents, gear, and activity you are targeting."
+      },
+      {
+        "title": {
+          "zh": "加入组队",
+          "en": "Find a party"
+        },
+        "channel": "🤝・组队招募-lfg",
+        "action": "写明活动、交流语言和方便的时间；联机需要网络。 / State the activity, preferred language, and available time; co-op requires internet."
+      }
+    ],
+    "source": "https://support.discord.com/hc/en-us/articles/13497665141655-Server-Guide-FAQ",
+    "resources": [
+      {
+        "channel": "📜・规则-rules",
+        "readOnly": true,
+        "conversion": "Server Guide resource page"
+      },
+      {
+        "channel": "📚・入门-faq",
+        "readOnly": true,
+        "conversion": "Server Guide resource page"
+      },
+      {
+        "channel": "🎭・身份与提醒-roles",
+        "readOnly": true,
+        "conversion": "Server Guide resource page"
+      }
+    ],
+    "excludedDefaultResources": [
+      {
+        "channel": "👋・欢迎-welcome",
+        "reason": "Keep as a visible default channel; do not convert to a Guide resource."
+      },
+      {
+        "channel": "📢・公告-announcements",
+        "reason": "Keep as a visible default channel; do not convert to a Guide resource."
+      }
+    ]
+  },
+  "staffPermissionsSafetyChecklist": [
+    "Create no staff role through onboarding; manually assign least-privilege staff permissions only to named, trusted staff.",
+    "Keep private staff channels hidden from @everyone and all cosmetic/member roles; verify owner/staff access separately.",
+    "Keep the five writable default discussion channels open to members; keep welcome and announcements read-only for members.",
+    "Limit @everyone/@here mentions to trusted staff and avoid mass pings in setup/content posts.",
+    "Enable and review Discord AutoMod/raid-protection safeguards appropriate to the server's current size; test false positives and maintain a human review path.",
+    "Give public feedback forums clear templates and expectations; do not promise private ticket automation, response times, bug fixes, or roadmap commitments unless those exist.",
+    "Use staff-only forum status tags only when the status is accurate; grant forum moderators Manage Threads only where needed.",
+    "Keep notifications unassigned until a member opts in; test onboarding preview and answer-to-role/channel mapping before publishing."
+  ],
+  "referenceLinks": {
+    "onboarding": "https://support.discord.com/hc/en-us/articles/11074987197975-Community-Onboarding-FAQ",
+    "onboardingExamples": "https://support.discord.com/hc/en-us/articles/10394859532823-Community-Onboarding-Examples",
+    "serverGuide": "https://support.discord.com/hc/en-us/articles/13497665141655-Server-Guide-FAQ",
+    "forumChannels": "https://support.discord.com/hc/en-us/articles/6208479917079-Forum-Channels-FAQ",
+    "forumTagApi": "https://docs.discord.com/developers/resources/channel#forum-tag-object-forum-tag-structure",
+    "permissions": "https://support.discord.com/hc/en-us/articles/206029707-Setting-Up-Permissions-FAQ",
+    "serverBanners": "https://support.discord.com/hc/en-us/articles/360028716472-Server-Banners",
+    "milkyWayIdle": "https://discord.com/servers/milky-way-idle-891160051459436574",
+    "melvorIdle": "https://discord.com/servers/melvor-idle-625838709203271680",
+    "serverTags": "https://support.discord.com/hc/en-us/articles/31444248479639-Server-Tags",
+    "serverBoosting": "https://support.discord.com/hc/en-us/articles/360028038352-Server-Boosting-FAQ"
+  }
+}

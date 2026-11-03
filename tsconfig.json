@@ -47,9 +47,6 @@
       "path": "packages/plugin-host"
     },
     {
-      "path": "packages/connectors/steam-reviews"
-    },
-    {
       "path": "packages/reporting"
     },
     {
@@ -59,10 +56,16 @@
       "path": "packages/web-console"
     },
     {
+      "path": "packages/connectors/steam-reviews"
+    },
+    {
       "path": "packages/connectors/discord"
     },
     {
       "path": "packages/connectors/steam-discussions"
+    },
+    {
+      "path": "packages/discord-community"
     }
   ]
 }

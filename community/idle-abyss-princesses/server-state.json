@@ -1,0 +1,224 @@
+{
+  "name": "深渊放置姬 · Idle Abyss Princesses",
+  "configuredAt": "2026-11-03T09:04:57.2214745Z",
+  "guildId": "1567099916126527530",
+  "createdBy": "Discord desktop UI",
+  "starterChannelId": "1567099917372227679",
+  "liveVerificationUpdatedAt": "2026-11-03T15:10:04.308315+00:00",
+  "community": {
+    "enabled": true,
+    "primaryLocale": "zh-CN",
+    "defaultNotifications": "mentions_only",
+    "rulesChannel": "📜・规则-rules",
+    "communityAndSafetyUpdates": "🗂️・版务内部-staff-ops (private; retained original channel)"
+  },
+  "branding": {
+    "icon": "assets/source/steam-main-capsule.jpg, cropped through Discord uploader",
+    "profileTheme": "purple",
+    "descriptionSaved": true,
+    "profileTraits": [
+      "放置刷宝 Idle RPG",
+      "配装研究 Builds",
+      "秘境挑战 Rifts",
+      "联机组队 Co-op",
+      "中文 / English"
+    ]
+  },
+  "roles": {
+    "status": "created_and_saved_in_native_UI",
+    "names": [
+      "语言 · 简体中文",
+      "語言 · 繁體中文",
+      "Language · English",
+      "言語 · 日本語",
+      "언어 · 한국어",
+      "⚔️ 绯娜 · 战士",
+      "🔮 诺艾尔 · 法师",
+      "🛡️ 塞西莉亚 · 圣骑士",
+      "🏹 琳恩 · 猎人",
+      "⚙️ 缇亚 · 机械师",
+      "🐉 伊格妮 · 龙姬",
+      "💀 薇拉 · 死灵法师",
+      "☯️ 云遥 · 修仙者",
+      "🛠️ 配装研究员",
+      "🎁 刷宝收藏家",
+      "🌀 秘境挑战者",
+      "📖 剧情考据党",
+      "🤝 联机搭子",
+      "🔔 更新提醒",
+      "🎉 活动提醒",
+      "🧪 测试招募"
+    ],
+    "extraAdministrativePermissions": false,
+    "hoisted": false,
+    "mentionable": false,
+    "selfSelection": "native onboarding published and previewed"
+  },
+  "informationPermissions": {
+    "category": "📌 开始这里 · START HERE",
+    "everyoneView": true,
+    "everyoneReadHistory": true,
+    "everyoneSend": false,
+    "everyoneSendInThreads": false,
+    "verification": "Category inspected by discord_roles; root ordinary-role preview confirmed inherited welcome denial and general writable composer."
+  },
+  "onboarding": {
+    "status": "enabled_saved_and_preview_verified",
+    "defaultChannels": [
+      "👋・欢迎-welcome",
+      "📢・公告-announcements",
+      "💬・闲聊-general",
+      "🙋・新手求助-help",
+      "🧩・配装交流-build-chat",
+      "🎁・掉落展示-loot",
+      "🤝・组队招募-lfg",
+      "🐞・问题反馈-bug-reports",
+      "💡・建议-suggestions"
+    ],
+    "savedQuestions": [
+      "language:5 roles and international-channel mappings",
+      "interests:5 roles and existing discussion-channel mappings",
+      "favorite_character:8 exact role mappings",
+      "notifications:3 separate optional post-join opt-ins"
+    ],
+    "guide": "enabled_and_saved; bilingual welcome, five tasks and rules/FAQ/roles resources",
+    "verification": "discord_roles fresh desktop capture after save settled, both Onboarding and Server Guide toggles on, no unsaved banner; preview verified",
+    "notifications": "separate optional post-join multi-select; three roles, no preassigned notification role",
+    "originalFiveWritableChatsPreserved": true,
+    "buildcraftInterestChannels": [
+      "🧩・配装交流-build-chat",
+      "📘・攻略配装-builds"
+    ],
+    "historicalNativeReviewWarnings": [
+      "At this checkpoint, 8 of12 public text channels are assigned through defaults/questions. Rules/FAQ/roles are available as Guide resources; remaining-channel discoverability is recorded for final review."
+    ],
+    "finalNativeWarningCounterRechecked": false,
+    "voiceInterestAssignmentVerified": false
+  },
+  "automation": {
+    "archiveBot": "not_installed_or_activated",
+    "analysisWorker": "not_activated_for_this_server",
+    "automaticPrivateTickets": "not_installed_or_verified",
+    "sourceOfTruthPolicy": "archive first, analyze only committed archive records"
+  },
+  "execution": {
+    "desktopController": "root",
+    "currentBatch": "voice_lobby_prepared_waiting_activation",
+    "remainingAutomation": [
+      "authorized archive bot installation and live capture/recovery verification",
+      "archive-backed analysis activation",
+      "isolated automatic private tickets"
+    ]
+  },
+  "forums": [
+    {
+      "name": "📘・攻略配装-builds",
+      "category": "COMMUNITY",
+      "guidelinesSaved": true,
+      "tags": 17
+    },
+    {
+      "name": "🐞・问题反馈-bug-reports",
+      "category": "FEEDBACK",
+      "guidelinesSaved": true,
+      "tags": 18
+    },
+    {
+      "name": "💡・建议-suggestions",
+      "category": "FEEDBACK",
+      "guidelinesSaved": true,
+      "tags": 16
+    }
+  ],
+  "forumsVerification": "onboarding_research native desktop checkpoints; topic/platform tags open, staff status tags moderated; no required-tag gate",
+  "support": {
+    "knownIssuesChannel": "📍・已知问题-known-issues",
+    "knownIssuesReadOnly": true,
+    "privateHelpChannel": "🔒・私密求助-private-help",
+    "privateHelpAccess": "owner plus two unassigned manual staff roles; hidden from ordinary members",
+    "contact": "server owner Aegleseeker; public help request without sensitive details if DMs unavailable",
+    "automation": "manual only",
+    "knownIssuesVerification": "Root final role preview caught inherited send access, applied explicit channel denials for Send Messages, Send in Threads and Create Public Threads, saved and repeated preview: no-send-permission notice.",
+    "privateHelpVerification": "Root ordinary cosmetic-role preview: private-help and STAFF hidden."
+  },
+  "staff": {
+    "channel": "🗂️・版务内部-staff-ops",
+    "reusedFrom": "moderator-only",
+    "category": "STAFF",
+    "access": "owner-only at this checkpoint",
+    "roleLabels": [
+      "制作组 · Developer",
+      "版务 · Moderator"
+    ],
+    "rolesAssignedToMembers": false,
+    "administratorGranted": false
+  },
+  "rules": {
+    "name": "📜・规则-rules",
+    "rulesDesignationPreserved": true
+  },
+  "invite": {
+    "url": "https://discord.gg/pCKZvmNhFe",
+    "expiresAt": null,
+    "maximumUses": null,
+    "temporaryMembership": false,
+    "roleGrant": null,
+    "targetGuildId": "1567099916126527530",
+    "targetChannelId": "1567099917372227679",
+    "verification": "Native generated/copy UI and anonymous Discord public invite endpoint matched guild/channel IDs; expires_at null."
+  },
+  "voice": {
+    "category": "🎙️ 冒险者语音 · VOICE",
+    "channel": "🔊・冒险者语音-party-voice",
+    "userLimit": 4,
+    "verification": "Native owner and role-preview views show 0/04; voice was not joined.",
+    "creatorLobby": {
+      "name": "➕・创建房间-create-room",
+      "channelId": "1567192297181814804",
+      "url": "https://discord.com/channels/1567099916126527530/1567192297181814804",
+      "status": "prepared_waiting_for_bot",
+      "everyoneView": true,
+      "everyoneConnect": false,
+      "userLimit": 0,
+      "verification": "Native desktop create/settings save and ordinary cosmetic-role preview: visible locked lobby; no bot/member connection test; existing four-place room remains available."
+    },
+    "automaticRoomCreationActive": false,
+    "installedBotObserved": false,
+    "memberCountObserved": 1
+  },
+  "publishedContent": {
+    "indexedItems": 15,
+    "messages": 12,
+    "nativeForumGuidelines": 3,
+    "welcomeAttachment": "assets/source/steam-main-capsule.jpg",
+    "rolesAttachment": "assets/source/gameplay-02.jpg",
+    "broadPings": false,
+    "verification": "onboarding_research published 10 message files and 3 native guidelines; root posted archive/privacy to FAQ and staff checklist to private staff-ops, visibly confirmed.",
+    "additionalSetupNotices": [
+      {
+        "file": "content/voice-room-setup-status.md",
+        "channel": "🤝・组队招募-lfg",
+        "visiblyVerified": true
+      }
+    ]
+  },
+  "memberPreview": {
+    "role": "⚔️ 绯娜 · 战士",
+    "welcomeReadOnly": true,
+    "generalWritable": true,
+    "knownIssuesReadOnly": true,
+    "bugForumNewPostVisible": true,
+    "privateHelpAndStaffHidden": true,
+    "secondAccountJoinTested": false
+  },
+  "liveInventory": {
+    "categories": 5,
+    "channels": 20,
+    "forums": 3,
+    "voiceRooms": 2,
+    "selfSelectableRoles": 21,
+    "additionalUnassignedStaffRoles": 2,
+    "verifiedBy": "Native desktop controller handoffs and root final role preview; names recorded, uncollected channel IDs not fabricated.",
+    "voiceRoomsNote": "One usable permanent party room plus one paused creator lobby; no generated rooms."
+  }
+}

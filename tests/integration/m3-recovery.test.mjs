@@ -28,9 +28,12 @@ test('expired worker cannot publish a domain mutation after its replacement comp
 });
 
 test('HTTP timeouts retain source data and retry only within the job budget',async t=>{
-  const f=await m3Fixture(t,{workerOptions:{timeoutMs:25},responder:async(task,_wire,n)=>{if(n===1)await new Promise(resolve=>setTimeout(resolve,100));return fixtureAnswer(task);}});
-  f.add('one','Windows 1.2.0 联机载入90%时崩溃');assert.equal((await f.worker.tick()).status,'MODEL_TIMEOUT');assert.equal(count(f.runtime.store,'issues'),0);
-  f.advance(1_001);assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(count(f.runtime.store,'source_events'),1);assert.equal(count(f.runtime.store,'issues'),1);
+  let release;const blocked=new Promise(resolve=>{release=resolve;});
+  const f=await m3Fixture(t,{workerOptions:{timeoutMs:1000},responder:async(task,_wire,n)=>{if(n===1)await blocked;return fixtureAnswer(task);}});
+  try{
+    f.add('one','Windows 1.2.0 联机载入90%时崩溃');assert.equal((await f.worker.tick()).status,'MODEL_TIMEOUT');assert.equal(count(f.runtime.store,'issues'),0);
+    f.advance(1_001);assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(count(f.runtime.store,'source_events'),1);assert.equal(count(f.runtime.store,'issues'),1);
+  }finally{release();}
 });
 
 test('invalid structured output is rejected before any domain write',async t=>{

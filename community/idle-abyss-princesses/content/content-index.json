@@ -1,0 +1,166 @@
+{
+  "title": "Idle Abyss Princesses Discord ready-to-post content",
+  "language": "zh-CN + en",
+  "post_limit_utf16_units": 1900,
+  "verification": {
+    "game_facts_source": "../WORK-NOTES.md and ../research/steam-appdetails-en.json, ../research/steam-appdetails-zh.json",
+    "official_store": "https://store.steampowered.com/app/5335850/",
+    "steam_community": "https://steamcommunity.com/app/5335850/",
+    "steam_discussions": "https://steamcommunity.com/app/5335850/discussions/",
+    "archive_activation": "not installed or enabled; content states this clearly",
+    "notes": "All 15 items applied: 12 messages and three native forum guidelines. Files fit 1900 UTF-16 units. See ACCEPTANCE.md for native verification; desired blueprint is not independent live evidence.",
+    "official_news": "https://store.steampowered.com/news/app/5335850/"
+  },
+  "posts": [
+    {
+      "order": 1,
+      "file": "welcome.md",
+      "channel": "👋・欢迎-welcome",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Bilingual welcome and safe first steps",
+      "appliedAs": "message"
+    },
+    {
+      "order": 2,
+      "file": "rules.md",
+      "channel": "📜・规则-rules",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Concise SFW, anti-harassment, anti-spam, spoiler and privacy rules",
+      "appliedAs": "message"
+    },
+    {
+      "order": 3,
+      "file": "faq.md",
+      "channel": "📚・入门-faq",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Verified game basics, support status, and published QQ group number",
+      "appliedAs": "message"
+    },
+    {
+      "order": 4,
+      "file": "faq-community-support.md",
+      "channel": "📚・入门-faq",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Community navigation, support status and published QQ group number",
+      "appliedAs": "message"
+    },
+    {
+      "order": 5,
+      "file": "private-help-instructions.md",
+      "channel": "📚・入门-faq",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "staff-posted instructions",
+      "purpose": "Explains how to request a manually arranged restricted conversation without posting sensitive details",
+      "appliedAs": "message"
+    },
+    {
+      "order": 6,
+      "file": "official-links.md",
+      "channel": "📚・入门-faq",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Verified Steam links and published QQ number",
+      "appliedAs": "message"
+    },
+    {
+      "order": 7,
+      "file": "roles-and-notifications.md",
+      "channel": "🎭・身份与提醒-roles",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / native self-selection controls separately configured",
+      "purpose": "Language, character, interest and explicitly opt-in notification role guide",
+      "appliedAs": "message"
+    },
+    {
+      "order": 8,
+      "file": "announcement.md",
+      "channel": "📢・公告-announcements",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "announcement channel / staff-posted; no @everyone ping",
+      "purpose": "Natural bilingual community welcome",
+      "appliedAs": "message"
+    },
+    {
+      "order": 9,
+      "file": "patch-notes-intro.md",
+      "channel": "🛠・更新-patch-notes",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Links to verified Steam News Hub and Steam Community; explains where confirmed patch notes appear",
+      "appliedAs": "message"
+    },
+    {
+      "order": 10,
+      "file": "known-issues.md",
+      "channel": "📍・已知问题-known-issues",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Honest initial state; does not claim the game has no bugs",
+      "appliedAs": "message"
+    },
+    {
+      "order": 11,
+      "file": "bug-report-guidelines-template.md",
+      "channel": "🐞・问题反馈-bug-reports",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "native forum post guidelines; member submissions open",
+      "purpose": "Forum instructions and copyable report template",
+      "appliedAs": "native_forum_guidelines"
+    },
+    {
+      "order": 12,
+      "file": "suggestion-guidelines-template.md",
+      "channel": "💡・建议-suggestions",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "native forum post guidelines; member submissions open",
+      "purpose": "Forum instructions and copyable suggestion template",
+      "appliedAs": "native_forum_guidelines"
+    },
+    {
+      "order": 13,
+      "file": "build-sharing-guidelines.md",
+      "channel": "📘・攻略配装-builds",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "native forum post guidelines; member submissions open",
+      "purpose": "Build-sharing guidance, eight verified class names, copyable template",
+      "appliedAs": "native_forum_guidelines"
+    },
+    {
+      "order": 14,
+      "file": "archive-and-privacy.md",
+      "channel": "📚・入门-faq",
+      "audience": "public members",
+      "visibility": "public",
+      "posting": "read-only / staff-posted",
+      "purpose": "Plain-language scope and accurate archive activation status",
+      "appliedAs": "message"
+    },
+    {
+      "order": 15,
+      "file": "staff-checklist.md",
+      "channel": "🗂️・版务内部-staff-ops",
+      "audience": "authorized staff only",
+      "visibility": "private staff-only",
+      "posting": "staff-only working checklist",
+      "purpose": "Setup verification, safe moderation, and truthful automation status",
+      "appliedAs": "message"
+    }
+  ]
+}

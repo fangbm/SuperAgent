@@ -140,3 +140,82 @@ test('Steam preserves metadata at content revisions without emitting player feed
   assert.equal(f.events(f.runtime).length, 2);
   assert.equal(f.events(f.runtime)[1].data.attributes.native.votes_up, 100);
 });
+
+test('Steam archive-all saves positive/negative authors and metadata changes on old reviews after restart', async t => {
+  const f = connectorFixture(t, 'steam-reviews');
+  const allConfig = { ...config(f), reviewScope: 'all', maxPagesPerSync: 1 };
+  const positive = review({ voted_up: true });
+  const negative = review({ recommendationid: '42', author: { steamid: '76561198000000002' }, timestamp_created: positive.timestamp_created - 10000, timestamp_updated: positive.timestamp_updated - 10000 });
+  let older = negative;
+  const fetch = async url => {
+    const { cursor } = JSON.parse(url.searchParams.get('input_json'));
+    return cursor === '*' ? page([positive], 'old') : cursor === 'old' ? page([older], 'end') : page([], 'done');
+  };
+  const first = new SteamReviewsConnector(allConfig, { fetch });
+  await first.sync(f.host, signal());
+  f.runtime.close();
+  const runtime = f.open();
+  const host = f.getHost(runtime);
+  const restarted = new SteamReviewsConnector(allConfig, { fetch });
+  await restarted.sync(host, signal()); await restarted.sync(host, signal());
+  assert.equal(f.events(runtime).length, 2);
+  assert.deepEqual(f.events(runtime).map(e => e.data.content.text), [positive.review, negative.review]);
+  assert.notEqual(f.events(runtime)[0].data.actor.opaqueId, f.events(runtime)[1].data.actor.opaqueId);
+  older = { ...negative, comment_count: 5, votes_up: 99, developer_response: 'Thanks for the report.', timestamp_dev_responded: positive.timestamp_updated + 10 };
+  await restarted.sync(host, signal()); await restarted.sync(host, signal()); await restarted.sync(host, signal());
+  let events = f.events(runtime);
+  assert.equal(events.length, 3);
+  assert.equal(events[2].type, 'com.superagent.feedback.review.updated.v1');
+  assert.equal(events[2].data.object.externalId, negative.recommendationid);
+  assert.equal(events[2].data.attributes.native.comment_count, 5);
+  assert.equal(events[2].data.attributes.native.developer_response, older.developer_response);
+  assert.equal(events[1].data.attributes.native.votes_up, 3);
+  await restarted.sync(host, signal()); await restarted.sync(host, signal()); await restarted.sync(host, signal());
+  assert.equal(f.events(runtime).length, 3);
+});
+
+test('Steam archive-all rejects scope changes rather than skipping positives under an old checkpoint', async t => {
+  const f = connectorFixture(t, 'steam-reviews');
+  await new SteamReviewsConnector(config(f), { fetch: async () => page() }).sync(f.host, signal());
+  const checkpoint = await f.host.getCheckpoint();
+  let fetched = false;
+  await assert.rejects(new SteamReviewsConnector({ ...config(f), reviewScope: 'all' }, { fetch: async () => { fetched = true; return page(); } }).sync(f.host, signal()), /INVALID_CHECKPOINT/);
+  assert.equal(fetched, false);
+  assert.deepEqual(await f.host.getCheckpoint(), checkpoint);
+  assert.throws(() => new SteamReviewsConnector({ ...config(f), reviewScope: 'positive' }), /INVALID_CONFIG/);
+});
+
+test('Steam accepts the observed omitted terminal reviews field only with explicit zero-page count', async t => {
+  const f = connectorFixture(t, 'steam-reviews');
+  let calls = 0;
+  const connector = new SteamReviewsConnector({ ...config(f), reviewScope: 'all' }, { fetch: async () => ++calls === 1
+    ? page([review({ voted_up: true })], 'last')
+    : Response.json({ response: { query_summary: { num_reviews: 0 }, cursor: 'last', total_matching: 1 } }) });
+  await connector.sync(f.host, signal());
+  assert.equal(f.events(f.runtime).length, 1);
+  assert.equal((await f.host.getCheckpoint()).cursor, '*');
+  const checkpoint = await f.host.getCheckpoint();
+  for (const response of [{ cursor: 'bad' }, { cursor: 'bad', query_summary: { num_reviews: 2 } }, { cursor: 'bad', query_summary: { num_reviews: 0 }, reviews: null }]) {
+    await assert.rejects(new SteamReviewsConnector({ ...config(f), reviewScope: 'all' }, { fetch: async () => Response.json({ response }) }).sync(f.host, signal()), /INVALID_EVENT/);
+    assert.deepEqual(await f.host.getCheckpoint(), checkpoint);
+  }
+});
+
+test('Steam legacy checkpoint without reviewScope resumes negative mode and rejects archive-all', async t => {
+  const f = connectorFixture(t, 'steam-reviews');
+  const legacy = { version: 1, appId: 570, cursor: 'legacy-page', watermark: 0, scanHigh: 0, tracked: {} };
+  await f.host.commitBatch([], { sourceId: f.scope.sourceId, cursor: legacy });
+  let fetched = false;
+  await assert.rejects(new SteamReviewsConnector({ ...config(f), reviewScope: 'all' }, { fetch: async () => { fetched = true; return page(); } }).sync(f.host, signal()), /INVALID_CHECKPOINT/);
+  assert.equal(fetched, false);
+  assert.deepEqual(await f.host.getCheckpoint(), legacy);
+  const resume = async scope => {
+    await f.host.commitBatch([], { sourceId: f.scope.sourceId, cursor: legacy });
+    await new SteamReviewsConnector({ ...config(f), ...scope }, { fetch: async url => {
+      assert.equal(JSON.parse(url.searchParams.get('input_json')).cursor, 'legacy-page');
+      return page();
+    } }).sync(f.host, signal());
+    assert.equal((await f.host.getCheckpoint()).cursor, '*');
+  };
+  await resume({}); await resume({ reviewScope: 'negative' });
+});

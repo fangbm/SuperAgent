@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-03T12:13:03.006Z",
+  "appId": 5335850,
+  "sourceId": "steam-5335850-review-comments-observed",
+  "reviewThreads": 17,
+  "observedComments": 19,
+  "nativeHtmlAndRenderedTextPreserved": true,
+  "parentReviewSourceId": "steam-5335850-reviews-all",
+  "threadRelationsPreserved": true,
+  "createdTimesPreserved": true,
+  "duplicateReplayedToSameHostId": true,
+  "coverage": "partial",
+  "continuousCollection": false,
+  "analysisExecuted": false,
+  "endpoint": "https://steamcommunity.com/comment/Recommendation/render/{reviewOwnerSteamId}/5335850/?start={offset}&count=100",
+  "endpointStatus": "undocumented website endpoint; bounded anonymous read verified",
+  "limitations": [
+    "Observed reported counts matched19comments across17reviewthreads.",
+    "No deleted/private comments or intermediate edit history.",
+    "No periodic comment collector enabled.",
+    "Rendered text is extracted from native HTML; original BBCode is not provided."
+  ],
+  "initialAccepted": 19,
+  "replayAccepted": 0
+}
