@@ -1,0 +1,7 @@
+{
+  "id": "1434510000000000001", "guild_id": "100", "channel_id": "300",
+  "author": { "id": "76561198000000001", "bot": false },
+  "content": "联机加载到 90% 会崩溃。", "timestamp": "2026-11-02T00:00:00.000Z", "edited_timestamp": null,
+  "message_reference": { "message_id": "1434510000000000000", "channel_id": "300", "guild_id": "100" },
+  "attachments": [{ "id": "9", "url": "https://cdn.discordapp.com/attachments/300/9/crash.png", "content_type": "image/png" }]
+}

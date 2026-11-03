@@ -57,6 +57,9 @@
     },
     {
       "path": "packages/web-console"
+    },
+    {
+      "path": "packages/connectors/discord"
     }
   ]
 }

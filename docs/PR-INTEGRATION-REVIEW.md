@@ -13,3 +13,9 @@ The first integrated check exposed two existing Windows-only cleanup failures in
 Readiness check: duplicate implementation ✓ (25), architecture ✓ (25), primary API documentation ✓ (20), repository/reference implementation ✓ (15), reproduced root cause ✓ (15). Total 100/100; proceed with the narrow integration/test fixes.
 
 Validation: `pnpm install --frozen-lockfile` and the full `pnpm check` pass on the main-integrated branch: 227 Node tests, six Python reference suites, build/typecheck, boundaries and 45-file contract freeze. These are local/fixture checks, not new live platform permission tests.
+
+## PR #2 — Discord Source
+
+Found and fixed duplicate REST backfill records for full messages already archived from Gateway. Checkpointed message fingerprints ignore transport-only guild/member/nonce fields while retaining the complete original payload and distinct Gateway dispatch history. Different message IDs and real revisions remain independent; partial updates do not fabricate full content. Failed commits retain the prior observation state, and incomplete backfill retains older observations until consumed. See `DISCORD-PR-REVIEW-FIX-NOTES.md`.
+
+Updated onto #1/current main. Frozen install and full `pnpm check` pass: 240 Node tests and six Python reference suites, including the 13 dedicated Discord tests. Live Discord bot/Intent permissions remain untested.
