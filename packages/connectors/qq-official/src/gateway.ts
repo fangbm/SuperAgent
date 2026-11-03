@@ -11,12 +11,14 @@ export interface QQGatewayOptions {
   health?: (reason: string) => Promise<void>;
   maxFailures?: number;
   backoffMs?: number;
+  maxPendingDispatches?: number;
   createSocket?: (url: string) => WebSocket;
 }
 /** Read-only Gateway: no outbound group/C2C message capability. */
 export class QQGateway {
   constructor(private readonly api: QQAPI, private readonly options: QQGatewayOptions) {
     if (!Number.isSafeInteger(options.intents) || options.intents < 1) throw new QQError('QQ_INVALID_INTENTS', 'blocked');
+    if (!Number.isSafeInteger(options.maxPendingDispatches??256) || (options.maxPendingDispatches??256)<1) throw new QQError('QQ_INVALID_DISPATCH_LIMIT', 'blocked');
   }
   async run(signal: AbortSignal): Promise<void> {
     let failures = 0;
@@ -47,6 +49,7 @@ export class QQGateway {
       let ended = false; let hello = false; let awaitingAck = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let queue: Promise<void> = Promise.resolve();
+      let pendingDispatches=0;
       const send = (payload: object) => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload)); };
       const finish = (error?: Error, invalidate = false) => {
         if (ended) return; ended = true; clearTimeout(deadline); if (heartbeat) clearInterval(heartbeat);
@@ -88,6 +91,10 @@ export class QQGateway {
           if (payload.op === 7) { finish(new QQError('QQ_GATEWAY_RECONNECT')); return; }
           if (payload.op === 9) { finish(new QQError('QQ_GATEWAY_INVALID_SESSION'), true); return; }
           if (payload.op !== 0 || !hello || !Number.isSafeInteger(payload.s) || Number(payload.s) < 0 || typeof payload.t !== 'string') throw new QQError('QQ_GATEWAY_INVALID_DISPATCH');
+          // Reconnect from the last committed sequence instead of retaining an
+          // unbounded chain of player payloads while the durable Host is slow.
+          if (pendingDispatches >= (this.options.maxPendingDispatches??256)) throw new QQError('QQ_GATEWAY_DISPATCH_BACKPRESSURE');
+          pendingDispatches++;
           queue = queue.then(async () => {
             if (ended || signal.aborted) return;
             const next = payload.t === 'READY' ? { sessionId: text(object(payload.d).session_id, 512), seq: Number(payload.s) } : session ? { ...session, seq: Number(payload.s) } : null;
@@ -98,7 +105,7 @@ export class QQGateway {
             if (payload.t === 'READY' || payload.t === 'RESUMED') {
               clearTimeout(deadline); await this.options.health?.('QQ_GATEWAY_CONNECTED_EVENT_PERMISSION_UNVERIFIED');
             }
-          }).catch(error => { finish(error instanceof QQError ? error : new QQError('QQ_GATEWAY_COMMIT_FAILED')); });
+          }).catch(error => { finish(error instanceof QQError ? error : new QQError('QQ_GATEWAY_COMMIT_FAILED')); }).finally(()=>{pendingDispatches--;});
         } catch (error) { finish(error instanceof QQError ? error : new QQError('QQ_GATEWAY_INVALID_JSON')); }
       });
     });

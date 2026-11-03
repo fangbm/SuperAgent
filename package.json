@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -p tests/types/tsconfig.json && tsc -p tests/types-node/tsconfig.json",
-    "test": "node --test tests/contract/*.test.mjs tests/tooling/*.test.mjs tests/integration/*.test.mjs",
+    "test": "node --test tests/contract/*.test.mjs tests/tooling/*.test.mjs tests/integration/*.test.mjs tests/fault-injection/*.test.mjs",
+    "test:m6": "pnpm build && node --test tests/fault-injection/*.test.mjs tests/integration/qq-gateway.test.mjs tests/integration/qq-source.test.mjs tests/integration/qq-delivery.test.mjs tests/integration/qq-card-retirement.test.mjs tests/integration/m3-recovery.test.mjs tests/integration/crash-bulk.test.mjs tests/integration/m5-actions.test.mjs",
     "test:reference": "uv run --no-project --with-requirements requirements-contracts.txt python -X utf8 scripts/validate-reference.py",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:freeze": "node scripts/check-contract-freeze.mjs",

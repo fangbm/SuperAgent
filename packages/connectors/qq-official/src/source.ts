@@ -15,7 +15,7 @@ export interface QQSourceOptions {
   sourceUri: string;
   transport?: 'webhook' | 'websocket';
   channelMessages?:'mentions'|'all';
-  gateway?: Pick<QQGatewayOptions, 'createSocket' | 'backoffMs' | 'maxFailures'>;
+  gateway?: Pick<QQGatewayOptions, 'createSocket' | 'backoffMs' | 'maxFailures' | 'maxPendingDispatches'>;
   api?: QQAPIOptions;
   now?: () => number;
   maxClockSkewMs?: number;

@@ -80,7 +80,7 @@ export class DurableDeliveryService {
     let timer: ReturnType<typeof setTimeout> | undefined; let result: DeliveryResultV1;
     try {
       const request=JSON.parse(row.request_json) as DeliveryRequestV1;
-      try{this.options.authorizeDelivery?.(request);if(row.purpose==='interaction'){if(!this.options.authorizeInteraction)throw new Error();this.options.authorizeInteraction(request);}}catch{result={status:'blocked',errorCode:'DELIVERY_AUTHORIZATION_REVOKED'};throw result;}
+      try{const binding=this.store.get<{binding_id:string}>('SELECT binding_id FROM plugin_delivery_bindings WHERE plugin_id=? AND project_id=? AND recipient_ref=?',this.plugin.manifest.id,this.options.projectId,this.options.recipientRef);if(binding?.binding_id!==this.options.recipientBindingId)throw new Error('BINDING_CHANGED');this.options.authorizeDelivery?.(request);if(row.purpose==='interaction'){if(!this.options.authorizeInteraction)throw new Error();this.options.authorizeInteraction(request);}}catch{result={status:'blocked',errorCode:'DELIVERY_AUTHORIZATION_REVOKED'};throw result;}
       result = await Promise.race([
         this.plugin.send(request, this.host),
         new Promise<DeliveryResultV1>(resolve => { timer = setTimeout(() => resolve({ status: 'unknown', errorCode: 'DELIVERY_HOST_TIMEOUT' }), this.options.timeoutMs ?? 30_000); }),

@@ -10,7 +10,11 @@ export class OperatorAuth {
   private now():string{return timestamp(this.clock());}
   register(principal:Principal,accessKey:string):void{
     if(accessKey.length<32||!principal.actorRef||!['reader','developer'].includes(principal.role)||!principal.projects.length||principal.projects.some(p=>!this.store.get('SELECT 1 FROM projects WHERE project_id=?',p)))throw new ControlError('INVALID_OPERATOR_CONFIG');
-    this.store.run('INSERT INTO operator_accounts VALUES(?,?,?,?,1) ON CONFLICT(actor_ref) DO UPDATE SET access_hash=excluded.access_hash,role=excluded.role,projects_json=excluded.projects_json,enabled=1',principal.actorRef,hash(accessKey),principal.role,JSON.stringify(principal.projects));
+    this.store.transaction(()=>{
+      const old=this.store.get<{access_hash:string}>('SELECT access_hash FROM operator_accounts WHERE actor_ref=?',principal.actorRef),accessHash=hash(accessKey);
+      this.store.run('INSERT INTO operator_accounts VALUES(?,?,?,?,1) ON CONFLICT(actor_ref) DO UPDATE SET access_hash=excluded.access_hash,role=excluded.role,projects_json=excluded.projects_json,enabled=1',principal.actorRef,accessHash,principal.role,JSON.stringify(principal.projects));
+      if(old&&old.access_hash!==accessHash)this.store.run('DELETE FROM operator_sessions WHERE actor_ref=?',principal.actorRef);
+    });
   }
   principal(actorRef:string):Principal{
     const row=this.store.get<{actor_ref:string;role:Principal['role'];projects_json:string}>('SELECT * FROM operator_accounts WHERE actor_ref=? AND enabled=1',actorRef);if(!row)throw new ControlError('UNAUTHORIZED',401);

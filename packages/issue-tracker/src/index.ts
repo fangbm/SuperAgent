@@ -151,7 +151,7 @@ export class GitHubSyncManager {
     });
   }
   async tick():Promise<{processed:boolean;state?:string;operationId?:string}>{
-    this.store.run("UPDATE external_operations SET state='unknown',lease_owner=NULL,lease_until=NULL,last_error='SEND_WINDOW_EXPIRED' WHERE state IN ('in_flight','reconciling') AND lease_until<=?",this.now());
+    this.store.run("UPDATE external_operations SET state='unknown',lease_owner=NULL,lease_until=NULL,last_error='SEND_WINDOW_EXPIRED' WHERE state IN ('in_flight','reconciling') AND lease_until<=? AND operation_id IN (SELECT operation_id FROM external_operation_payloads WHERE repository=?)",this.now(),this.port.repository);
     let info:{private:boolean;authorId:string};
     try{info=await this.port.inspect();}catch{return {processed:false,state:'inspection_unavailable'};}
     if(!info.private)throw new GitHubError('PUBLIC_REPOSITORY_NOT_AUTHORIZED','blocked');
