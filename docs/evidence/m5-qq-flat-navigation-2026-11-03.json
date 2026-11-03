@@ -1,0 +1,256 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "templateCommit": "240e14c",
+  "dataProvenance": "previous_M3_synthetic_source_acceptance_data",
+  "firstPreview": {
+    "startedAt": "2026-11-03T03:38:51.295Z",
+    "expiresAt": "2026-11-03T03:53:51.297Z",
+    "status": "finished",
+    "maximumReportAttempts": 1,
+    "maximumQueryAttempts": 3,
+    "reportAttempts": 1,
+    "queryAttempts": 3,
+    "pendingOperation": null,
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "templateCommit": "240e14c",
+    "clientReceipt": "unconfirmed",
+    "events": [
+      {
+        "at": "2026-11-03T03:38:53.236Z",
+        "phase": "report_attempt",
+        "operationId": "external-0b4ff0c97473ad99b5184d4130a73e1857dbda600a09496204fb6639d102b467"
+      },
+      {
+        "at": "2026-11-03T03:38:54.749Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:38:55.122Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:38:55.442Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:38:55.717Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": false
+      },
+      {
+        "at": "2026-11-03T03:38:55.727Z",
+        "phase": "report_result",
+        "operationId": "external-0b4ff0c97473ad99b5184d4130a73e1857dbda600a09496204fb6639d102b467",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:38:55.727Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T03:53:51.297Z",
+        "remainingQueries": 3
+      },
+      {
+        "at": "2026-11-03T03:38:55.729Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:38:55.731Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:38:55.732Z",
+        "phase": "query_skipped"
+      },
+      {
+        "at": "2026-11-03T03:39:20.302Z",
+        "phase": "query_attempt",
+        "operationId": "external-735f12cb6587b4782b8e3c18bc2ee34c4e77217864898f732cdc2ba8f6fc0424",
+        "attempt": 1
+      },
+      {
+        "at": "2026-11-03T03:39:20.502Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:39:21.405Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:39:21.414Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:39:25.184Z",
+        "phase": "query_attempt",
+        "operationId": "external-8d01237d07e39eee15f50549397772d5c2d38d150f841dcac4e207f3f5e9b198",
+        "attempt": 2
+      },
+      {
+        "at": "2026-11-03T03:39:25.192Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:39:26.126Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "上一条原文",
+          "返回反馈",
+          "返回半日报"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:39:26.134Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:39:29.647Z",
+        "phase": "query_attempt",
+        "operationId": "external-4de49b378a7223ceb57d5a98bce8162b77fc696459920ddd90e489e29205268a",
+        "attempt": 3
+      },
+      {
+        "at": "2026-11-03T03:39:29.969Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T03:39:30.549Z",
+        "phase": "transport",
+        "httpStatus": 200,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ],
+        "visibleOpenCommand": false,
+        "passiveReply": true
+      },
+      {
+        "at": "2026-11-03T03:39:30.556Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T03:39:30.572Z",
+        "phase": "closed",
+        "cancelledPending": 0,
+        "queryAttempts": 3
+      }
+    ]
+  },
+  "reportedProblem": "user_clicked_suggestions_and_steam_after_preview_reply_budget_was_exhausted",
+  "diagnosis": {
+    "sessionClosedAt": "2026-11-03T03:39:30.572Z",
+    "reason": "three_reply_budget_exhausted",
+    "processedRoutes": [
+      "bugs",
+      "next_original",
+      "report"
+    ],
+    "failedCategorySendAttemptsRecorded": 0,
+    "backlog": [
+      {
+        "receivedAfterReconnectAt": "2026-11-03T04:17:04.478Z",
+        "route": "browse",
+        "section": "suggestions",
+        "cancelled": true
+      },
+      {
+        "receivedAfterReconnectAt": "2026-11-03T04:17:04.808Z",
+        "route": "browse",
+        "section": "suggestions",
+        "cancelled": true
+      },
+      {
+        "receivedAfterReconnectAt": "2026-11-03T04:17:05.190Z",
+        "route": "browse",
+        "section": "steam_negative_reviews",
+        "cancelled": true
+      }
+    ]
+  },
+  "targetedRetest": {
+    "startedAt": "2026-11-03T04:17:01.960Z",
+    "expiresAt": "2026-11-03T04:32:01.963Z",
+    "status": "listening",
+    "maximumQueryAttempts": 2,
+    "queryAttempts": 0,
+    "reportAttempts": 0,
+    "pendingOperation": null,
+    "completedSections": [],
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "templateCommit": "240e14c",
+    "clientReceipt": "unconfirmed",
+    "events": [
+      {
+        "at": "2026-11-03T04:17:04.799Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T04:17:05.182Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T04:17:05.643Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T04:17:08.302Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T04:32:01.963Z",
+        "maximumNewReplies": 2,
+        "reportResend": false,
+        "cancelledBacklog": 3
+      }
+    ]
+  },
+  "clientReceipt": "awaiting_targeted_section_confirmation",
+  "githubWrites": 0,
+  "domainStatusWrites": 0
+}
