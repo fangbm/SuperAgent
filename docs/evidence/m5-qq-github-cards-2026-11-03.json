@@ -829,7 +829,7 @@
     "frozenFiles": 45
   },
   "recallDocumentation": "https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/reset.md",
-  "verificationBoundary": "state_card_refresh_and_two_recalls_live_client_confirmed; broader_interaction_retirement_with_report_retention_local_only",
+  "verificationBoundary": "state_card_refresh_and_two_recalls_live_client_confirmed; retained_report_preview_accepted; expanded_navigation_retirement_and_report_retention_client_confirmation_pending",
   "allInteractionRound": {
     "startedAt": "2026-11-03T07:15:08.660Z",
     "expiresAt": "2026-11-03T07:45:08.662Z",
@@ -879,5 +879,70 @@
     "unknownRetry": false,
     "localVerification": "198 Node tests, including report retention, prepared legacy recall blocking, same-version/category transitions and migration uncertainty preservation.",
     "liveVerification": "State-card refresh and two recalls confirmed in prior round; expanded navigation and report retention are local-only."
+  },
+  "retainedReportPreviewRound": {
+    "startedAt": "2026-11-03T07:27:21.407Z",
+    "expiresAt": "2026-11-03T07:57:21.409Z",
+    "status": "listening",
+    "maximumReportAttempts": 1,
+    "maximumQueryAttempts": 5,
+    "maximumRecalls": 4,
+    "posts": 1,
+    "reportAttempts": 1,
+    "queryAttempts": 0,
+    "recalls": 0,
+    "githubCalls": 0,
+    "pendingOperation": null,
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "commit": "6a7d6a8",
+    "clientReceipt": "unconfirmed",
+    "sent": [
+      {
+        "operationId": "external-4d92473a85fe507c86e933aa597c7bbd1b2124df058630e1aaff0cd8854155cb",
+        "retained": true
+      }
+    ],
+    "events": [
+      {
+        "at": "2026-11-03T07:27:21.409Z",
+        "phase": "starting",
+        "reportPreserved": true,
+        "githubWrites": 0
+      },
+      {
+        "at": "2026-11-03T07:27:28.210Z",
+        "phase": "report_attempt",
+        "operationId": "external-4d92473a85fe507c86e933aa597c7bbd1b2124df058630e1aaff0cd8854155cb"
+      },
+      {
+        "at": "2026-11-03T07:27:31.411Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": false,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:27:31.420Z",
+        "phase": "report_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:27:31.423Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T07:57:21.409Z",
+        "remainingQueries": 5,
+        "cancelledBacklog": 0,
+        "reportPreserved": true
+      }
+    ]
   }
 }
