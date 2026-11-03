@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 已完成真实群 @ 接入与私聊送达验证；M5 新增按钮和原文查询，真实验收边界见下文。Discord/Steam 采集尚未交付。
+跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 新增 Steam Reviews 适配器；Discord、Steam Discussions 在后续独立 PR 中交付。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、十八个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、所有 workspace 包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
 
 单独运行：
 
@@ -65,6 +65,8 @@ demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭
 Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务，由显式配置的 `worker:m3` 消费。
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
+
+M4 已交付 Steam Reviews Source 插件，接入现有 M1 Host。独立运行、配置 Schema、能力限制见 [M4 文档](docs/M4-CONNECTORS.md)，实际验证见 [M4 验收](docs/M4-ACCEPTANCE.md)。其他连接器在后续独立 PR 中交付。
 
 ## 运行 M3
 
