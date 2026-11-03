@@ -35,6 +35,11 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
     try { await this.client(host).identity(); return { authenticated: true, activeSend: 'unverified' }; }
     catch { return { authenticated: false, activeSend: 'unverified' }; }
   }
+  /** Host-private optional operation: only the Host may select an owned, superseded message. */
+  async recallMessage(messageId:string,host:DeliveryPluginHostV1):Promise<{status:'accepted'|'blocked'|'unknown';errorCode?:string}>{
+    try{await this.client(host).recallC2C(await host.getSecret('QQ_RECIPIENT_OPENID'),messageId);return{status:'accepted'};}
+    catch(error){return{status:error instanceof QQError&&['blocked','rejected','retryable'].includes(error.outcome)?'blocked':'unknown',errorCode:error instanceof QQError?error.code:'QQ_RECALL_UNKNOWN'};}
+  }
   async send(request: DeliveryRequestV1, host: DeliveryPluginHostV1): Promise<DeliveryResultV1> {
     if (request.projectId !== this.options.projectId || request.recipientRef !== this.options.recipientRef) return { status: 'blocked', errorCode: 'QQ_RECIPIENT_NOT_AUTHORIZED' };
     let dispatched = false;

@@ -132,4 +132,8 @@ export class QQAPI {
     const appId=text(await this.getSecret('QQ_APP_ID'),256);
     await this.request(new URL(`/interactions/${encodeURIComponent(text(id,512))}`, this.base), { method:'PUT', headers:{ Authorization:`QQBot ${token}`,'Content-Type':'application/json','X-Callback-AppID':appId }, body:JSON.stringify({code}),signal:AbortSignal.timeout(1500) }, true, true);
   }
+  async recallC2C(openid:string,messageId:string):Promise<void>{
+    const token=await this.accessToken();
+    await this.request(new URL(`/v2/users/${encodeURIComponent(text(openid,256))}/messages/${encodeURIComponent(text(messageId,512))}`,this.base),{method:'DELETE',headers:{Authorization:`QQBot ${token}`,'Content-Type':'application/json'}},false,true);
+  }
 }

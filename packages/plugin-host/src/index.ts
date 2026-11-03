@@ -100,3 +100,5 @@ export class DurableDeliveryService {
   }
 }
 export { ReportDeliveryCoordinator } from './reports.js';
+export { QQCardRetirementService } from './cards.js';
+export type { MessageRecallPort } from './cards.js';

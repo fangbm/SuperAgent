@@ -113,6 +113,6 @@ pnpm start:m5 --database .artifacts/local.sqlite --project my-game
 
 demo 使用独立数据库和合成数据，终端输出本机地址与演示访问密钥。正常启动在 Windows 用 DPAPI 保存随机访问密钥，自己的终端可运行 `pnpm m5:key --show` 查看。控制台提供报告归档、Bug/建议、原文、状态操作和关联纠错。报告按北京时间 18:00、00:00 固定窗口生成，旧修订不变；QQ 与 GitHub 写入须分别显式启用。见 [M5 运行说明](docs/M5-REPORTS-AND-ACTIONS.md) 与 [M5 验收](docs/M5-ACCEPTANCE.md)。
 
-M5 已按当前约定范围完成验收：184 项 Node 测试、6 组参考验证通过；QQ 导航按轮次完成有限真实验收，GitHub 状态动作完成真实关闭/重新打开与读回，Web 在 Markdown 修复后获得用户人工确认。测试监听不是常驻服务，自动浏览器视觉与其他未覆盖项仍在验收记录中单列。
+M5 基础范围已完成验收：QQ 导航按轮次完成有限真实验收，GitHub 与 QQ 状态按钮完成真实关闭/重新打开与读回，Web 在 Markdown 修复后获得用户人工确认。后续支持成功后回发同一状态卡，并在平台两分钟窗口内撤回旧交互消息；半日报始终保留。状态卡刷新和两次撤回已获客户端确认，扩展到其他交互的覆盖范围见验收记录。测试监听不是常驻服务，自动浏览器视觉与其他未覆盖项仍单列。
 
 M5 不安装模型 worker；pending 任务仍须由配置后的 M3 消费。P0 即时通知调度尚未实现；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。

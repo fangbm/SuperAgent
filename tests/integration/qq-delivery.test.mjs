@@ -24,6 +24,11 @@ test('QQ token cache refreshes early, coalesces concurrent requests, and handles
     await assert.rejects(invalid.accessToken(), error => error.code === `QQ_API_${code}` && !error.message.includes('sensitive'));
   }
 });
+
+test('QQ C2C recall uses the bound recipient, accepts empty 200/204, and never retries an unknown DELETE',async()=>{
+  for(const status of [200,204]){const calls=[];const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch((url,init)=>{calls.push({url:String(url),method:init.method});return new Response(null,{status});})}});assert.deepEqual(await plugin.recallMessage('owned-message',deliveryHost(plugin,readSecret)),{status:'accepted'});assert.deepEqual(calls,[{url:`https://api.bot.qq.com/v2/users/${qqSecrets.QQ_RECIPIENT_OPENID}/messages/owned-message`,method:'DELETE'}]);}
+  let calls=0;const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',api:{fetch:apiFetch(()=>{calls++;throw new Error('RESPONSE_LOST');})}});assert.equal((await plugin.recallMessage('owned-message',deliveryHost(plugin,readSecret))).status,'unknown');assert.equal(calls,1);
+});
 test('QQ Gateway rejects non-platform WebSocket destinations and plaintext remote URLs', async () => {
   for (const url of ['wss://attacker.invalid/socket', 'ws://api.sgroup.qq.com/socket', 'wss://user:password@api.bot.qq.com/socket']) {
     const api = new QQAPI(readSecret, { fetch: async endpoint => Response.json(String(endpoint).endsWith('/app/getAppAccessToken') ? { access_token: 'fixture-token', expires_in: 7200 } : { url }) });
