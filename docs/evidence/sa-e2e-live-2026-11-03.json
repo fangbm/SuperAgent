@@ -1,0 +1,287 @@
+{
+  "startedAt": "2026-11-03T11:34:27.762Z",
+  "status": "listening",
+  "stage": "interactive",
+  "repository": "fangbm/sa-test",
+  "projectId": "qq-mainflow-test-20261103",
+  "maximumModelCalls": 8,
+  "maximumIssueCreates": 2,
+  "maximumComments": 1,
+  "maximumStatusPatches": 2,
+  "maximumQQMessages": 8,
+  "maximumRecalls": 6,
+  "modelCalls": 3,
+  "issueCreates": 2,
+  "comments": 0,
+  "statusPatches": 0,
+  "qqPosts": 2,
+  "recalls": 0,
+  "qqAccepted": 2,
+  "qqReplies": 1,
+  "groupMessagesSent": 0,
+  "externalDispatchEnabled": true,
+  "createdIssues": [
+    "3",
+    "4"
+  ],
+  "confirmedActions": [],
+  "views": {},
+  "events": [
+    {
+      "at": "2026-11-03T11:34:27.764Z",
+      "phase": "waiting_model_config",
+      "echo": false
+    },
+    {
+      "at": "2026-11-03T11:34:40.239Z",
+      "phase": "private_repository_verified",
+      "repository": "fangbm/sa-test"
+    },
+    {
+      "at": "2026-11-03T11:34:41.194Z",
+      "phase": "analysis_started",
+      "batchId": "batch-b6abd8ed71ecd908e0a3a7594b333390a5cf8fdf627282cbbe014dc2b1c20d58",
+      "input": "saved real QQ acceptance group input; same database"
+    },
+    {
+      "at": "2026-11-03T11:34:43.621Z",
+      "phase": "model",
+      "httpStatus": 200
+    },
+    {
+      "at": "2026-11-03T11:34:44.909Z",
+      "phase": "model",
+      "httpStatus": 200
+    },
+    {
+      "at": "2026-11-03T11:34:46.209Z",
+      "phase": "model",
+      "httpStatus": 200
+    },
+    {
+      "at": "2026-11-03T11:34:46.225Z",
+      "phase": "analysis_result",
+      "processed": true,
+      "status": "succeeded",
+      "runId": "run-682f28aff72acc53ebc50b1dc90bd3d26b190e49411af4a3668f67017fc17c9a"
+    },
+    {
+      "at": "2026-11-03T11:34:48.118Z",
+      "phase": "prepared",
+      "drafts": [
+        {
+          "operationId": "external-3ad0d1ad262dc8266cf9f35e41c4c696d427a07943af01580a68ccb4510367a3",
+          "title": "[E2E 验收 20261103-1920] 断线后自动重连",
+          "kind": "github.issue.create"
+        },
+        {
+          "operationId": "external-40acca50a81d4228083850c48e8deae6fd5dad6bdc6799be62afdf6e7a1af185",
+          "title": "[E2E 验收 20261103-1920] 多人联机加载到90%时崩溃",
+          "kind": "github.issue.create"
+        }
+      ],
+      "issueCreatesBudget": 2,
+      "commentsBudget": 1,
+      "statusPatchesBudget": 2,
+      "privateQQMessagesBudget": 8,
+      "groupSend": false
+    },
+    {
+      "at": "2026-11-03T11:35:27.543Z",
+      "phase": "github_issue_create",
+      "httpStatus": 201
+    },
+    {
+      "at": "2026-11-03T11:35:27.552Z",
+      "phase": "github_sync",
+      "processed": true,
+      "state": "succeeded",
+      "operationId": "external-3ad0d1ad262dc8266cf9f35e41c4c696d427a07943af01580a68ccb4510367a3"
+    },
+    {
+      "at": "2026-11-03T11:35:30.449Z",
+      "phase": "github_issue_create",
+      "httpStatus": 201
+    },
+    {
+      "at": "2026-11-03T11:35:30.456Z",
+      "phase": "github_sync",
+      "processed": true,
+      "state": "succeeded",
+      "operationId": "external-40acca50a81d4228083850c48e8deae6fd5dad6bdc6799be62afdf6e7a1af185"
+    },
+    {
+      "at": "2026-11-03T11:35:31.836Z",
+      "phase": "github_created_and_readback",
+      "links": [
+        {
+          "kind": "suggestion",
+          "number": "3"
+        },
+        {
+          "kind": "defect",
+          "number": "4"
+        }
+      ],
+      "bugFeedback": 2,
+      "suggestionFeedback": 1
+    },
+    {
+      "at": "2026-11-03T11:35:31.853Z",
+      "phase": "scheduled_backfill_report",
+      "reportId": "report-d0f815011fc5224306ae8e5d9f50c4f570c40bf8aaf2adcca7697a7a67430db2",
+      "revision": 1,
+      "window": {
+        "endExclusive": "2026-11-03T10:00:00.000Z",
+        "projectId": "qq-mainflow-test-20261103",
+        "startInclusive": "2026-11-02T16:00:00.000Z",
+        "timezone": "Asia/Shanghai"
+      },
+      "counts": {
+        "newDefectItems": 1,
+        "newFeedbackItems": 2,
+        "newSuggestionItems": 1,
+        "pendingAnalysis": 0,
+        "uniqueDefects": 1,
+        "uniqueSuggestions": 1
+      },
+      "sourceEvents": 10
+    },
+    {
+      "at": "2026-11-03T11:35:32.566Z",
+      "phase": "web_readback",
+      "label": "initial",
+      "status": "open",
+      "bugFeedback": 2,
+      "suggestionFeedback": 1,
+      "originals": 2,
+      "reportRevision": 1
+    },
+    {
+      "at": "2026-11-03T11:35:32.577Z",
+      "phase": "web_readback",
+      "label": "after_web_action",
+      "status": "investigating",
+      "bugFeedback": 2,
+      "suggestionFeedback": 1,
+      "originals": 2,
+      "reportRevision": 1
+    },
+    {
+      "at": "2026-11-03T11:35:33.032Z",
+      "phase": "web_ready",
+      "url": "http://127.0.0.1:51512",
+      "manualAccess": "existing local protected key; pnpm m5:key --show",
+      "webRole": "reader"
+    },
+    {
+      "at": "2026-11-03T11:35:40.912Z",
+      "phase": "qq_message",
+      "httpStatus": 200,
+      "passive": false,
+      "nativeKeyboard": true,
+      "buttons": [
+        "查看 Bug",
+        "查看建议",
+        "Steam 差评"
+      ]
+    },
+    {
+      "at": "2026-11-03T11:35:40.920Z",
+      "phase": "delivery_result",
+      "operationId": "external-72cd725804720ba98d2842a944d65bc1b9810978ff4b9e6b4bd068bc448a485b",
+      "state": "succeeded",
+      "status": "accepted"
+    },
+    {
+      "at": "2026-11-03T11:35:40.922Z",
+      "phase": "interactive_ready",
+      "expiresAt": "2026-11-03T12:20:40.922Z",
+      "reportId": "report-d0f815011fc5224306ae8e5d9f50c4f570c40bf8aaf2adcca7697a7a67430db2",
+      "webUrl": "http://127.0.0.1:51512",
+      "maximumReplies": 7,
+      "steps": [
+        "查看 Bug",
+        "下一条原文",
+        "返回反馈",
+        "标记修复",
+        "重新打开",
+        "在原报告查看建议",
+        "在原报告 Steam 差评"
+      ]
+    },
+    {
+      "at": "2026-11-03T11:38:53.916Z",
+      "phase": "qq_message",
+      "httpStatus": 200,
+      "passive": true,
+      "nativeKeyboard": true,
+      "buttons": [
+        "返回半日报",
+        "下一条原文",
+        "标记修复",
+        "忽略问题"
+      ]
+    },
+    {
+      "at": "2026-11-03T11:38:53.925Z",
+      "phase": "delivery_result",
+      "operationId": "external-7e8dcfc51b95db3e53b830f9f9656c914be2e10c950ac69b5887e8e22363ef28",
+      "state": "succeeded",
+      "status": "accepted"
+    },
+    {
+      "at": "2026-11-03T11:38:53.926Z",
+      "phase": "interaction_card",
+      "title": "Bug",
+      "retainMessage": false,
+      "buttons": [
+        "返回半日报",
+        "下一条原文",
+        "标记修复",
+        "忽略问题"
+      ]
+    }
+  ],
+  "analysisJob": "job-1df24644bf2086aa3381d93ba5f2dff0ae9c50efbbc172f92afc86dcf112a15d",
+  "bugId": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+  "suggestionId": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+  "links": [
+    {
+      "work_kind": "suggestion",
+      "work_id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+      "repository": "fangbm/sa-test",
+      "external_issue_id": "3"
+    },
+    {
+      "work_kind": "defect",
+      "work_id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+      "repository": "fangbm/sa-test",
+      "external_issue_id": "4"
+    }
+  ],
+  "bugIssue": "4",
+  "reportId": "report-d0f815011fc5224306ae8e5d9f50c4f570c40bf8aaf2adcca7697a7a67430db2",
+  "reportCounts": {
+    "newDefectItems": 1,
+    "newFeedbackItems": 2,
+    "newSuggestionItems": 1,
+    "pendingAnalysis": 0,
+    "uniqueDefects": 1,
+    "uniqueSuggestions": 1
+  },
+  "sealsHash": "d7a91ea3a61f2b4b7ab430a418869d624516d6861adf54ecc21ebdaa4cdbd20c",
+  "expiresAt": "2026-11-03T12:20:40.922Z",
+  "verificationBoundary": {
+    "input": "replay of previously captured real QQ acceptance messages in one database copy",
+    "newGroupMessagesCollected": false,
+    "realModel": true,
+    "realGitHubCreates": true,
+    "reportBackfill": true,
+    "webHTTP": true,
+    "automatedBrowserVisual": false,
+    "QQClientConfirmation": "pending",
+    "WebClientConfirmation": "pending",
+    "allImplementedStagesComplete": false
+  }
+}
