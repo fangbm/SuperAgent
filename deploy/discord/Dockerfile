@@ -9,10 +9,11 @@ COPY packages ./packages
 COPY config ./config
 COPY scripts ./scripts
 COPY community/idle-abyss-princesses/bot-config.json ./community/idle-abyss-princesses/bot-config.json
+COPY community/idle-abyss-princesses/core-config.json ./community/idle-abyss-princesses/core-config.json
 
 RUN pnpm install --frozen-lockfile --prod=false && pnpm build && pnpm store prune
 
 ENV NODE_ENV=production
 USER node
 
-ENTRYPOINT ["node", "scripts/discord-bot.mjs", "--config", "community/idle-abyss-princesses/bot-config.json", "--database", "/data/archive.sqlite"]
+ENTRYPOINT ["node", "scripts/superagent.mjs", "--config", "community/idle-abyss-princesses/core-config.json", "--database", "/data/archive.sqlite"]

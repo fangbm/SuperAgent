@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist", "types": ["node"] },
-  "references": [{ "path": "../plugin-sdk" }, { "path": "../contracts" }, { "path": "../contract-validation" }, { "path": "../persistence" },{ "path": "../reporting" }],
+  "references": [{ "path": "../plugin-sdk" }, { "path": "../contracts" }, { "path": "../contract-validation" }, { "path": "../persistence" }, { "path": "../ingress" },{ "path": "../reporting" }],
   "include": ["src/**/*.ts"]
 }

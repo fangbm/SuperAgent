@@ -29,12 +29,12 @@ importers:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:packages/contracts
-      '@superagent/discord-community':
-        specifier: workspace:*
-        version: link:packages/discord-community
       '@superagent/control-plane':
         specifier: workspace:*
         version: link:packages/control-plane
+      '@superagent/discord-community':
+        specifier: workspace:*
+        version: link:packages/discord-community
       '@superagent/domain':
         specifier: workspace:*
         version: link:packages/domain
@@ -167,11 +167,6 @@ importers:
 
   packages/contracts: {}
 
-  packages/discord-community:
-    dependencies:
-      '@superagent/plugin-sdk':
-        specifier: workspace:*
-        version: link:../plugin-sdk
   packages/control-plane:
     dependencies:
       '@superagent/contracts':
@@ -189,6 +184,12 @@ importers:
       '@superagent/reporting':
         specifier: workspace:*
         version: link:../reporting
+
+  packages/discord-community:
+    dependencies:
+      '@superagent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/domain:
     dependencies:
@@ -297,6 +298,9 @@ importers:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@superagent/ingress':
+        specifier: workspace:*
+        version: link:../ingress
       '@superagent/persistence':
         specifier: workspace:*
         version: link:../persistence

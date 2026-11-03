@@ -44,6 +44,7 @@ export interface CommunityHost {
   getPrivateEvent(eventId: string): Promise<NormalizedEventV1 | null>;
   flushChannel(channelId: string, signal: AbortSignal): Promise<void>;
   now(): string;
+  submitTicket(event: NormalizedEventV1): Promise<{ status: 'created' | 'replayed' | 'existing'; ticketId: string; eventId: string }>;
 }
 
 export type DiscordMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -395,22 +396,6 @@ export class DiscordCommunity {
     const submittedTitle = fields.title ?? ''; const submittedBody = fields.body ?? '';
     const title = submittedTitle.trim(); const body = submittedBody.trim();
     if (!title || !body || submittedTitle.length > 120 || submittedBody.length > 3500) { await this.complete(i, '标题和详情均为必填项，请重新提交。 / Please provide a title and details.'); return; }
-    const recovered = asTicket(await this.host.state.get(ticketKey(i.id!)));
-    if (recovered) {
-      if (!['closed', 'deleted'].includes(recovered.status)) await this.host.state.set(openKey(actor), recovered.id);
-      await this.host.state.set(interactionKey(i.id!), { status: 'archived', ticketId: recovered.id, eventId: recovered.evidenceEventId });
-      await this.complete(i, 'This request is already archived. · 此请求已归档。'); return;
-    }
-    const rows = await this.host.state.list('ticket:');
-    const active = rows.map(row => row.key.startsWith('ticket:') && !row.key.startsWith('ticket:open:') ? asTicket(row.value) : null)
-      .find(ticket => ticket?.userId === actor && !['closed', 'deleted'].includes(ticket.status));
-    const pendingId = 'pending:' + i.id!;
-    const reservation = await this.host.state.update(openKey(actor), old => {
-      if (typeof old === 'string' && old.startsWith('pending:')) return old;
-      if (active) return active.id;
-      return pendingId;
-    });
-    if (reservation !== pendingId) { await this.host.state.set(interactionKey(rawString(i.id)), { status: 'duplicate_ticket' }); await this.complete(i, '你已有一个未关闭的请求。 / You already have an open ticket.'); return; }
     const now = Number.isFinite(Date.parse(receivedAt)) ? new Date(receivedAt).toISOString() : new Date(Number((BigInt(i.id!) >> 22n) + 1_420_070_400_000n)).toISOString();
     const event: NormalizedEventV1 = {
       specversion: '1.0', id: 'discord-community:' + i.id, source: `urn:superagent:source:discord:${this.config.guildId}:tickets`,
@@ -419,20 +404,13 @@ export class DiscordCommunity {
         platform: 'discord', object: { kind: 'message', externalId: i.id!, revision: short(JSON.stringify({ title: submittedTitle, body: submittedBody, kind })) },
         actor: { opaqueId: actor }, content: { text: `[${kind}] ${submittedTitle}\n\n${submittedBody}` },
         origin: { permalink: `https://discord.com/channels/${this.config.guildId}/${i.channel_id ?? this.config.ticketPanelChannelId}` },
+        // Preserve legacy event bytes for replay; this audit marker never controls Core source policy.
         attributes: { guildId: this.config.guildId, ticketKind: kind, interactionId: i.id!, archiveOnly: true,
           native: { title: submittedTitle, body: submittedBody, kind, interactionId: i.id!, channelId: i.channel_id ?? this.config.ticketPanelChannelId } } },
     } as NormalizedEventV1;
     signal.throwIfAborted();
-    let archived;
-    try { archived = await this.host.privateArchive.commitBatch([event]); }
-    catch (error) { await this.host.state.set(openKey(actor), ''); throw error; }
-    const ref = archived.refs[0]; if (!ref) { await this.host.state.set(openKey(actor), ''); throw new Error('ARCHIVE_COMMIT_MISSING_REF'); }
-    const ticket: TicketState = { version: 1, id: i.id!, userId: actor, kind: kind as TicketState['kind'], status: 'pending_create',
-      evidenceEventId: ref.eventId, createdAt: now, createMarker: 'superagent-ticket:' + i.id };
-    await this.host.state.set(ticketKey(i.id!), ticket as unknown as JSONValue);
-    await this.host.state.set(openKey(actor), i.id!);
-    await this.host.state.set(interactionKey(i.id!), { status: 'archived', ticketId: i.id!, eventId: ref.eventId });
-    await this.complete(i, '已安全归档，正在创建私密请求频道。 / Archived safely; creating your private ticket.');
+    const result = await this.host.submitTicket(event);
+    await this.complete(i, result.status === 'existing' ? '你已有一个未关闭的请求。 / You already have an open ticket.' : '已安全归档，正在创建私密请求频道。 / Archived safely; creating your private ticket.');
   }
 
   private async recordComponent(i: Interaction, actor: string): Promise<void> {

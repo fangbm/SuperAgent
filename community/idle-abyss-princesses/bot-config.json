@@ -13,6 +13,5 @@
   "historyPagesPerSync": 10,
   "historyPollMs": 60000,
   "emptyRoomMs": 60000,
-  "defaultRoomLimit": 4,
-  "steamReviewsConfig": "packages/connectors/steam-reviews/examples/idle-abyss-princesses.json"
+  "defaultRoomLimit": 4
 }

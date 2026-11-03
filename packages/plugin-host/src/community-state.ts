@@ -54,6 +54,20 @@ export class DurableCommunityState {
     if (!lease || lease.owner !== this.leaseOwner || lease.lease_until <= checkedAt) throw new Error('COMMUNITY_LEASE_LOST');
   }
 
+  getLeaseGeneration(): number | null {
+    if (this.leaseOwner === undefined) return null;
+    this.assertLeaseOwner();
+    return this.store.get<LeaseRow>('SELECT owner,lease_until,generation FROM community_leases WHERE namespace=?', this.namespace)!.generation;
+  }
+
+  assertLease(generation?: number | null): void {
+    this.assertLeaseOwner();
+    if (generation !== undefined && generation !== null) {
+      const lease = this.store.get<LeaseRow>('SELECT owner,lease_until,generation FROM community_leases WHERE namespace=?', this.namespace);
+      if (!lease || lease.generation !== generation) throw new Error('COMMUNITY_LEASE_LOST');
+    }
+  }
+
   private decode(json: string): JSONValue {
     try {
       const value: unknown = JSON.parse(json);
@@ -79,6 +93,30 @@ export class DurableCommunityState {
     this.assertLeaseOwner();
     const row = this.store.get<StateRow>('SELECT value_json FROM community_state WHERE namespace=? AND state_key=?', this.namespace, key);
     return row ? this.decode(row.value_json) : null;
+  }
+
+  /** Synchronous access for callers already inside the host's SQLite transaction. */
+  getSync(key: string): JSONValue | null {
+    this.key(key);
+    this.assertLeaseOwner();
+    const row = this.store.get<StateRow>('SELECT value_json FROM community_state WHERE namespace=? AND state_key=?', this.namespace, key);
+    return row ? this.decode(row.value_json) : null;
+  }
+
+  setSync(key: string, value: JSONValue): void {
+    this.key(key);
+    const now = this.now(); this.assertLeaseOwner(now);
+    const json = canonicalJSON(value);
+    this.store.run(`INSERT INTO community_state(namespace,state_key,value_json,updated_at) VALUES(?,?,?,?)
+      ON CONFLICT(namespace,state_key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`, this.namespace, key, json, now);
+  }
+
+  listSync(prefix: string): Array<{ key: string; value: JSONValue }> {
+    if (typeof prefix !== 'string') throw new Error('INVALID_COMMUNITY_STATE_PREFIX');
+    this.assertLeaseOwner();
+    return this.store.all<StateListRow>(`SELECT state_key,value_json FROM community_state
+      WHERE namespace=? AND substr(state_key,1,length(?))=? ORDER BY state_key`, this.namespace, prefix, prefix)
+      .map(row => ({ key: row.state_key, value: this.decode(row.value_json) }));
   }
 
   async set(key: string, value: JSONValue): Promise<void> {

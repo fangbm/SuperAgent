@@ -64,6 +64,24 @@ function fixture(t) {
     publicArchive: { projectId: 'idle-abyss-princesses', sourceId: 'discord-public' },
     privateArchive: archive, state,
     async getPrivateEvent(eventId) { const index = Number(eventId.slice('private-event-'.length)) - 1; return events[index] ?? null; },
+    async submitTicket(event) {
+      const id = event.data.attributes.interactionId; const userId = event.data.actor.opaqueId;
+      const prior = await state.get(`interaction:${id}`);
+      if (prior) {
+        if (JSON.stringify(events.find(item => item.id === event.id)) !== JSON.stringify(event)) throw new Error('COMMUNITY_INTERACTION_IDENTITY_CONFLICT');
+        return { status: 'replayed', ticketId: prior.ticketId, eventId: prior.eventId };
+      }
+      events.push(jsonClone(event)); const eventId = `private-event-${events.length}`;
+      const open = await state.get(`ticket:open:${userId}`);
+      if (open && await state.get(`ticket:${open}`)) {
+        await state.set(`interaction:${id}`, { status: 'archived', ticketId: open, eventId });
+        return { status: 'existing', ticketId: open, eventId };
+      }
+      await state.set(`ticket:${id}`, { version: 1, id, userId, kind: event.data.attributes.ticketKind, status: 'pending_create', evidenceEventId: eventId, createdAt: event.time, createMarker: `superagent-ticket:${id}` });
+      await state.set(`ticket:open:${userId}`, id);
+      await state.set(`interaction:${id}`, { status: 'archived', ticketId: id, eventId });
+      return { status: 'created', ticketId: id, eventId };
+    },
     async flushChannel(channelId) { calls.push({ method: 'FLUSH', route: channelId }); if (flushWait) await flushWait(); },
     now() { return now; },
   };
@@ -113,13 +131,14 @@ test('ticket submission is privately archived before durable intent and channel 
   assert.equal(f.calls.some(call => call.method === 'PATCH' && call.route.includes('/webhooks/')), true);
 });
 
-test('one-open-ticket reservation and staff role checks guard ticket lifecycle actions', async t => {
+test('one-open-ticket archival and staff role checks guard ticket lifecycle actions', async t => {
   const f = fixture(t); const signal = new AbortController().signal;
   const first = modal('9101', '701'); const second = modal('9102', '701', 'Another report with enough detail.');
   await f.community.acknowledge(packet(first)); await f.community.handleDispatch(packet(first), signal);
   await f.community.acknowledge(packet(second, 2)); await f.community.handleDispatch(packet(second, 2), signal);
-  assert.equal(f.events.length, 1);
-  assert.equal((await f.state.get('interaction:9102')).status, 'duplicate_ticket');
+  assert.equal(f.events.length, 2);
+  assert.equal((await f.state.get('interaction:9102')).status, 'archived');
+  assert.equal((await f.state.get('interaction:9102')).ticketId, '9101');
   await f.community.tick(signal);
   const ticket = await f.state.get('ticket:9101');
   const forgedClose = { id: '9103', application_id: '102', token: 't3', type: 3, guild_id: ids.guild, channel_id: ticket.channelId,

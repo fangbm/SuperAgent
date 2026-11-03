@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。M4 提供 Discord/Steam Source 适配器及能力降级，并新增归档优先的 Discord 私密工单和临时语音房。QQ/M5 的真实验收边界与 Discord 机器人尚未上线的限制见下文。
+跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。M4 提供 Discord/Steam Source 适配器；Discord 私密工单和临时语音房由 Core 的可信 Host 组合。主程序通过一份 Core 配置注册来源策略、打开一个 SQLite Runtime，并将受限 Host 能力交给插件。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
@@ -66,30 +66,40 @@ pnpm worker:m1 --database .artifacts/local.sqlite
 
 demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭/重新打开，以及注入时钟推进后的 batch 恢复；不会访问平台。worker 只处理已有的 outbox/admission 和超时分段；无消息来源时保持空闲，Ctrl+C 关闭连接。示例数据库放在 Git 忽略的 `.artifacts` 中。
 
-Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务，由显式配置的 `worker:m3` 消费。
+Core 配置精确声明来源绑定和处理策略；未列出的来源不被改写。Core 打开唯一 M1 Runtime，插件只收到按来源绑定的 Host 能力，不取得数据库、队列或策略写入权。主程序的公开来源可正常进入 M1 admission；M3 模型分析仍默认关闭，只有 Core 配置 `analysis.enabled: true` 且设置 `SA_LLM_BASE_URL`、`SA_LLM_MODEL` 才会在同一进程启用。独立 `worker:m1` / `worker:m3` 入口仍可用于兼容的分离式运行。
+
+```powershell
+pnpm start --config community/idle-abyss-princesses/core-config.json --check-config
+pnpm start --config community/idle-abyss-princesses/core-config.json --once
+pnpm start --config community/idle-abyss-princesses/core-config.json --setup
+# 可选：覆盖配置中的 database 路径
+pnpm start --config community/idle-abyss-princesses/core-config.json --database .artifacts/local.sqlite
+```
+
+`--once` 是一次有限同步和 Core tick，不代表全历史完成；`--setup` 只执行 Discord 社区设置。Core 配置可选启用 `web.enabled`，M5 会借用同一个 Runtime。
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
 
-## Discord 社区 Bot
+## Core 主程序与 Discord 社区
 
-仓库内已实现私密工单、加入即创建的临时语音房和共享 Gateway 采集。使用同一 M1 归档，私密来源有持久 archive-only 隔离；默认不运行 AI/GitHub。当前为朋友电脑部署准备状态，尚未安装/启用真实 Bot。行为、入口和验收见 [Discord Bot](docs/DISCORD-BOT.md)，部署与现有148条记录的安全交接见 [部署说明](docs/DISCORD-BOT-DEPLOYMENT.md)。
+标准入口为 `pnpm start --config community/idle-abyss-princesses/core-config.json`。该配置组合 Discord 社区插件和 Steam Reviews，共用一个 Core Runtime；公开来源使用 `standard` 策略，私密工单来源使用 `staff/archive_only`。配置默认关闭模型分析，GitHub 外部写入默认关闭，Web 控制台可选。`--setup` 只运行 Discord 社区初始化；当前真实 Bot/朋友电脑尚未激活。行为、入口和验收见 [Discord Bot](docs/DISCORD-BOT.md)，148 条历史记录的安全交接见 [部署说明](docs/DISCORD-BOT-DEPLOYMENT.md)。
 
 ## 运行 M3
 
-M4 已新增三个独立 Source 插件与 `pnpm source:m4` 运行入口：Discord Gateway/REST、Steam Reviews，以及 Steam Discussions 的显式本地快照降级。接入既有 M1 Source Host，不修改 M3。配置、覆盖限制和运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，真实平台验证范围见 [M4 验收记录](docs/M4-ACCEPTANCE.md)。Discussions 远程采集当前为 unavailable。
+M4 提供三个独立 Source 插件：Discord Gateway/REST、Steam Reviews，以及 Steam Discussions 的显式本地快照降级。标准 Core 主程序统一组合插件；`pnpm source:m4` 保留为可信 Core 的兼容委托入口。配置、覆盖限制和运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，真实平台验证范围见 [M4 验收记录](docs/M4-ACCEPTANCE.md)。Discussions 远程采集当前为 unavailable。
 
-Steam AppID5335850 已用 `reviewScope=all --archive-only` 实际归档129条公开好/差评；另经一次有界网站读取归档19条评价下评论，共148条原始事件，未运行分析。归档路径、恢复命令和评论/讨论覆盖缺口见 [Steam 归档记录](docs/M4-STEAM-ARCHIVE.md)。
+Steam AppID5335850 曾用 `reviewScope=all --archive-only` 实际归档129条公开好/差评；另经一次有界网站读取归档19条评价下评论，共148条原始事件，该次归档没有运行分析。原始证据仍保留；主程序配置对新增公开消息采用标准 M1 admission。归档路径、恢复命令和评论/讨论覆盖缺口见 [Steam 归档记录](docs/M4-STEAM-ARCHIVE.md)。
 
 ```powershell
 pnpm build
 pnpm demo:m3
-# 在当前进程环境设置 SA_LLM_BASE_URL、SA_LLM_MODEL、SA_LLM_API_KEY 后：
+# 独立兼容 worker；主程序也可通过 Core config 在同一 Runtime 启用 M3
 pnpm worker:m3 --database .artifacts/local.sqlite --once
 ```
 
 `demo:m3` 是确定性适配器示例，没有真实推理；正常 worker 使用配置的模型 HTTP 接口。环境变量名称见 [.env.example](.env.example)，应用不会自动读取 `.env` 文件或保存凭据。
 
-GitHub 同步是可选项：配置 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` 并指定 `--project`。默认不执行外部写入；只有追加 `--github-write` 且目标实际为私有仓库时才允许发送。后续统计写在机器人评论中，开发者 Issue 正文不会被 PATCH。
+主程序内的模型分析要求 Core 配置 `analysis.enabled: true` 并设置 `SA_LLM_BASE_URL`、`SA_LLM_MODEL`；不会自动读取 `.env` 文件。GitHub 写入还要求配置 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` 并在可信 Core 配置显式设定 `githubWrite: true`，目标须验证为私有仓库。默认保持关闭。后续统计写在机器人评论中，开发者 Issue 正文不会被 PATCH。
 
 该轮已用真实 `deepseek-flash` 分析合成 QQ/Discord 反馈，并经用户批准在私有测试仓库创建两个 Issue、读回一条统计评论。该轮模型输入仍为合成消息；后续真实 QQ 普通群消息和自动批处理见 [主链路验收](docs/QQ-MAINFLOW-ACCEPTANCE.md)。详见 [M3 设计与运行边界](docs/M3-ANALYSIS.md) 和 [M3 验收记录](docs/M3-ACCEPTANCE.md)。
 
@@ -119,7 +129,7 @@ pnpm build
 pnpm demo:m5
 # 生成 QQ Markdown 示例与离线预览，不发送消息：
 pnpm preview:qq
-# 已有数据库；仅准备报告，不开启外部发送：
+# 独立 M5 兼容入口；也可在 Core config 中启用 web 共用主 Runtime：
 pnpm start:m5 --database .artifacts/local.sqlite --project my-game
 ```
 

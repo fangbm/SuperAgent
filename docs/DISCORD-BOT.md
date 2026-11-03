@@ -1,6 +1,6 @@
 # SuperAgent Discord community bot
 
-The bot lives in this private monorepo: existing Discord Source Plugin, SDK-only community features, trusted plugin-host lifecycle state, and the same M1 SQLite archive. Public/private collection and community features share one Gateway. No model worker or GitHub writer starts with it.
+The Discord community plugin runs under the trusted Core owner in this private monorepo. Public/private collection and community features share one Gateway and one M1 SQLite archive. The checked-in Core configuration enables standard public M1 admission, keeps the private ticket source staff-only/archive-only, and leaves model analysis, Web and GitHub writes disabled.
 
 ## Delivery status
 
@@ -14,15 +14,20 @@ Create a dedicated application named **深渊放置姬 Community** on the server
 
 ```powershell
 pnpm build
-pnpm discord:bot --config community/idle-abyss-princesses/bot-config.json --check-config
-pnpm discord:bot --config community/idle-abyss-princesses/bot-config.json --install-url --application-id YOUR_APPLICATION_ID
+pnpm start --config community/idle-abyss-princesses/core-config.json --check-config
+pnpm start --config community/idle-abyss-princesses/core-config.json --setup
+pnpm start --config community/idle-abyss-princesses/core-config.json
 ```
+
+Use `--database .artifacts/discord-bot/data/archive.sqlite` to override the configured database path on the host; Compose mounts the archive at `/data/archive.sqlite`. `--setup` runs Discord community setup only. The normal command starts all plugins listed by the Core config, currently Discord community plus Steam Reviews. The legacy `pnpm discord:bot --config ... --database ...` remains a thin Core delegate; `--core-config` selects a different owner configuration. `--check-config` validates the Core composition without connecting to platforms. `--install-url` and `--status` remain available on the legacy Discord command.
+
+The Core CLI also accepts `--once` for a bounded plugin pass and one processing tick, then exits. A successful one-shot run does not establish complete platform history or full collection coverage.
 
 The installation URL is locked to this guild. It requests message/history/thread access, channel management, Connect/Move Members, and `MANAGE_ROLES`, without Administrator. Discord requires `MANAGE_ROLES` for channel permission overwrite endpoints used to close tickets and manage ticket participants; the bot uses it only for those channel overwrites and does not create, edit, or assign guild roles. Developer/Moderator role assignments remain manual. The runner accepts either `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE`, rejecting simultaneous configuration.
 
 On the friend PC, place the stopped archive and token first. Run the explicit `--setup` command to resolve existing roles/categories, provision the ticket entry/private category/voice lobby, register guild commands, and publish bilingual panels. It backfills those setup messages before reporting completion. Stop an existing bot before rerunning setup; resource creation reconciles previous uncertain attempts.
 
-The default run starts continuous archive-only collection, including the existing Steam reviews source. `--status` is read-only/token-free and expects a live controller lease, recent heartbeat and Gateway readiness. After the first connection, a new privacy notice supersedes the earlier preparation notice; owner-authored history is retained.
+The default Core run continuously collects the configured public Discord and Steam sources and runs ordinary M1 admission for those public standard-policy sources. The checked-in configuration does not run model analysis; set `analysis.enabled` to true and provide `SA_LLM_BASE_URL` and `SA_LLM_MODEL` to enable the in-process M3 service over the same Runtime. `githubWrite` is false by default and requires the explicit Core setting plus repository credentials to permit writes. The private ticket source remains archive-only and isolated. Legacy `--status` is read-only/token-free and expects a live controller lease, recent heartbeat and Gateway readiness. After the first connection, a new privacy notice supersedes the earlier preparation notice; owner-authored history is retained.
 
 ## Tickets
 
@@ -50,7 +55,7 @@ Controller leases fence old writers. Ticket/room lifecycle records reconcile unc
 
 ## Verification and live checklist
 
-After integration with current M5/M6 main, frozen install and `pnpm check` pass: **295 Node tests, six Python suites**, build/typecheck, package boundaries and the 45-file freeze. Coverage includes real Host ticket replay/isolation, shared Gateway ACK ordering/split replay, Gateway/REST reconciliation, dynamic private capture, permission changes/403 recovery, lifecycle races, unknown outcomes, lease fencing, schema 8/11 upgrades and WAL-safe backups. See [PR integration review](PR-INTEGRATION-REVIEW.md).
+Earlier integration validation recorded 295 Node tests, six Python suites, build/typecheck, package boundaries and the 45-file freeze, including Host ticket replay/isolation, Gateway ordering/replay, permission recovery, lifecycle races, lease fencing and WAL-safe backups. Treat that as historical evidence; it does not verify this Core ownership revision or live Discord operation. See [PR integration review](PR-INTEGRATION-REVIEW.md).
 
 Ambiguous channel creation can require operator reconciliation if a marker lookup finds no channel, including a crash after persisting `creating` but before sending POST. The bot preserves archived submissions and avoids an unsafe duplicate create; it does not promise automatic completion of an unknown external outcome.
 

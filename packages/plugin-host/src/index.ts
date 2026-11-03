@@ -101,7 +101,11 @@ export class DurableDeliveryService {
 }
 
 export { DurableCommunityState } from './community-state.js';
+export { TrustedSourceRegistry } from './source-registry.js';
+export type { ConfiguredSource } from './source-registry.js';
 export type { CommunityStateReducer, DurableCommunityStateOptions } from './community-state.js';
+export { CommunitySubmissions } from './community-submissions.js';
+export type { CommunitySubmissionResult, CommunitySubmissionOptions, CommunityRecoverySummary } from './community-submissions.js';
 export { ReportDeliveryCoordinator } from './reports.js';
 export { QQCardRetirementService } from './cards.js';
 export type { MessageRecallPort } from './cards.js';

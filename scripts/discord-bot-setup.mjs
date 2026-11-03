@@ -76,9 +76,9 @@ export const archiveNotice = `**消息归档与私密工单 · Archiving & priva
 
 本通知替代早期“归档尚未启用”的准备说明。机器人在线连接时，会先归档公开文字频道、论坛和主题串的原文、编辑及删除记录，再供后续处理读取。普通工作人员私密区及私信不在采集范围内。
 
-私密工单会单独保存，仅请求人和授权工作人员可在 Discord 中查看；工单原文不用于公开 AI 分析或 GitHub 同步。目前 AI 处理保持关闭。关闭工单不删除归档；没有自动清理期限，需服主明确处理。Discord 中删除消息不会自动抹除已有归档。请勿提交密码、令牌或不必要的个人信息。
+私密工单会单独保存，仅请求人和授权工作人员可在 Discord 中查看；工单原文不用于公开 AI 分析或 GitHub 同步。公开反馈是否进行 AI 分析由主程序配置决定。关闭工单不删除归档；没有自动清理期限，需服主明确处理。Discord 中删除消息不会自动抹除已有归档。请勿提交密码、令牌或不必要的个人信息。
 
-This replaces the earlier setup notice. While connected, the bot archives public messages, edits and deletion records first. Ordinary staff areas and DMs are excluded. Private tickets are archived separately, visible in Discord only to their participants and authorized staff, and excluded from public AI processing and GitHub. AI is currently off.
+This replaces the earlier setup notice. While connected, the main program archives public messages, edits and deletion records first. Ordinary staff areas and DMs are excluded. Private tickets are archived separately, visible in Discord only to their participants and authorized staff, and excluded from public AI processing and GitHub. Public analysis follows the main program configuration.
 
 Closing a ticket or deleting a Discord message does not erase its archive. Records remain until owner-directed removal. Avoid passwords, tokens and unnecessary personal data. Offline deletions and intermediate edits may be unrecoverable; coverage remains partial.`;
 

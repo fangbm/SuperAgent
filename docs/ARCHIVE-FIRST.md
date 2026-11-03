@@ -8,7 +8,7 @@ Platform input → immutable archive commit → durable outbox/admission → arc
 
 Every message in the authorized collection scope is retained before downstream screening: ordinary chat, bot messages, feedback, edits and deletion events. Screening controls analysis eligibility and priority, never whether the original collected message is first saved. Historical backfill is retained as context; choosing not to analyze old chat does not remove it from the archive.
 
-The existing M1 Source Host already commits source_events, object projections, outbox and checkpoint in one transaction. The M3 worker resolves its candidate/context IDs through stored archive evidence. This order must remain the only analysis path; a Gateway callback, form submission, in-memory buffer or Discord-visible transcript must not bypass it.
+The Core launcher opens one M1 Runtime, applies the exact source policy entries from its trusted configuration, and gives plugins only bound Host capabilities. The M1 Source Host commits source_events, object projections, outbox and checkpoint in one transaction. Public sources configured as `standard` proceed through admission; `staff/archive_only` evidence remains isolated and is not admitted to public analysis. When Core analysis is explicitly enabled, the M3 worker resolves candidate/context IDs through stored archive evidence. A Gateway callback, form submission, in-memory buffer or Discord-visible transcript must not bypass archive commit.
 
 ## Authority and replay
 
@@ -29,6 +29,6 @@ Private evidence remains in its authorized staff-only scope. Any approved saniti
 
 Archive-first guarantees the processing order for collected data. Discord can withhold inaccessible messages or lose recoverable history during an unresumable connection, and the current connector still requires explicit channel/thread configuration. Report those gaps; do not claim that every platform message was captured merely because the archive commit path is reliable.
 
-The new Idle Abyss Princesses server's community setup is live; see [its handover](../community/idle-abyss-princesses/ACCEPTANCE.md). No archive bot, analysis worker or automatic private-ticket workflow has been activated for that server in this setup task. Live coverage must be verified after collector installation; player-facing setup content must not claim otherwise.
+The checked-in Idle Abyss Princesses Core configuration declares public Discord and Steam Reviews sources as `standard`, the private ticket source as `staff/archive_only`, and model analysis and GitHub writes as disabled. Starting that configuration runs public M1 admission; setting `analysis.enabled: true` plus the required model environment enables in-process M3 over the same Runtime. This configuration and code do not by themselves establish live platform coverage or successful deployment. See [the handover](../community/idle-abyss-princesses/ACCEPTANCE.md) for historical evidence and live acceptance boundaries.
 
 No frozen interface, additional database or second job queue is introduced by this policy statement.

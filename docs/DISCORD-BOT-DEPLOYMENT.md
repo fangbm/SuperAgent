@@ -4,7 +4,7 @@ This is a deployment guide, not activation. It uses the existing SuperAgent runt
 
 ## Files and safety
 
-- Compose builds from the repository root with Node 24 and pnpm 11.0.8. The bot has no inbound port; it makes an outbound Discord Gateway connection.
+- Compose builds the private Core application from the repository root with Node 24 and pnpm 11.0.8. The `bot` service name is retained; the process uses the canonical Core config and has no inbound Discord port.
 - The only persistent database mount is `.artifacts/discord-bot/data` → `/data`, with SQLite at `/data/archive.sqlite`.
 - `DISCORD_BOT_TOKEN_FILE` points to a local Compose secret under `.artifacts/discord-bot/secrets/`. The token is not part of `bot-config.json`, Compose environment values, image layers, or command arguments.
 - `.artifacts/`, SQLite files, and secret paths are excluded from Git by the repo ignore rules and Docker context rules. Keep copied archives private and transfer them over an encrypted channel. Never attach raw archives or tokens to tickets, chat, or Git.
@@ -61,13 +61,15 @@ docker compose -f deploy/discord/compose.yaml build
 docker compose -f deploy/discord/compose.yaml run --rm --no-deps bot --check-config
 ```
 
-`--check-config` is an offline configuration check. Review its output before provisioning. To provision the already-created server, stop any running collector first, then run the explicit setup command:
+The canonical owner configuration is `community/idle-abyss-princesses/core-config.json`. It declares public Discord and Steam Reviews as `standard`, the private ticket source as `staff/archive_only`, and leaves analysis, Web and GitHub writes disabled. The Core launcher applies only these exact declared source policies; it does not change unlisted source rows. A normal run performs public M1 admission, so any pending outbox work in the selected archive may advance after startup.
+
+`--check-config` validates the Core composition offline. Review it before provisioning. To provision the already-created server, stop any running collector first, then run the explicit setup command:
 
 ```sh
 docker compose -f deploy/discord/compose.yaml run --rm --no-deps bot --setup
 ```
 
-Start the single persistent bot process:
+Start the single persistent Core process:
 
 ```sh
 docker compose -f deploy/discord/compose.yaml up -d
@@ -75,7 +77,7 @@ docker compose -f deploy/discord/compose.yaml ps
 docker compose -f deploy/discord/compose.yaml logs --tail 100 bot
 ```
 
-The Compose healthcheck runs the read-only `--status` command and expects a live controller lease and recent heartbeat. Status output contains no token. Stop gracefully before backup or maintenance:
+The Compose healthcheck checks Core controller health and expects a live lease and recent heartbeat. Stop gracefully before backup or maintenance:
 
 ```sh
 docker compose -f deploy/discord/compose.yaml stop bot
@@ -91,7 +93,7 @@ The following export command runs on the current archive machine; a friend PC re
 node scripts/archive-backup.mjs --database .artifacts/idle-abyss-princesses/archive.sqlite --output .artifacts/discord-bot/data/archive.sqlite
 ```
 
-The output path must not already exist. The tool opens the source read-only, backs up committed WAL data through SQLite's backup API, verifies integrity and record count, checks for a live community controller lease, and prints a sanitized JSON manifest. It applies no migrations and never deletes the source. Confirm the manifest reports `sourceEventCount: 148` before treating the backup as the expected handoff copy. If the source has changed or a lease is live, it removes its incomplete output and exits with an error; stop the writer and retry with a new nonexisting target.
+The output path must not already exist. The tool opens the source read-only, backs up committed WAL data through SQLite's backup API, verifies integrity and record count, checks for a live community controller lease, and prints a sanitized JSON manifest. It applies no migrations and never deletes the source. Confirm the manifest reports `sourceEventCount: 148` before treating the backup as the expected historical handoff copy. If the source has changed or a lease is live, it removes its incomplete output and exits with an error; stop the writer and retry with a new nonexisting target.
 
 Transfer `archive.sqlite` privately to the friend PC's `.artifacts/discord-bot/data/` directory. Do not commit, email in plain text, or upload it to a public file host. Verify the transfer with a trusted file hash shared over the same private channel.
 
@@ -113,7 +115,7 @@ Stop the bot before each handoff backup. Use a new output filename each time; th
 
 For rollback, stop the new bot, wait for its lease to release/expire, create a validated backup of the current archive to a new filename, and restore the last known-good validated backup only while no process is writing. Keep the failed/current archive and the original 148-record Steam archive untouched until recovery is confirmed. Start only one writer after the restore check passes.
 
-A verified offline 148-record backup has been prepared at the documented data path. The original archive has not been moved or activated on another PC. Setup and continuous operation still require the owner application/token and friend-PC startup. See DISCORD-BOT.md for the guild installation URL command and live acceptance checklist.
+A verified offline 148-record backup has been prepared at the documented data path. It remains historical evidence; starting the Core config enables standard public M1 admission for configured sources while private tickets remain staff-only/archive-only. The original archive has not been moved or activated on another PC. Setup and continuous operation still require the owner application/token and friend-PC startup. See DISCORD-BOT.md for canonical Core commands, the guild installation URL command and live acceptance checklist.
 
 ## Prepared creator lobby
 

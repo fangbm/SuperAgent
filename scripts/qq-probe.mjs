@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { QQC2CDelivery } from '@superagent/qq-official';
 import { deliveryHost } from '@superagent/plugin-host';
@@ -14,4 +14,4 @@ try {
   const report = { checkedAt: new Date().toISOString(), sourceId: values.source, source, delivery, actualDelivery: 'not_attempted', callbackDeployment: 'not_performed', note: 'Authentication is not proof of message entitlement, active C2C, Markdown, Keyboard, or receipt.' };
   const output = path.resolve(values.output); mkdirSync(path.dirname(output), { recursive: true }); writeFileSync(output, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report)); if (source.coverage === 'unavailable' || !delivery.authenticated) process.exitCode = 1;
-} finally { await app.source.stop(); app.runtime.close(); }
+} finally { await app.close(); }

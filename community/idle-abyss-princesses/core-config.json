@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "database": ".artifacts/discord-bot/data/archive.sqlite",
+  "projectId": "idle-abyss-princesses",
+  "analysis": { "enabled": false },
+  "sources": [
+    {
+      "projectId": "idle-abyss-princesses",
+      "sourceId": "discord-1567099916126527530-public",
+      "sourceUri": "urn:superagent:source:discord:1567099916126527530:public",
+      "platform": "discord",
+      "policy": { "visibility": "public", "processingMode": "standard" }
+    },
+    {
+      "projectId": "idle-abyss-princesses-private",
+      "sourceId": "discord-1567099916126527530-tickets",
+      "sourceUri": "urn:superagent:source:discord:1567099916126527530:tickets",
+      "platform": "discord",
+      "policy": { "visibility": "staff", "processingMode": "archive_only" }
+    },
+    {
+      "projectId": "idle-abyss-princesses",
+      "sourceId": "steam-5335850-reviews-all",
+      "sourceUri": "urn:superagent:source:steam:5335850:all-reviews",
+      "platform": "steam-reviews",
+      "policy": { "visibility": "public", "processingMode": "standard" }
+    }
+  ],
+  "plugins": [
+    {
+      "kind": "discord-community",
+      "config": "community/idle-abyss-princesses/bot-config.json",
+      "sourceId": "discord-1567099916126527530-public",
+      "privateSourceId": "discord-1567099916126527530-tickets"
+    },
+    {
+      "kind": "steam-reviews",
+      "config": "packages/connectors/steam-reviews/examples/idle-abyss-princesses.json",
+      "sourceId": "steam-5335850-reviews-all"
+    }
+  ]
+}

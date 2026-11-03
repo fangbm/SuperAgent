@@ -11,21 +11,23 @@ import { QQC2CDelivery, QQSource } from '@superagent/qq-official';
 import { DurableDeliveryService, deliveryHost, ReportDeliveryCoordinator, QQCardRetirementService } from '@superagent/plugin-host';
 import { GitHubREST, GitHubActionWorker } from '@superagent/issue-tracker';
 import { canonicalJSON, stableId } from '@superagent/persistence';
-import { configuredSecrets } from './qq-common.mjs';
+import { configuredSecrets } from './qq-secrets.mjs';
 import { loadM5Access } from './m5-local-access.mjs';
 
-export async function createM5(values,signal){
+export async function createM5(values,signal,services={}){
   if(!values.database||!values.project)throw new Error('M5_DATABASE_PROJECT_REQUIRED');
-  const filename=path.resolve(values.database);mkdirSync(path.dirname(filename),{recursive:true});let backupFile=null;
-  if(existsSync(filename)){
+  const filename=path.resolve(values.database),borrowed=Boolean(services.runtime);let backupFile=null;
+  if(borrowed&&path.resolve(services.runtime.store.filename)!==filename)throw new Error('M5_RUNTIME_DATABASE_MISMATCH');
+  if(!borrowed)mkdirSync(path.dirname(filename),{recursive:true});
+  if(!borrowed&&existsSync(filename)){
     const original=new DatabaseSync(filename,{readOnly:true});
     try{const applied=original.prepare("SELECT 1 FROM schema_migrations WHERE name='011_qq_all_interaction_retirement.sql'").get();if(!applied){mkdirSync('.artifacts/backups',{recursive:true});backupFile=path.resolve(`.artifacts/backups/m5-before-${Date.now()}-${randomBytes(4).toString('hex')}.sqlite`);await backup(original,backupFile);}}finally{original.close();}
   }
-  const access=loadM5Access(values['access-config']);const policy=JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
-  const runtime=new M1Runtime(filename,{policy});let source;try{
+  const access=loadM5Access(values['access-config']);
+  const runtime=services.runtime??new M1Runtime(filename,{policy:JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching});let source;try{
     runtime.store.run('INSERT INTO projects(project_id) VALUES(?) ON CONFLICT DO NOTHING',values.project);
-    const memory=new HybridMemory(runtime.store);const repository=process.env.SA_GITHUB_REPOSITORY;
-    const domain=new DomainService(runtime.store,memory,{authorizedActors:['web-developer','qq-developer'],...(repository?{repositories:{[values.project]:repository}}:{})});
+    const memory=services.memory??new HybridMemory(runtime.store);const repository=process.env.SA_GITHUB_REPOSITORY;
+    const domain=services.domain??new DomainService(runtime.store,memory,{authorizedActors:['web-developer','qq-developer'],...(repository?{repositories:{[values.project]:repository}}:{})});
     const reports=new ReportService(runtime.store,domain,runtime.queue,{recipients:values['qq-configured']?['qq-developer']:[]});
     reports.registerSchedule(values.project);
     const auth=new OperatorAuth(runtime.store);auth.register({actorRef:'web-developer',role:'developer',projects:[values.project]},access.accessKey);
@@ -50,7 +52,7 @@ export async function createM5(values,signal){
     const github=repository&&process.env.SA_GITHUB_TOKEN?new GitHubActionWorker(runtime.store,domain,new GitHubREST({repository,token:process.env.SA_GITHUB_TOKEN}),{allowWrites:Boolean(values['github-write']),authorize:(actor,p)=>auth.authorize(auth.principal(actor),p,true)}):null;
     let sends=0;
     const tick=async()=>{
-      runtime.tick();reports.scheduleDue();const report=reports.tick();qq?.tick();
+      if(services.tickIngress!==false)runtime.tick();reports.scheduleDue();const report=reports.tick();qq?.tick();
       // A confirmed remote action should produce a final receipt on its first QQ reply.
       const remote=github?await github.tick():{processed:false};
       qq?.refreshActionReplies();
@@ -63,6 +65,6 @@ export async function createM5(values,signal){
       const recalled=retirement?await retirement.tick():{processed:false};
       return{report,delivery:delivered,github:remote,recall:recalled,sends};
     };
-    return{runtime,domain,reports,auth,control,qq,coordinator,delivery,retirement,backupFile,tick,close:async()=>{await source?.stop();runtime.close();}};
-  }catch(error){await source?.stop();runtime.close();throw error;}
+    return{runtime,domain,reports,auth,control,qq,coordinator,delivery,retirement,backupFile,tick,close:async()=>{await source?.stop();if(!borrowed)runtime.close();}};
+  }catch(error){await source?.stop();if(!borrowed)runtime.close();throw error;}
 }

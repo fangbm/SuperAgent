@@ -1,6 +1,6 @@
 # M4 平台采集与运行
 
-三个独立私有包实现现有 SourcePluginV1，只依赖 plugin-sdk 与 Node 24 内置模块。平台插件通过 Host 获取密钥、提交事件和 checkpoint、报告健康；可信运行脚本负责注册来源、打开既有 M1Runtime。没有新增数据库、队列或 Agent Runtime，也不直接调用 M3。
+三个独立私有包实现现有 SourcePluginV1，只依赖 plugin-sdk 与 Node 24 内置模块。标准入口 `pnpm start --config <core-config.json>` 由可信 Core 注册清单来源、打开唯一 M1 Runtime 并组合插件；插件只通过绑定 Host 获取密钥、提交事件/checkpoint 和报告健康。没有新增数据库、队列或 Agent Runtime。`pnpm source:m4` 保留为 Core 委托兼容命令。
 
 ## 运行
 
@@ -23,9 +23,9 @@ pnpm source:m4 --connector discord --config packages/connectors/discord/examples
 pnpm source:m4 --connector steam-discussions --config packages/connectors/steam-discussions/examples/snapshot-config.json --database .artifacts/community.sqlite --project demo-game --source steam-discussions-snapshot --once
 ```
 
-去掉 --once 持续运行；Ctrl+C 中止网络请求、停止插件，再关闭 M1。单次模式执行有限分页及一次 M1 tick，可能仍有未完成分页/缓冲分段，不能据此声称全历史或 M3 分析完成。持续模式只运行既有 M1 轻量处理，M3 由用户自己的 worker:m3 消费。不会加载 .env；密钥仅从当前进程环境经 Host 授权读取。
+兼容 `source:m4` 命令去掉 `--once` 后持续运行；Ctrl+C 中止网络请求、停止插件，再关闭 Core Runtime。单次模式执行有限分页及一次 Core tick，可能仍有未完成分页/缓冲分段，不能据此声称全历史或 M3 分析完成。标准 Core 配置可为公共来源选择 `standard` 策略并运行 M1 admission；M3 默认关闭，可在同一进程显式启用。不会加载 `.env`；密钥仅从当前进程环境经 Host 授权读取。
 
-加 `--archive-only` 时仍使用同一 M1 Source Host 原子写入事件、投影、Outbox 和 Checkpoint，但不执行 M1 tick/worker，不创建 admission 决定或分析批次。Outbox 保留 pending；以后启动普通 worker 会消费它，历史仅作上下文的策略须在启用前明确。Steam AppID5335850 全评价归档的实际路径、命令和覆盖缺口见 [M4-STEAM-ARCHIVE.md](M4-STEAM-ARCHIVE.md)。
+兼容命令的 `--archive-only` 是 Core 命令行的显式处理/来源策略选项：事件、投影、Outbox 和 Checkpoint 仍原子写入，但本次不执行 M1 tick，不创建 admission 决定或分析批次，Outbox 保持 pending。它不是插件默认值，也不会自动改变标准 Core 配置。普通 Core 启动按配置处理精确列出的来源；未列出的现存来源不被改写。启用标准策略前需考虑旧 pending outbox 会在 Core tick 时进入 admission。Steam AppID5335850 全评价归档的实际路径、命令和覆盖缺口见 [M4-STEAM-ARCHIVE.md](M4-STEAM-ARCHIVE.md)。
 
 sourceUri 必须与注册来源一致；同一个 source ID 不得更换项目、URI、平台或采集对象集合。更换 Discord Guild/Channel 集合、Steam AppID 或 Discussions 快照路径时建立独立来源。一个来源只运行一个活跃插件实例；Host 的 checkpoint 接口没有多写者比较交换锁，不能启动两个实例争写同一来源。
 

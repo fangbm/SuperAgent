@@ -17,6 +17,7 @@
     "@superagent/contracts": "workspace:*",
     "@superagent/contract-validation": "workspace:*",
     "@superagent/persistence": "workspace:*",
+    "@superagent/ingress": "workspace:*",
     "@superagent/reporting": "workspace:*"
   }
 }

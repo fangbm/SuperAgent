@@ -29,7 +29,8 @@
     "demo:m5": "node scripts/m5-demo.mjs",
     "start:m5": "node scripts/m5-run.mjs",
     "m5:key": "node scripts/m5-access.mjs",
-    "preview:qq": "node scripts/qq-template-preview.mjs"
+    "preview:qq": "node scripts/qq-template-preview.mjs",
+    "start": "node scripts/superagent.mjs"
   },
   "devDependencies": {
     "@superagent/agent-core": "workspace:*",

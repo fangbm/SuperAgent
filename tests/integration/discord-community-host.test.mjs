@@ -3,7 +3,7 @@ import test from 'node:test';
 import { DiscordCommunity } from '../../packages/discord-community/dist/index.js';
 import { DomainService } from '@superagent/domain';
 import { HybridMemory } from '@superagent/memory';
-import { DurableCommunityState } from '@superagent/plugin-host';
+import { CommunitySubmissions, DurableCommunityState } from '@superagent/plugin-host';
 import { fixture } from './helpers.mjs';
 
 const ids = { guild: '100', owner: '101', bot: '102', staff: '103', category: '200', panel: '201', voiceCategory: '300', lobby: '301', controls: '202' };
@@ -76,9 +76,11 @@ function openBoundRuntime(runtime, clock, owner) {
   };
 }
 
-function makeCommunity(runtime, clock, owner, api, stateOverride) {
+function makeCommunity(runtime, clock, owner, api) {
   const bound = openBoundRuntime(runtime, clock, owner);
-  const state = stateOverride?.(bound.state) ?? bound.state;
+  const state = bound.state;
+  const submissions = new CommunitySubmissions(runtime.ingress, state, { scope: privateScope, guildId: ids.guild, clock });
+  submissions.recover();
   const publicArchive = runtime.ingress.sourceHost(publicScope);
   const privateArchive = runtime.ingress.sourceHost(privateScope);
   const community = new DiscordCommunity(config, {
@@ -91,6 +93,7 @@ function makeCommunity(runtime, clock, owner, api, stateOverride) {
     },
     async flushChannel() {},
     now: clock,
+    submitTicket: async event => submissions.submitTicket(event),
   }, api);
   return { community, state, baseState: bound.state, publicArchive, privateArchive };
 }
@@ -111,37 +114,26 @@ function count(store, table, where = '', ...params) {
   return Number(store.get(`SELECT count(*) count FROM ${table}${where}`, ...params).count);
 }
 
-test('real archive replay survives ticket-state failure with private isolation and least-access ticket channels', async t => {
+test('atomic Core submission preserves private isolation and least-access ticket channels', async t => {
   const f = fixture(t);
   const api = channelApi();
-  const first = makeCommunity(f.runtime, f.clock, 'controller-one', api, baseState => {
-    let fail = true;
-    return {
-      get: key => baseState.get(key),
-      async set(key, value) {
-        if (fail && key === 'ticket:9301') { fail = false; throw new Error('INJECTED_TICKET_STATE_FAILURE'); }
-        return baseState.set(key, value);
-      },
-      update: (key, reducer) => baseState.update(key, reducer),
-      list: prefix => baseState.list(prefix),
-    };
-  });
+  const first = makeCommunity(f.runtime, f.clock, 'controller-one', api);
   const packet = ticketPacket('9301', '700', 'Crash after equipment change', 'The game closes while changing gear. PRIVATE-BODY-SENTINEL.');
   const signal = new AbortController().signal;
 
-  await assert.rejects(first.community.handleDispatch(packet, signal), /INJECTED_TICKET_STATE_FAILURE/);
+  await first.community.handleDispatch(packet, signal);
   const archivedBeforeRestart = f.runtime.store.get('SELECT event_id,payload_json FROM source_events WHERE project_id=? AND source_id=?',
     privateScope.projectId, privateScope.sourceId);
   assert.ok(archivedBeforeRestart);
   const firstHostId = archivedBeforeRestart.event_id;
   assert.equal(count(f.runtime.store, 'source_events', ' WHERE project_id=? AND source_id=?', privateScope.projectId, privateScope.sourceId), 1);
-  assert.equal(await first.baseState.get('ticket:9301'), null);
+  assert.equal((await first.baseState.get('ticket:9301')).status, 'pending_create');
 
   f.runtime.close();
   f.advance(45_001);
   const reopened = f.open();
   const afterRestart = makeCommunity(reopened, f.clock, 'controller-two', api);
-  await afterRestart.community.handleDispatch(packet, new AbortController().signal);
+  assert.equal((await afterRestart.state.get('ticket:9301')).status, 'pending_create');
 
   const ticket = await afterRestart.state.get('ticket:9301');
   assert.equal(ticket.status, 'pending_create');
@@ -150,6 +142,8 @@ test('real archive replay survives ticket-state failure with private isolation a
     privateScope.projectId, privateScope.sourceId);
   assert.equal(replayed.event_id, firstHostId);
   assert.equal(JSON.parse(replayed.payload_json).time, packet.receivedAt);
+  assert.equal(JSON.parse(replayed.payload_json).data.attributes.archiveOnly, true, 'legacy metadata stays stable for in-flight source event replay');
+  await afterRestart.community.handleDispatch(packet, new AbortController().signal);
   assert.equal(count(reopened.store, 'source_events', ' WHERE project_id=? AND source_id=?', privateScope.projectId, privateScope.sourceId), 1);
   assert.doesNotMatch(JSON.stringify(await afterRestart.state.list('')), /PRIVATE-BODY-SENTINEL|token-9301/);
 
