@@ -1,0 +1,250 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "codeCommit": "5dd366a",
+  "scope": "existing_private_M3_test_bug_fix_and_reopen_via_ControlPlane_GitHubActionWorker_GitHubREST",
+  "repository": "fangbm/sa-test",
+  "issueNumber": 2,
+  "issueUrl": "https://github.com/fangbm/sa-test/issues/2",
+  "privateVerified": true,
+  "sourceDatabaseReadOnly": true,
+  "executionDatabase": "isolated_SQLite_backup_of_M3_acceptance_database",
+  "startedAt": "2026-11-03T04:46:06.275Z",
+  "finishedAt": "2026-11-03T04:46:16.850Z",
+  "status": "succeeded",
+  "maximumPatches": 2,
+  "patches": 2,
+  "initial": {
+    "remoteState": "open",
+    "stateReason": null,
+    "contentHash": "84897103fed4a18320adbc70f7b615e8d204035d45cf06fdeb57430f16dfdcec"
+  },
+  "localBefore": {
+    "status": "open",
+    "version": 2
+  },
+  "events": [
+    {
+      "at": "2026-11-03T04:46:08.552Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:08.887Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/user",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:09.310Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:09.319Z",
+      "phase": "preflight",
+      "privateRepository": true,
+      "issueTitle": "[M3 验收] Multiplayer loading crashes at 90%",
+      "remoteState": "open"
+    },
+    {
+      "at": "2026-11-03T04:46:10.076Z",
+      "phase": "pending",
+      "action": "fix",
+      "localStatus": "open",
+      "version": 2
+    },
+    {
+      "at": "2026-11-03T04:46:10.529Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:10.908Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/user",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:11.416Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:11.418Z",
+      "phase": "patch_attempt",
+      "attempt": 1,
+      "fields": [
+        "state",
+        "state_reason"
+      ],
+      "state": "closed",
+      "stateReason": "completed"
+    },
+    {
+      "at": "2026-11-03T04:46:12.480Z",
+      "phase": "http",
+      "method": "PATCH",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:12.966Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:12.978Z",
+      "phase": "worker_result",
+      "action": "fix",
+      "processed": true,
+      "state": "succeeded"
+    },
+    {
+      "at": "2026-11-03T04:46:13.434Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:13.436Z",
+      "phase": "confirmed",
+      "action": "fix",
+      "remoteState": "closed",
+      "stateReason": "completed",
+      "localStatus": "fixed",
+      "version": 3,
+      "immutableIssueFieldsUnchanged": true,
+      "repeatedTickNoSend": true
+    },
+    {
+      "at": "2026-11-03T04:46:13.445Z",
+      "phase": "pending",
+      "action": "reopen",
+      "localStatus": "fixed",
+      "version": 3
+    },
+    {
+      "at": "2026-11-03T04:46:13.921Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:14.335Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/user",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:14.793Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:14.795Z",
+      "phase": "patch_attempt",
+      "attempt": 2,
+      "fields": [
+        "state"
+      ],
+      "state": "open",
+      "stateReason": null
+    },
+    {
+      "at": "2026-11-03T04:46:15.821Z",
+      "phase": "http",
+      "method": "PATCH",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:16.347Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:16.351Z",
+      "phase": "worker_result",
+      "action": "reopen",
+      "processed": true,
+      "state": "succeeded"
+    },
+    {
+      "at": "2026-11-03T04:46:16.837Z",
+      "phase": "http",
+      "method": "GET",
+      "path": "/repos/fangbm/sa-test/issues/2",
+      "status": 200
+    },
+    {
+      "at": "2026-11-03T04:46:16.844Z",
+      "phase": "confirmed",
+      "action": "reopen",
+      "remoteState": "open",
+      "stateReason": "reopened",
+      "localStatus": "open",
+      "version": 4,
+      "immutableIssueFieldsUnchanged": true,
+      "repeatedTickNoSend": true
+    },
+    {
+      "at": "2026-11-03T04:46:16.845Z",
+      "phase": "complete",
+      "patches": 2,
+      "remoteState": "open",
+      "localStatus": "open",
+      "reportSealsUnchanged": true,
+      "sourceDatabaseModified": false,
+      "qqSends": 0,
+      "modelCalls": 0,
+      "issueBodyTitleLabelsCommentsUnchanged": true
+    },
+    {
+      "at": "2026-11-03T04:46:16.850Z",
+      "phase": "closed",
+      "status": "succeeded"
+    }
+  ],
+  "final": {
+    "remoteState": "open",
+    "localStatus": "open",
+    "reportSealsUnchanged": true,
+    "sourceDatabaseModified": false,
+    "qqSends": 0,
+    "modelCalls": 0,
+    "issueBodyTitleLabelsCommentsUnchanged": true
+  },
+  "independentConnectorReadback": {
+    "state": "open",
+    "stateReason": "reopened",
+    "title": "[M3 验收] Multiplayer loading crashes at 90%",
+    "comments": 1
+  },
+  "boundaries": {
+    "realGitHub": true,
+    "realBrowserClick": false,
+    "qqMessagesSent": 0,
+    "modelCalls": 0,
+    "issueContentModified": false
+  }
+}
