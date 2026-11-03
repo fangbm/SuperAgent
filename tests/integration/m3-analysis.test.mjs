@@ -94,3 +94,28 @@ test('matching context stays bounded while the full evidence and counts are reta
   const match=f.server.requests.find(r=>r.task.task==='match_bug');assert.equal(match.task.candidate.evidence.length,5);assert.equal(match.task.candidate.evidenceTruncated,true);
   const work=JSON.parse(f.runtime.store.get('SELECT content_json FROM work_metadata').content_json);assert.equal(work.feedbackCount,31);assert.equal(work.evidence.length,31);
 });
+
+test('reanalysis repairs an independently reported duplicate classified as corroboration without inflating context or erasing history',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{const result=fixtureAnswer(task);if(task.task==='extract'){const reports=task.messages.filter(m=>m.role==='candidate'&&m.text.includes('崩溃'));result.items[0].evidence=reports.map((m,i)=>({eventId:m.eventId,quote:m.text,role:i===0||task.revision>1?'primary':'corroboration'}));}return result;}});
+  const input=[event('report-one',{text:'Windows 1.2.0 联机载入90%时崩溃'}),event('report-two',{text:'我这里 Windows 1.2.0 联机载入90%也崩溃'}),event('context-only',{text:'嗯嗯'})];f.runtime.ingress.commitBatch(scope,input);f.runtime.tick();for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');const workId=f.runtime.store.get('SELECT issue_id FROM issues').issue_id,batchId=f.runtime.store.get('SELECT batch_id FROM feedback_batches').batch_id,original=f.runtime.store.get('SELECT result_json FROM triage_extractions WHERE revision=1').result_json;
+  assert.equal(f.domain.getWork(binding.projectId,'defect',workId).feedbackCount,1);const rawBefore=f.runtime.store.all('SELECT * FROM source_events ORDER BY rowid');
+  f.worker.reanalyze(binding.projectId,batchId,'triage-v2.2');assert.equal((await f.worker.tick()).status,'succeeded');const repaired=f.domain.getWork(binding.projectId,'defect',workId);assert.equal(repaired.feedbackCount,2);assert.equal(repaired.evidence.length,2);assert.equal(count(f.runtime.store,'issues'),1);assert.equal(f.runtime.store.get('SELECT count(*) n FROM feedback_items WHERE active=1').n,1);
+  assert.equal(f.runtime.store.get('SELECT result_json FROM triage_extractions WHERE revision=1').result_json,original);assert.equal(count(f.runtime.store,'triage_extractions'),2);assert.deepEqual(f.runtime.store.all('SELECT * FROM source_events ORDER BY rowid'),rawBefore);assert.equal(count(f.runtime.store,'external_operations'),0);
+});
+
+test('an upgraded worker resumes a prior pipeline identity while new batches use the new default',async t=>{
+  const f=await m3Fixture(t,{responder:(task,_wire,n)=>n===1?{httpStatus:429}:fixtureAnswer(task)});f.add('legacy','Windows 1.2.0 联机载入90%时崩溃');const previous=new AnalysisWorker(f.runtime.store,f.runtime.queue,f.domain,f.memory,f.model,{clock:f.clock,pipelineVersion:'triage-v2.1'});
+  assert.equal((await previous.tick()).status,'MODEL_HTTP_429');f.advance(1_001);assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(f.runtime.store.get('SELECT pipeline_version FROM triage_extractions').pipeline_version,'triage-v2.1');assert.equal(count(f.runtime.store,'analysis_requests'),1);
+  f.add('current','Windows 1.2.0 联机载入90%时崩溃');assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(f.runtime.store.get('SELECT pipeline_version FROM triage_extractions ORDER BY rowid DESC LIMIT 1').pipeline_version,'triage-v2.2');assert.equal(count(f.runtime.store,'issues'),1);assert.equal(JSON.parse(f.runtime.store.get('SELECT content_json FROM work_metadata').content_json).feedbackCount,2);
+});
+
+test('reanalyzing a paraphrased suggestion with the same evidence reuses its work without duplicate counts or review',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{const result=fixtureAnswer(task);if(task.task==='extract'&&task.revision>1)result.items.find(i=>i.kind==='suggestion').title='自动重连并继续会话';return result;}});f.add('one');assert.equal((await f.worker.tick()).status,'succeeded');const suggestion=f.runtime.store.get('SELECT suggestion_id FROM suggestions').suggestion_id,batch=f.runtime.store.get('SELECT batch_id FROM feedback_batches').batch_id;
+  f.worker.reanalyze(binding.projectId,batch,'triage-v2.2');assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(count(f.runtime.store,'suggestions'),1);const work=f.domain.getWork(binding.projectId,'suggestion',suggestion);assert.equal(work.feedbackCount,1);assert.equal(work.reviewRequired,false);assert.equal(work.evidence.length,1);assert.equal(f.runtime.store.get("SELECT count(*) n FROM feedback_items WHERE kind='suggestion' AND active=1").n,1);
+});
+
+test('suggestion identity claims with actual distinguishing details still require review and cannot auto-link',async t=>{
+  const f=await m3Fixture(t,{responder:task=>task.task==='match_suggestion'?{...fixtureAnswer(task),distinguishingDetails:['断线重试是否保留当前多人会话尚未明确']}:fixtureAnswer(task)});f.add('one');await f.worker.tick();const original=f.runtime.store.get('SELECT suggestion_id FROM suggestions').suggestion_id;f.add('two');assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(count(f.runtime.store,'suggestions'),2);const newer=f.runtime.store.get('SELECT suggestion_id FROM suggestions WHERE suggestion_id<>?',original).suggestion_id;
+  assert.equal(f.domain.getWork(binding.projectId,'suggestion',original).feedbackCount,1);assert.equal(f.domain.getWork(binding.projectId,'suggestion',newer).feedbackCount,1);assert.equal(f.domain.getWork(binding.projectId,'suggestion',newer).reviewRequired,true);assert.equal(f.runtime.store.get("SELECT count(*) n FROM github_sync_outbox WHERE work_kind='suggestion'").n,1);
+});

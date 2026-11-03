@@ -1,0 +1,43 @@
+{
+  "milestone": "M5",
+  "date": "2026-11-03",
+  "authorization": {
+    "recipient": "previously_bound_developer_c2c",
+    "maximumMessages": 4,
+    "scope": "one_prepared_report_and_up_to_three_user_triggered_readonly_replies",
+    "githubWrites": false,
+    "workStatusWrites": false
+  },
+  "report": {
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "windowBeijing": "2026-11-02 18:00 to 2026-11-03 00:00",
+    "dataProvenance": "M3 synthetic QQ/Discord sources with real model inference",
+    "operationId": "external-21dda4dd310a0b3a44fef6975ce4503c3afcbe90c3339ed1d8c06f6679f117c6",
+    "attempts": 1,
+    "acceptedAtUTC": "2026-11-03T01:15:34.849Z",
+    "apiStatus": "accepted",
+    "rendering": "markdown_with_three_navigation_buttons",
+    "fallbackUsed": false,
+    "clientReceipt": "confirmed_by_user",
+    "originalButtons": "client_permission_denied_no_host_callback"
+  },
+  "queries": {
+    "maximumReplies": 3,
+    "sessionStoppedAtBeijing": "2026-11-03 09:40:51",
+    "buttonCallbacks": "received_and_persisted_after_permission_fix",
+    "listAccepted": 1,
+    "detailAccepted": 2,
+    "detailExplicitlyRejectedHTTP400": 1,
+    "originalTextAccepted": 0,
+    "detailClientDisplay": "unconfirmed",
+    "pendingExcessClicksCancelledWithRequestPreserved": 1,
+    "ackHTTPStatus": [200, 200, 200],
+    "ackLatencyMs": [357, 340, 278]
+  },
+  "totals": {"acceptedMessages": 4, "definitivelyRejectedRequests": 1, "messageNetworkAttempts": 5, "unknownReplays": 0, "reportResends": 0, "sessionRunning": false},
+  "permissionFix": {"c2cKeyboardPermissionType": 2, "sourceDeveloperAllowlist": "enforced", "hostActorProjectTokenRoleChecks": "enforced", "reportResent": false},
+  "finalDocumentationCorrection": {"ackId": "d.id", "passiveReplyEventId": "outer_payload.id", "missingContextBlocksBeforePOST": true, "errCodeSupported": true, "fullCheckNodeTests": 172, "referenceSuites": 6, "finalPassiveImplementationLiveAcceptance": "passed_in_subsequent_bounded_rounds"},
+  "followupEvidence": "m5-qq-retests-2026-11-03.json",
+  "evidenceBoundary": "This file records the first round. Later rounds verified documentation-aligned passive replies and user-confirmed native pagination; see followupEvidence."
+}

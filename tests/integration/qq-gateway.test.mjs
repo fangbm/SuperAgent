@@ -50,3 +50,7 @@ test('QQ Source Gateway stores message and sequence atomically, resumes on reope
   await source.stop(); const next = new QQSource(options); await next.start(host, new AbortController().signal);
   try { await until(() => f.runtime.ingress.getCheckpoint(scope).gateway.seq === 3); assert.equal(sockets[1].sent.find(p => p.op === 6).d.seq, 2); assert.equal(count(f.runtime.store, 'source_events'), 1); } finally { await next.stop(); }
 });
+
+test('channel Source requests public mentions by default and private full-message intent only when configured',async t=>{
+  for(const channelMessages of [undefined,'all']){const f=fixture(t);let actual;const source=new QQSource({kind:'channel',sourceUri:binding.sourceUri,transport:'websocket',...(channelMessages?{channelMessages}:{}),api:{allowLoopbackHTTP:true,fetch:async url=>Response.json(String(url).endsWith('/app/getAppAccessToken')?{access_token:'fixture-token',expires_in:7200}:{url:'ws://localhost/gateway'})},gateway:{createSocket:()=>new FakeSocket((p,ws)=>{if(p.op===2){actual=p.d.intents;ws.message({op:0,s:1,t:'READY',d:{session_id:'fixture-session'}});}if(p.op===1)ws.message({op:11});})}});await source.start(f.runtime.ingress.sourceHost(scope,{secretKeys:source.manifest.permissions.secretKeys,getSecret:readSecret}),new AbortController().signal);try{await until(()=>actual!==undefined);assert.equal(actual,channelMessages==='all'?1<<9:1<<30);}finally{await source.stop();}}
+});
