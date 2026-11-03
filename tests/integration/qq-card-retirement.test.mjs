@@ -73,7 +73,8 @@ test('the documented two-minute window prevents a late DELETE',async t=>{
 
 test('unknown recall outcomes survive restart without issuing another DELETE',async t=>{
   const f=await setup(t);await f.send('old');f.change();await f.send('new');assert.equal((await f.service(async()=>({status:'unknown',errorCode:'LOST_RESPONSE'})).tick()).state,'unknown');assert.equal(f.calls.length,1);
-  const reopened=new SqliteStore(path.join(f.directory,'state.sqlite'));t.after(()=>reopened.close());assert.equal((await f.service(undefined,{},reopened).tick()).processed,false);assert.equal(f.calls.length,1);assert.equal(reopened.get('SELECT state FROM qq_message_retirements').state,'unknown');
+  const reopened=new SqliteStore(path.join(f.directory,'state.sqlite'));
+  try{assert.equal((await f.service(undefined,{},reopened).tick()).processed,false);assert.equal(f.calls.length,1);assert.equal(reopened.get('SELECT state FROM qq_message_retirements').state,'unknown');}finally{reopened.close();}
 });
 
 test('expired in-flight recalls recover as unknown and revoked/binding-changed targets cannot dispatch',async t=>{
