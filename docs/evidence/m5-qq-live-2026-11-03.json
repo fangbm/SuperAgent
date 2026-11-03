@@ -1,0 +1,31 @@
+{
+  "milestone": "M5",
+  "date": "2026-11-03",
+  "authorization": {
+    "recipient": "previously_bound_developer_c2c",
+    "maximumMessages": 4,
+    "scope": "one_prepared_report_and_up_to_three_user_triggered_readonly_replies",
+    "githubWrites": false,
+    "workStatusWrites": false
+  },
+  "report": {
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "windowBeijing": "2026-11-02 18:00 to 2026-11-03 00:00",
+    "dataProvenance": "M3 synthetic QQ/Discord sources with real model inference",
+    "operationId": "external-21dda4dd310a0b3a44fef6975ce4503c3afcbe90c3339ed1d8c06f6679f117c6",
+    "attempts": 1,
+    "acceptedAtUTC": "2026-11-03T01:15:34.849Z",
+    "apiStatus": "accepted",
+    "rendering": "markdown_with_three_navigation_buttons",
+    "fallbackUsed": false,
+    "clientReceipt": "awaiting_user_confirmation"
+  },
+  "queries": {
+    "maximumReplies": 3,
+    "sessionExpiresAtBeijing": "2026-11-03 09:30:34",
+    "buttonCallbacks": "awaiting_user_clicks",
+    "clientDisplay": "awaiting_user_confirmation"
+  },
+  "evidenceBoundary": "API acceptance does not establish client receipt or usable buttons."
+}
