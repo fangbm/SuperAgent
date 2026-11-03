@@ -27,7 +27,7 @@ export function checkBoundaries(root = defaultRoot) {
     const sdk = name === '@superagent/plugin-sdk';
     const core = name === '@superagent/agent-core';
     const domain = name === '@superagent/domain';
-    const connector = inside(pkg.directory, path.join(root, 'packages', 'connectors')) || inside(pkg.directory, path.join(root, 'packages', 'delivery-plugins'));
+    const connector = name === '@superagent/discord-community' || inside(pkg.directory, path.join(root, 'packages', 'connectors')) || inside(pkg.directory, path.join(root, 'packages', 'delivery-plugins'));
     const forbidden = target =>
       (contracts && true) ||
       (sdk && target !== '@superagent/contracts') ||

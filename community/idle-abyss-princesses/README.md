@@ -36,3 +36,7 @@ The game's separate Steam sources have populated the existing M1 archive with 12
 Run `node community/idle-abyss-princesses/tools/validate-setup.mjs` from the repository root. Checks cover source-asset hashes, exact eight character identities, 21 cosmetic/opt-in roles, role-choice consistency, nine defaults/the original five writable chats, forum tags, message lengths and absence of broad setup pings. They do not establish live Discord permissions or bot coverage. [ACCEPTANCE.md](ACCEPTANCE.md) records desktop verification separately.
 
 The desktop helper is Windows-only and must be used by one controller at a time, from the repository root, with the signed-in Discord app. It uses native UI controls, screenshots and foreground checks; it does not read credentials or session tokens. Per-account screenshots and action scratch belong under ignored `.artifacts/discord-desktop/`, not Git.
+
+## Prepared Discord automation
+
+The SuperAgent-native bot implementation, private tickets, and join-to-create voice rooms are ready for friend-PC setup. See [behavior and privacy](../../docs/DISCORD-BOT.md) and [deployment](../../docs/DISCORD-BOT-DEPLOYMENT.md). `bot-config.json` targets this existing guild. The live bot remains uninstalled/unactivated; server-state.json continues to describe actual live settings.

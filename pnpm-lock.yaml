@@ -29,6 +29,9 @@ importers:
       '@superagent/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@superagent/discord-community':
+        specifier: workspace:*
+        version: link:packages/discord-community
       '@superagent/domain':
         specifier: workspace:*
         version: link:packages/domain
@@ -148,6 +151,12 @@ importers:
         version: 3.0.1(ajv@8.20.0)
 
   packages/contracts: {}
+
+  packages/discord-community:
+    dependencies:
+      '@superagent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/domain:
     dependencies:

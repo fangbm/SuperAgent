@@ -35,6 +35,7 @@ export class DomainService {
   evidence(projectId:string,eventId:string):{event:NormalizedEventV1;text:string;current:boolean;deleted:boolean}|undefined {
     const row=this.store.get<{payload_json:string}>('SELECT payload_json FROM source_events WHERE event_id=? AND project_id=?',eventId,projectId);if(!row)return undefined;
     const event=JSON.parse(row.payload_json) as NormalizedEventV1;if(event.type==='com.superagent.source.coverage.changed.v1')return undefined;
+    if(this.store.get("SELECT 1 FROM source_policies WHERE source_id=? AND processing_mode='archive_only'",event.data.sourceId))return undefined;
     const projection=this.store.get<{event_id:string;deleted:number}>('SELECT event_id,deleted FROM source_objects WHERE source_id=? AND external_id=?',event.data.sourceId,event.data.object.externalId);
     return {event,text:event.data.content?.text??'',current:projection?.event_id===eventId,deleted:projection?.deleted===1};
   }

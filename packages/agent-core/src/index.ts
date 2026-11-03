@@ -24,6 +24,8 @@ export class M1Runtime {
     } catch (error) { this.store.close(); throw error; }
   }
   async accept(eventId: InternalEventId): Promise<{ jobId: string }> {
+    if (this.store.get(`SELECT 1 FROM source_events e JOIN source_policies p USING(source_id)
+      WHERE e.event_id=? AND p.processing_mode='archive_only'`, eventId)) throw new Error('SOURCE_ARCHIVE_ONLY');
     const event = this.store.get<{ project_id: string }>('SELECT project_id FROM source_events WHERE event_id=?', eventId);
     if (!event) throw new Error('EVENT_NOT_FOUND');
     return { jobId: this.queue.create(event.project_id, 'feedback.admit', { eventId }, `admit:admission-v1:${eventId}`).jobId };

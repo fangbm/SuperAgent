@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-11-03T14:22:10.332530+00:00",
+  "guildId": "1567099916126527530",
+  "codeStatus": "implemented_not_activated",
+  "frozenInstall": true,
+  "nodeTests": 208,
+  "pythonSuites": 6,
+  "boundariesPassed": true,
+  "freezeFiles": 45,
+  "backup": {
+    "path": ".artifacts/discord-bot/data/archive.sqlite",
+    "records": 148,
+    "sha256": "74ed4205d6a224dc543e7e02b9ce5e51bb48ddc0eb3ef2855fce35d1a7182336",
+    "integrity": "ok",
+    "sourceUnchanged": true
+  },
+  "migrationDryRun": {
+    "existingMigrations": 8,
+    "resultMigrations": 10,
+    "eventIdsAndPayloadsPreserved": true,
+    "checkpointsPreserved": true,
+    "performedOnScratchCopy": true
+  },
+  "liveDiscordTested": false,
+  "dockerAvailable": false,
+  "botTokenConfigured": false
+}

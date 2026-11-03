@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、十八个包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、workspace 包构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
 
 单独运行：
 
@@ -42,10 +42,11 @@ pnpm test:reference
 | `packages/llm` | 兼容 Chat/Embedding HTTP provider、JSON Schema 与超时限制 |
 | `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
 | `packages/connectors/qq-official` | 官方 WebSocket/签名回调 Source 与独立开发者私聊 Delivery |
-| `packages/connectors/discord` | 指定频道/线程 Gateway 采集与有限历史恢复 |
+| `packages/connectors/discord` | 指定/自动发现的公开频道与主题采集、共享 Gateway 和有限历史恢复 |
+| `packages/discord-community` | 同一 Bot 的私密工单、临时语音房与平台交互；只经 Host 保存状态 |
 | `packages/connectors/steam-reviews` | 评价分页、差评追踪或全评价原文/元数据归档 |
 | `packages/connectors/steam-discussions` | 默认 unavailable 与显式本地快照降级 |
-| `packages/plugin-host` | 批准收件人、私聊持久操作与 unknown 屏障 |
+| `packages/plugin-host` | 批准收件人、私聊持久操作、社区生命周期状态与控制器租约 |
 | `config` | 报告、批处理和通知默认配置 |
 | `tests` | 编译期反例、运行时契约与依赖边界验证 |
 | `docs/reference/v0.9` | 导入的原始设计和参考 SQL，不是生产迁移执行器 |
@@ -65,6 +66,10 @@ demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭
 Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务，由显式配置的 `worker:m3` 消费。
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
+
+## Discord 社区 Bot
+
+仓库内已实现私密工单、加入即创建的临时语音房和共享 Gateway 采集。使用同一 M1 归档，私密来源有持久 archive-only 隔离；默认不运行 AI/GitHub。当前为朋友电脑部署准备状态，尚未安装/启用真实 Bot。行为、入口和验收见 [Discord Bot](docs/DISCORD-BOT.md)，部署与现有148条记录的安全交接见 [部署说明](docs/DISCORD-BOT-DEPLOYMENT.md)。
 
 ## 运行 M3
 

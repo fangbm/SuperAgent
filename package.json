@@ -22,7 +22,9 @@
     "worker:m3": "node scripts/m3-worker.mjs",
     "qq:source": "node scripts/qq-source.mjs",
     "qq:probe": "node scripts/qq-probe.mjs",
-    "qq:send-test": "node scripts/qq-send-test.mjs"
+    "qq:send-test": "node scripts/qq-send-test.mjs",
+    "discord:bot": "node scripts/discord-bot.mjs",
+    "archive:backup": "node scripts/archive-backup.mjs"
   },
   "devDependencies": {
     "@superagent/connector-steam-reviews": "workspace:*",
@@ -44,6 +46,7 @@
     "@superagent/agent-workers": "workspace:*",
     "@superagent/issue-tracker": "workspace:*",
     "@superagent/qq-official": "workspace:*",
-    "@superagent/plugin-host": "workspace:*"
+    "@superagent/plugin-host": "workspace:*",
+    "@superagent/discord-community": "workspace:*"
   }
 }

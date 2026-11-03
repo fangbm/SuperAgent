@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "guildId": "1567099916126527530",
+  "projectId": "idle-abyss-princesses",
+  "privateProjectId": "idle-abyss-princesses-private",
+  "tokenSecret": "DISCORD_BOT_TOKEN",
+  "staffRoleNames": ["制作组 · Developer", "版务 · Moderator"],
+  "ticketPanelName": "🎫・私密工单-private-tickets",
+  "ticketCategoryName": "🎫 私密工单 · PRIVATE TICKETS",
+  "voiceCategoryName": "🎙️ 冒险者语音 · VOICE",
+  "voiceLobbyName": "➕・创建房间-create-room",
+  "roomControlsChannelName": "🤝・组队招募-lfg",
+  "historyPagesPerSync": 10,
+  "historyPollMs": 60000,
+  "emptyRoomMs": 60000,
+  "defaultRoomLimit": 4,
+  "steamReviewsConfig": "packages/connectors/steam-reviews/examples/idle-abyss-princesses.json"
+}

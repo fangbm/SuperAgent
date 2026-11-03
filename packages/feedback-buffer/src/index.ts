@@ -59,6 +59,8 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
   async admit(eventId: InternalEventId): Promise<AdmissionDecisionV1> { return this.admitSync(eventId); }
   admitSync(eventId: InternalEventId, policy: BatchingPolicyV1 = this.policy, forced = false): AdmissionDecisionV1 {
     return this.store.transaction(() => {
+      if (this.store.get(`SELECT 1 FROM source_events e JOIN source_policies p USING(source_id)
+        WHERE e.event_id=? AND p.processing_mode='archive_only'`, eventId)) throw new Error('SOURCE_ARCHIVE_ONLY');
       const old = this.store.get<DecisionRow>('SELECT * FROM admission_decisions WHERE event_id=? AND policy_version=?', eventId, policy.policyVersion);
       if (old) return { schemaVersion: '1.0', eventId, policyVersion: policy.policyVersion, decision: old.decision, rationaleCode: old.rationale_code, decidedAt: old.decided_at };
       const stored = this.store.get<EventRow>('SELECT * FROM source_events WHERE event_id=?', eventId);
@@ -194,6 +196,8 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
   reprocessArchived(eventId: InternalEventId, requestId: string, actorRef: string, reason: string): AdmissionDecisionV1 {
     if (!requestId || !actorRef || !reason) throw new Error('INVALID_REPROCESS_REQUEST');
     return this.store.transaction(() => {
+      if (this.store.get(`SELECT 1 FROM source_events e JOIN source_policies p USING(source_id)
+        WHERE e.event_id=? AND p.processing_mode='archive_only'`, eventId)) throw new Error('SOURCE_ARCHIVE_ONLY');
       const old = this.store.get<{ event_id: string; policy_version: string; actor_ref: string; reason: string }>('SELECT * FROM buffer_reprocess_requests WHERE request_id=?', requestId);
       if (old && (old.event_id !== eventId || old.actor_ref !== actorRef || old.reason !== reason)) throw new Error('REPROCESS_IDENTITY_CONFLICT');
       const policy = { ...this.policy, policyVersion: old?.policy_version ?? `${this.policy.policyVersion}:replay:${requestId}` };
