@@ -29,6 +29,8 @@ The archive is the sole source of truth: collected messages are committed before
 
 **The new server's archive/AI bot and automatic private-ticket workflow are not installed or enabled by this setup.** Native forums and manual staff support must not be described as verified bot automation. Public seed content states activation status honestly; collector installation, permissions, continuous capture and recovery require separate live verification.
 
+The game's separate Steam sources have populated the existing M1 archive with 129 public reviews and a bounded observation of 19 review comments, without analysis. Their [archive record and run command](../../docs/M4-STEAM-ARCHIVE.md) use `.artifacts/idle-abyss-princesses/archive.sqlite`; the Discord bot is still unconnected.
+
 ## Local verification
 
 Run `node community/idle-abyss-princesses/tools/validate-setup.mjs` from the repository root. Checks cover source-asset hashes, exact eight character identities, 21 cosmetic/opt-in roles, role-choice consistency, nine defaults/the original five writable chats, forum tags, message lengths and absence of broad setup pings. They do not establish live Discord permissions or bot coverage. [ACCEPTANCE.md](ACCEPTANCE.md) records desktop verification separately.

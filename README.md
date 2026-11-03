@@ -43,7 +43,7 @@ pnpm test:reference
 | `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
 | `packages/connectors/qq-official` | 官方 WebSocket/签名回调 Source 与独立开发者私聊 Delivery |
 | `packages/connectors/discord` | 指定频道/线程 Gateway 采集与有限历史恢复 |
-| `packages/connectors/steam-reviews` | 评价分页、差评修订与更新回扫 |
+| `packages/connectors/steam-reviews` | 评价分页、差评追踪或全评价原文/元数据归档 |
 | `packages/connectors/steam-discussions` | 默认 unavailable 与显式本地快照降级 |
 | `packages/plugin-host` | 批准收件人、私聊持久操作与 unknown 屏障 |
 | `config` | 报告、批处理和通知默认配置 |
@@ -69,6 +69,8 @@ Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行�
 ## 运行 M3
 
 M4 已新增三个独立 Source 插件与 `pnpm source:m4` 运行入口：Discord Gateway/REST、Steam Reviews，以及 Steam Discussions 的显式本地快照降级。接入既有 M1 Source Host，不修改 M3。配置、覆盖限制和运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，真实平台验证范围见 [M4 验收记录](docs/M4-ACCEPTANCE.md)。Discussions 远程采集当前为 unavailable。
+
+Steam AppID5335850 已用 `reviewScope=all --archive-only` 实际归档129条公开好/差评；另经一次有界网站读取归档19条评价下评论，共148条原始事件，未运行分析。归档路径、恢复命令和评论/讨论覆盖缺口见 [Steam 归档记录](docs/M4-STEAM-ARCHIVE.md)。
 
 ```powershell
 pnpm build
