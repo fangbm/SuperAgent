@@ -55,7 +55,7 @@ test('report Keyboard uses three opaque Host tokens and fixed snapshot; missing 
   const sent = []; const options = { projectId: binding.projectId, recipientRef: 'developer', api: { fetch: apiFetch((_url, init) => { sent.push(JSON.parse(init.body)); return Response.json({ id: 'sent' }); }) } };
   const plugin = new QQC2CDelivery({ ...options, navigationTokens: async () => ['opaque_token_000001', 'opaque_token_000002', 'opaque_token_000003'] });
   assert.equal((await plugin.send(request, deliveryHost(plugin, readSecret))).status, 'accepted');
-  const buttons = sent[0].keyboard.content.rows[0].buttons; assert.equal(buttons.length, 3); assert.deepEqual(buttons.map(b => b.action.permission.specify_user_ids), Array(3).fill([qqSecrets.QQ_RECIPIENT_OPENID]));
+  const buttons = sent[0].keyboard.content.rows[0].buttons; assert.equal(buttons.length, 3); assert.deepEqual(buttons.map(b => b.action.permission), Array(3).fill({type:2}));
   assert.equal((await plugin.send({ ...request, reportRevision: 1 }, deliveryHost(plugin, readSecret))).status, 'rejected'); assert.equal(sent.length, 1);
   const plain = new QQC2CDelivery(options); await plain.send(request, deliveryHost(plain, readSecret));
   assert.equal(sent[1].keyboard, undefined); assert.match(sent[1].markdown.content, /未启用报告交互导航/);

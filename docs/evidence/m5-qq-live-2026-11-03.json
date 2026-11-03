@@ -19,13 +19,15 @@
     "apiStatus": "accepted",
     "rendering": "markdown_with_three_navigation_buttons",
     "fallbackUsed": false,
-    "clientReceipt": "awaiting_user_confirmation"
+    "clientReceipt": "confirmed_by_user",
+    "originalButtons": "client_permission_denied_no_host_callback"
   },
   "queries": {
     "maximumReplies": 3,
-    "sessionExpiresAtBeijing": "2026-11-03 09:30:34",
-    "buttonCallbacks": "awaiting_user_clicks",
+    "sessionExpiresAtBeijing": "2026-11-03 09:42:15",
+    "buttonCallbacks": "original_buttons_denied_before_callback; fixed_client_permission_awaiting_verification",
     "clientDisplay": "awaiting_user_confirmation"
   },
-  "evidenceBoundary": "API acceptance does not establish client receipt or usable buttons."
+  "permissionFix": {"c2cKeyboardPermissionType": 2, "sourceDeveloperAllowlist": "enforced", "hostActorProjectTokenRoleChecks": "enforced", "reportResent": false, "fullCheckNodeTests": 165, "referenceSuites": 6},
+  "evidenceBoundary": "User confirmed the report receipt; repaired buttons still require real callback and client display verification."
 }

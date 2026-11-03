@@ -53,16 +53,17 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
         if (markdown && this.options.navigationTokens) {
           const tokens = await this.options.navigationTokens(request);
           if (tokens.length !== 3 || tokens.some(t => !/^[A-Za-z0-9_-]{16,128}$/.test(t))) return { status: 'rejected', errorCode: 'QQ_NAVIGATION_TOKEN_INVALID' };
-          const openid = text(await host.getSecret('QQ_RECIPIENT_OPENID'), 256);
-          payload.keyboard = { content: { rows: [{ buttons: request.presentation.actions.map((action, i) => ({ id: String(i + 1), render_data: { label: buttonLabel(action.label), visited_label: buttonLabel(action.label), style: 1 }, action: { type: 1, permission: { type: 0, specify_user_ids: [openid] }, data: tokens[i] } })) }] } };
+          // This is a C2C-only adapter: allow the recipient's client to submit the
+          // callback. The Source allowlist and Host token enforce authorization;
+          // do not reuse a v2 C2C OpenID as a keyboard-specific user identity.
+          payload.keyboard = { content: { rows: [{ buttons: request.presentation.actions.map((action, i) => ({ id: String(i + 1), render_data: { label: buttonLabel(action.label), visited_label: buttonLabel(action.label), style: 1 }, action: { type: 1, permission: { type: 2 }, data: tokens[i] } })) }] } };
         }
         // No handler means no dead or unauthenticated buttons. The text remains explicit.
         else if (markdown) (payload.markdown as { content: string }).content += '\n\n当前未启用报告交互导航。';
       }
       if(custom.buttons?.length){
         if(custom.buttons.length>9||custom.buttons.some(b=>!b.label||b.label.length>20||!/^[A-Za-z0-9_-]{43}$/.test(b.token)))return{status:'rejected',errorCode:'QQ_OPERATOR_BUTTON_INVALID'};
-        const openid=text(await host.getSecret('QQ_RECIPIENT_OPENID'),256);
-        if(markdown){const rows=[];for(let i=0;i<custom.buttons.length;i+=3)rows.push({buttons:custom.buttons.slice(i,i+3).map((b,n)=>({id:String(i+n+1),render_data:{label:buttonLabel(b.label),visited_label:buttonLabel(b.label),style:1},action:{type:1,permission:{type:0,specify_user_ids:[openid]},data:b.token}}))});payload.keyboard={content:{rows}};}
+        if(markdown){const rows=[];for(let i=0;i<custom.buttons.length;i+=3)rows.push({buttons:custom.buttons.slice(i,i+3).map((b,n)=>({id:String(i+n+1),render_data:{label:buttonLabel(b.label),visited_label:buttonLabel(b.label),style:1},action:{type:1,permission:{type:2},data:b.token}}))});payload.keyboard={content:{rows}};}
         else {const commands=custom.buttons.map(b=>`${b.label}: /open ${b.token}`).join('\n');payload.content=String(payload.content)+'\n\n操作命令：\n'+commands;}
       }
       const rendered=markdown?String((payload.markdown as {content:string}).content):String(payload.content);

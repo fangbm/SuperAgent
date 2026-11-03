@@ -34,6 +34,7 @@ test('duplicate QQ command creates one reply and original queries use the frozen
   const detail=f.receive('detail-1','button',one.options.buttons.find(b=>b.label==='详情 1').token);assert.match(detail.request.text,/candidate/);const accept=detail.options.buttons.find(b=>b.label==='Accept');assert.ok(accept);
   f.receive('accept-1','button',accept.token);const work=f.control.listWorks(f.principal,binding.projectId,'suggestion')[0];assert.equal(work.status,'accepted');f.receive('accept-1','button',accept.token);assert.equal(count(f.runtime.store,'suggestion_status_history'),1);
   f.coordinator.enqueueReplies(binding.projectId,'developer');for(let i=0;i<3;i++)await f.service.tick({purpose:'interaction'});assert.equal(f.requests.length,3);assert.equal((await f.service.tick({purpose:'interaction'})).processed,false);
+  for(const request of f.requests)for(const row of request.body.keyboard?.content.rows??[])for(const button of row.buttons)assert.deepEqual(button.action.permission,{type:2});
 });
 test('QQ original text is segmented without loss or broken emoji',async t=>{
   const original='联机崩溃：'+'🙂'.repeat(3000);const f=await setup(t,{text:original});const section=f.receive('bugs','command','/bugs');const detail=f.receive('work','button',section.options.buttons.find(b=>b.label==='详情 1').token);let response=f.receive('evidence','button',detail.options.buttons.find(b=>b.label==='Details 原文').token);let recovered='';let n=0;
