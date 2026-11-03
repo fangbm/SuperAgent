@@ -1,0 +1,1237 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "repository": "fangbm/sa-test",
+  "issueNumber": 2,
+  "firstRound": {
+    "startedAt": "2026-11-03T06:20:42.111Z",
+    "expiresAt": "2026-11-03T06:50:42.113Z",
+    "status": "succeeded",
+    "stage": "done",
+    "repository": "fangbm/sa-test",
+    "issueNumber": 2,
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "maximumQQReplies": 5,
+    "maximumPatches": 2,
+    "qqAttempts": 5,
+    "qqPosts": 5,
+    "patches": 2,
+    "pendingQQOperation": null,
+    "pendingAction": null,
+    "confirmedActions": [
+      "fix",
+      "reopen"
+    ],
+    "events": [
+      {
+        "at": "2026-11-03T06:20:42.113Z",
+        "phase": "starting",
+        "reportResend": false
+      },
+      {
+        "at": "2026-11-03T06:20:44.760Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:20:45.165Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:20:45.590Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:20:51.819Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T06:50:42.113Z",
+        "stage": "initial_card",
+        "maximumQQReplies": 5,
+        "maximumPatches": 2,
+        "cancelledBacklog": 0
+      },
+      {
+        "at": "2026-11-03T06:23:21.065Z",
+        "phase": "qq_reply_attempt",
+        "stage": "initial_card",
+        "operationId": "external-21fa61ee336dc3244221833d38d2a2f70f740bf16591205ffd3f5a7e02289e99",
+        "attempt": 1
+      },
+      {
+        "at": "2026-11-03T06:23:22.371Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "hasMsgId": true,
+        "hasEventId": false,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "开始调查",
+          "标记修复",
+          "忽略问题"
+        ],
+        "visibleOpenCommand": false
+      },
+      {
+        "at": "2026-11-03T06:23:22.380Z",
+        "phase": "qq_reply_result",
+        "stage": "initial_card",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T06:23:22.381Z",
+        "phase": "stage_complete",
+        "nextStage": "fix"
+      },
+      {
+        "at": "2026-11-03T06:23:30.661Z",
+        "phase": "qq_action_pending",
+        "action": "fix",
+        "commandId": "command-fa76152fc2edaa9dedabccfc25d034943ed8880921413faed0378b0913a4e4d0",
+        "localStatus": "open"
+      },
+      {
+        "at": "2026-11-03T06:23:30.663Z",
+        "phase": "qq_reply_attempt",
+        "stage": "fix",
+        "operationId": "external-7cc40e03269aa920cc36270712ab77c685ab514db6ca734de04da5958f622152",
+        "attempt": 2
+      },
+      {
+        "at": "2026-11-03T06:23:30.884Z",
+        "phase": "ack",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:31.545Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "hasMsgId": false,
+        "hasEventId": true,
+        "nativeKeyboard": false,
+        "buttonLabels": [],
+        "visibleOpenCommand": false
+      },
+      {
+        "at": "2026-11-03T06:23:31.553Z",
+        "phase": "qq_reply_result",
+        "stage": "fix",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T06:23:32.285Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:32.617Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:33.008Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:33.016Z",
+        "phase": "github_patch_attempt",
+        "attempt": 1,
+        "fields": [
+          "state",
+          "state_reason"
+        ],
+        "state": "closed"
+      },
+      {
+        "at": "2026-11-03T06:23:34.006Z",
+        "phase": "github_http",
+        "method": "PATCH",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:34.522Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:34.537Z",
+        "phase": "github_worker",
+        "action": "fix",
+        "processed": true,
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T06:23:35.019Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:23:35.020Z",
+        "phase": "remote_confirmed",
+        "action": "fix",
+        "remoteState": "closed",
+        "stateReason": "completed",
+        "localStatus": "fixed",
+        "localVersion": 3,
+        "issueContentUnchanged": true,
+        "repeatedTickNoSend": true
+      },
+      {
+        "at": "2026-11-03T06:23:35.021Z",
+        "phase": "stage_complete",
+        "nextStage": "fixed_card"
+      },
+      {
+        "at": "2026-11-03T06:24:17.888Z",
+        "phase": "qq_reply_attempt",
+        "stage": "fixed_card",
+        "operationId": "external-4e637b185e2d2f8321bfae316ce294a15b096e2af3b26d5307a2595ebc2f18b9",
+        "attempt": 3
+      },
+      {
+        "at": "2026-11-03T06:24:18.966Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "hasMsgId": true,
+        "hasEventId": false,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "验证完成",
+          "重新打开"
+        ],
+        "visibleOpenCommand": false
+      },
+      {
+        "at": "2026-11-03T06:24:18.973Z",
+        "phase": "qq_reply_result",
+        "stage": "fixed_card",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T06:24:18.974Z",
+        "phase": "stage_complete",
+        "nextStage": "reopen"
+      },
+      {
+        "at": "2026-11-03T06:24:21.490Z",
+        "phase": "qq_action_pending",
+        "action": "reopen",
+        "commandId": "command-d6a85ca3bc2b23eeee17ca52246f2bb0aed448d0de0f2f1b7262ca767349052e",
+        "localStatus": "fixed"
+      },
+      {
+        "at": "2026-11-03T06:24:21.492Z",
+        "phase": "qq_reply_attempt",
+        "stage": "reopen",
+        "operationId": "external-316a3a49b9bd01ed84dcc100e441f77dc84723da47730eaba44b42053885de68",
+        "attempt": 4
+      },
+      {
+        "at": "2026-11-03T06:24:21.606Z",
+        "phase": "ack",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:22.564Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "hasMsgId": false,
+        "hasEventId": true,
+        "nativeKeyboard": false,
+        "buttonLabels": [],
+        "visibleOpenCommand": false
+      },
+      {
+        "at": "2026-11-03T06:24:22.572Z",
+        "phase": "qq_reply_result",
+        "stage": "reopen",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T06:24:28.026Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:28.375Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:28.819Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:28.823Z",
+        "phase": "github_patch_attempt",
+        "attempt": 2,
+        "fields": [
+          "state"
+        ],
+        "state": "open"
+      },
+      {
+        "at": "2026-11-03T06:24:30.028Z",
+        "phase": "github_http",
+        "method": "PATCH",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:30.514Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:30.522Z",
+        "phase": "github_worker",
+        "action": "reopen",
+        "processed": true,
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T06:24:30.998Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:24:31.006Z",
+        "phase": "remote_confirmed",
+        "action": "reopen",
+        "remoteState": "open",
+        "stateReason": "reopened",
+        "localStatus": "open",
+        "localVersion": 4,
+        "issueContentUnchanged": true,
+        "repeatedTickNoSend": true
+      },
+      {
+        "at": "2026-11-03T06:24:31.007Z",
+        "phase": "stage_complete",
+        "nextStage": "open_card"
+      },
+      {
+        "at": "2026-11-03T06:25:21.125Z",
+        "phase": "qq_reply_attempt",
+        "stage": "open_card",
+        "operationId": "external-839e674fdca61c00c34dc61a8097e971b0f18cc0d300ac73cfe943ada495bfbd",
+        "attempt": 5
+      },
+      {
+        "at": "2026-11-03T06:25:22.263Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "hasMsgId": true,
+        "hasEventId": false,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "开始调查",
+          "标记修复",
+          "忽略问题"
+        ],
+        "visibleOpenCommand": false
+      },
+      {
+        "at": "2026-11-03T06:25:22.270Z",
+        "phase": "qq_reply_result",
+        "stage": "open_card",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T06:25:22.271Z",
+        "phase": "stage_complete",
+        "nextStage": "done"
+      },
+      {
+        "at": "2026-11-03T06:25:22.272Z",
+        "phase": "complete",
+        "qqReplies": 5,
+        "githubPatches": 2,
+        "finalRemoteState": "open",
+        "finalLocalStatus": "open",
+        "reportSealsUnchanged": true,
+        "originalDatabaseUnchanged": true
+      },
+      {
+        "at": "2026-11-03T06:25:22.290Z",
+        "phase": "closed",
+        "status": "succeeded",
+        "cancelledPending": 0,
+        "pendingAction": null,
+        "pendingQQOperation": null,
+        "qqAttempts": 5,
+        "githubPatches": 2
+      }
+    ],
+    "clientFeedback": "卡在等待gh反馈，但操作已完成",
+    "verification": "business_success_receipt_UX_issue"
+  },
+  "cardRefreshRound": {
+    "startedAt": "2026-11-03T06:52:45.697Z",
+    "expiresAt": "2026-11-03T07:22:45.699Z",
+    "status": "succeeded",
+    "stage": "done",
+    "repository": "fangbm/sa-test",
+    "issueNumber": 2,
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "maximumQQReplies": 3,
+    "maximumPatches": 2,
+    "maximumRecalls": 2,
+    "qqAttempts": 3,
+    "qqPosts": 3,
+    "patches": 2,
+    "recallAttempts": 2,
+    "pendingQQOperation": null,
+    "pendingAction": null,
+    "confirmedActions": [
+      "fix",
+      "reopen"
+    ],
+    "events": [
+      {
+        "at": "2026-11-03T06:52:45.699Z",
+        "phase": "starting",
+        "reportResend": false
+      },
+      {
+        "at": "2026-11-03T06:52:48.312Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:52:48.647Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:52:49.075Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T06:52:55.249Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T07:22:45.699Z",
+        "maximumQQReplies": 3,
+        "maximumPatches": 2,
+        "maximumRecalls": 2,
+        "cancelledBacklog": 0
+      },
+      {
+        "at": "2026-11-03T07:01:43.767Z",
+        "phase": "qq_reply_attempt",
+        "stage": "card",
+        "operationId": "external-1642064489620389739e5ba0d10da511f70df1061958e4cbbb3b99c0f74c4f24",
+        "attempt": 1,
+        "cardVersion": 2
+      },
+      {
+        "at": "2026-11-03T07:01:45.076Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "开始调查",
+          "标记修复",
+          "忽略问题"
+        ],
+        "visibleOpenCommand": false,
+        "waitingNotice": false
+      },
+      {
+        "at": "2026-11-03T07:01:45.085Z",
+        "phase": "qq_reply_result",
+        "stage": "card",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:01:45.088Z",
+        "phase": "card_retirement",
+        "processed": false
+      },
+      {
+        "at": "2026-11-03T07:01:45.090Z",
+        "phase": "stage_complete",
+        "nextStage": "fix"
+      },
+      {
+        "at": "2026-11-03T07:01:47.598Z",
+        "phase": "qq_action_pending",
+        "action": "fix",
+        "commandId": "command-953cedee85a3212aa5bacde148816f9b41653ed1c51ab30bd2eaadbc620aafe8",
+        "localStatus": "open"
+      },
+      {
+        "at": "2026-11-03T07:01:47.824Z",
+        "phase": "ack",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:49.744Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:50.105Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:50.529Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:50.532Z",
+        "phase": "github_patch_attempt",
+        "attempt": 1,
+        "fields": [
+          "state",
+          "state_reason"
+        ],
+        "state": "closed"
+      },
+      {
+        "at": "2026-11-03T07:01:51.577Z",
+        "phase": "github_http",
+        "method": "PATCH",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:52.036Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:52.049Z",
+        "phase": "github_worker",
+        "action": "fix",
+        "processed": true,
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:01:52.499Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:52.507Z",
+        "phase": "remote_confirmed",
+        "action": "fix",
+        "remoteState": "closed",
+        "stateReason": "completed",
+        "localStatus": "fixed",
+        "localVersion": 3,
+        "issueContentUnchanged": true
+      },
+      {
+        "at": "2026-11-03T07:01:52.512Z",
+        "phase": "qq_reply_attempt",
+        "stage": "fix",
+        "operationId": "external-6369ab5c1ea060574ab222ad5190a15775eeced7c2135f3fd9c3c02f9b512a6d",
+        "attempt": 2,
+        "cardVersion": 3
+      },
+      {
+        "at": "2026-11-03T07:01:53.588Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "验证完成",
+          "重新打开"
+        ],
+        "visibleOpenCommand": false,
+        "waitingNotice": false
+      },
+      {
+        "at": "2026-11-03T07:01:53.590Z",
+        "phase": "qq_reply_result",
+        "stage": "fix",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:01:54.114Z",
+        "phase": "qq_recall",
+        "status": 200,
+        "messageIdHash": "e715985cec645fc6b4240dbe661f8985649588785ce32087bf1e579d01bf42df"
+      },
+      {
+        "at": "2026-11-03T07:01:54.122Z",
+        "phase": "card_retirement",
+        "processed": true,
+        "recallId": "qq-recall-a81a8dbbb3f5c1d07da3bba616e709c4c8b1eb87ceab80606e54008ff792db2f",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:01:54.123Z",
+        "phase": "stage_complete",
+        "nextStage": "reopen"
+      },
+      {
+        "at": "2026-11-03T07:01:57.631Z",
+        "phase": "qq_action_pending",
+        "action": "reopen",
+        "commandId": "command-b6e3b5c2de5977b72b49bdb7180e7e6c6865acd9e30fe38cdd722b72b7589f61",
+        "localStatus": "fixed"
+      },
+      {
+        "at": "2026-11-03T07:01:57.995Z",
+        "phase": "ack",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:58.386Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:58.756Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/user",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:59.198Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:01:59.200Z",
+        "phase": "github_patch_attempt",
+        "attempt": 2,
+        "fields": [
+          "state"
+        ],
+        "state": "open"
+      },
+      {
+        "at": "2026-11-03T07:02:00.261Z",
+        "phase": "github_http",
+        "method": "PATCH",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:02:00.753Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:02:00.762Z",
+        "phase": "github_worker",
+        "action": "reopen",
+        "processed": true,
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:02:01.412Z",
+        "phase": "github_http",
+        "method": "GET",
+        "path": "/repos/fangbm/sa-test/issues/2",
+        "status": 200
+      },
+      {
+        "at": "2026-11-03T07:02:01.414Z",
+        "phase": "remote_confirmed",
+        "action": "reopen",
+        "remoteState": "open",
+        "stateReason": "reopened",
+        "localStatus": "open",
+        "localVersion": 4,
+        "issueContentUnchanged": true
+      },
+      {
+        "at": "2026-11-03T07:02:01.423Z",
+        "phase": "qq_reply_attempt",
+        "stage": "reopen",
+        "operationId": "external-3d32695d11dded5620b4e0c541bb9a9d17ae433386f95c2a3a9cdc628ff90e69",
+        "attempt": 3,
+        "cardVersion": 4
+      },
+      {
+        "at": "2026-11-03T07:02:02.461Z",
+        "phase": "qq_transport",
+        "status": 200,
+        "passiveReply": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文",
+          "开始调查",
+          "标记修复",
+          "忽略问题"
+        ],
+        "visibleOpenCommand": false,
+        "waitingNotice": false
+      },
+      {
+        "at": "2026-11-03T07:02:02.469Z",
+        "phase": "qq_reply_result",
+        "stage": "reopen",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:02:02.937Z",
+        "phase": "qq_recall",
+        "status": 200,
+        "messageIdHash": "dac9a58ca8fe9c9e310149584115a954721a49277c17f2c2c02965819a69f887"
+      },
+      {
+        "at": "2026-11-03T07:02:02.939Z",
+        "phase": "card_retirement",
+        "processed": true,
+        "recallId": "qq-recall-2598c560d74e7d0f3f9e4271f74cf6ec7aad1031a9a7df360c33321522f4edba",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:02:02.940Z",
+        "phase": "stage_complete",
+        "nextStage": "done"
+      },
+      {
+        "at": "2026-11-03T07:02:02.941Z",
+        "phase": "complete",
+        "status": "succeeded",
+        "qqReplies": 3,
+        "githubPatches": 2,
+        "recallAttempts": 2,
+        "recallResults": [
+          {
+            "state": "succeeded",
+            "count": 2
+          }
+        ],
+        "finalRemoteState": "open",
+        "finalLocalStatus": "open",
+        "sameCardBodyPreserved": true,
+        "reportSealsUnchanged": true,
+        "originalDatabaseUnchanged": true
+      },
+      {
+        "at": "2026-11-03T07:02:02.960Z",
+        "phase": "closed",
+        "status": "succeeded",
+        "cancelledPending": 0,
+        "pendingAction": null,
+        "pendingQQOperation": null
+      }
+    ],
+    "recallResults": [
+      {
+        "state": "succeeded",
+        "count": 2
+      }
+    ],
+    "clientFeedback": "卡片自动更新，旧卡片已撤回",
+    "verification": "real_QQ_three_passive_replies_two_GitHub_PATCH_readbacks_two_recall_HTTP200_client_confirmed"
+  },
+  "localChecks": {
+    "nodeTests": 198,
+    "referenceSuites": 6,
+    "frozenFiles": 45
+  },
+  "recallDocumentation": "https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/reset.md",
+  "verificationBoundary": "State cards and Bug/original/suggestion retirement plus report retention verified within recorded rounds; Steam retirement and other unclicked branches remain local-only.",
+  "allInteractionRound": {
+    "startedAt": "2026-11-03T07:15:08.660Z",
+    "expiresAt": "2026-11-03T07:45:08.662Z",
+    "status": "stopped_after_policy_change",
+    "maximumReplies": 4,
+    "maximumRecalls": 3,
+    "replies": 0,
+    "posts": 0,
+    "recalls": 0,
+    "githubCalls": 0,
+    "pendingQQOperation": null,
+    "sentOperations": [],
+    "events": [
+      {
+        "at": "2026-11-03T07:15:08.662Z",
+        "phase": "starting",
+        "readOnly": true,
+        "githubWrites": 0
+      },
+      {
+        "at": "2026-11-03T07:15:11.184Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:15:14.702Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T07:45:08.662Z",
+        "maximumReplies": 4,
+        "maximumRecalls": 3,
+        "githubWrites": 0,
+        "cancelledBacklog": 1
+      }
+    ],
+    "stoppedAt": "2026-11-03T07:23:09.047148+00:00",
+    "reason": "User requested permanent half-day report retention; prior listener stopped before any replies or recalls."
+  },
+  "currentRetirementPolicy": {
+    "scope": "All owned interaction replies in the same plugin/project/recipient/binding, after a newer message is accepted.",
+    "retained": [
+      "scheduled half-day reports",
+      "/reports replies",
+      "return-to-report replies",
+      "database reports, source evidence and audits"
+    ],
+    "limitSeconds": 120,
+    "unknownRetry": false,
+    "localVerification": "198 Node tests, including report retention, prepared legacy recall blocking, same-version/category transitions and migration uncertainty preservation.",
+    "liveVerification": "State cards previously confirmed. This round: Bug/original/suggestion retirements and retention of initial and returned reports verified with QQ HTTP 200, ledger readback and user completion confirmation; Steam not clicked."
+  },
+  "retainedReportPreviewRound": {
+    "startedAt": "2026-11-03T07:27:21.407Z",
+    "expiresAt": "2026-11-03T07:57:21.409Z",
+    "status": "completed",
+    "maximumReportAttempts": 1,
+    "maximumQueryAttempts": 5,
+    "maximumRecalls": 4,
+    "posts": 6,
+    "reportAttempts": 1,
+    "queryAttempts": 5,
+    "recalls": 3,
+    "githubCalls": 0,
+    "pendingOperation": null,
+    "reportId": "report-d3c9bb28e6d31368655721273c228667490b5893b7a4d507970425ed03c38b25",
+    "revision": 1,
+    "commit": "6a7d6a8",
+    "clientReceipt": "user_confirmed_completion",
+    "sent": [
+      {
+        "operationId": "external-4d92473a85fe507c86e933aa597c7bbd1b2124df058630e1aaff0cd8854155cb",
+        "retained": true
+      },
+      {
+        "operationId": "external-95c918584800662411c67a4fa7a1d983adc8de2f1eb4987a76443b5b315b1f21",
+        "retained": false
+      },
+      {
+        "operationId": "external-1029d54abd25b7e6eff51ef0b7c2ffb0f3723dca2a9c2848f9e9e1e1e2c99544",
+        "retained": false
+      },
+      {
+        "operationId": "external-b0618eef81b61c1ffac3290a03a024afd40de33bbc61e7976f008da9a604397f",
+        "retained": true
+      },
+      {
+        "operationId": "external-11c2e79108d61b18fa5e45b61a6481d57b85883b60d780a83db5c88eff28140d",
+        "retained": false
+      },
+      {
+        "operationId": "external-82f8175af829697b71bc741dfa252f29565e35f8c4f9bec57d240cd105ba686f",
+        "retained": true
+      }
+    ],
+    "events": [
+      {
+        "at": "2026-11-03T07:27:21.409Z",
+        "phase": "starting",
+        "reportPreserved": true,
+        "githubWrites": 0
+      },
+      {
+        "at": "2026-11-03T07:27:28.210Z",
+        "phase": "report_attempt",
+        "operationId": "external-4d92473a85fe507c86e933aa597c7bbd1b2124df058630e1aaff0cd8854155cb"
+      },
+      {
+        "at": "2026-11-03T07:27:31.411Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": false,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:27:31.420Z",
+        "phase": "report_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:27:31.423Z",
+        "phase": "listening",
+        "expiresAt": "2026-11-03T07:57:21.409Z",
+        "remainingQueries": 5,
+        "cancelledBacklog": 0,
+        "reportPreserved": true
+      },
+      {
+        "at": "2026-11-03T07:28:45.079Z",
+        "phase": "query_attempt",
+        "attempt": 1,
+        "title": "Bug",
+        "retained": false,
+        "operationId": "external-95c918584800662411c67a4fa7a1d983adc8de2f1eb4987a76443b5b315b1f21"
+      },
+      {
+        "at": "2026-11-03T07:28:45.454Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:46.503Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报",
+          "下一条原文"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:46.505Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:46.507Z",
+        "phase": "retirement",
+        "processed": false
+      },
+      {
+        "at": "2026-11-03T07:28:48.514Z",
+        "phase": "query_attempt",
+        "attempt": 2,
+        "title": "玩家原文",
+        "retained": false,
+        "operationId": "external-1029d54abd25b7e6eff51ef0b7c2ffb0f3723dca2a9c2848f9e9e1e1e2c99544"
+      },
+      {
+        "at": "2026-11-03T07:28:48.799Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:49.316Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "上一条原文",
+          "返回反馈",
+          "返回半日报"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:49.323Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:49.755Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "e4894111a2bdbaf8b1bfa684ef4c10904fa2ee763afbe5c4dd25d3ff6656947b"
+      },
+      {
+        "at": "2026-11-03T07:28:49.763Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-47aebd886ae19168ff159048a8bd4475c90b7f82ab710eb22c1184b7354b08a2",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:28:52.529Z",
+        "phase": "query_attempt",
+        "attempt": 3,
+        "title": "社区反馈半日报",
+        "retained": true,
+        "operationId": "external-b0618eef81b61c1ffac3290a03a024afd40de33bbc61e7976f008da9a604397f"
+      },
+      {
+        "at": "2026-11-03T07:28:52.650Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:53.560Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:53.568Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:54.030Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "efdacafb9d41d2806422871a8fd3c33c22c588d963086aed963c48b6c969b07d"
+      },
+      {
+        "at": "2026-11-03T07:28:54.038Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-bb93bf05ad3bc030f1b7c910537c24f79a253caf90692a4c61d7044f34007600",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:28:56.303Z",
+        "phase": "query_attempt",
+        "attempt": 4,
+        "title": "建议",
+        "retained": false,
+        "operationId": "external-11c2e79108d61b18fa5e45b61a6481d57b85883b60d780a83db5c88eff28140d"
+      },
+      {
+        "at": "2026-11-03T07:28:56.350Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:57.068Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "返回半日报"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:57.076Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:28:57.078Z",
+        "phase": "retirement",
+        "processed": false
+      },
+      {
+        "at": "2026-11-03T07:28:58.842Z",
+        "phase": "query_attempt",
+        "attempt": 5,
+        "title": "社区反馈半日报",
+        "retained": true,
+        "operationId": "external-82f8175af829697b71bc741dfa252f29565e35f8c4f9bec57d240cd105ba686f"
+      },
+      {
+        "at": "2026-11-03T07:28:59.010Z",
+        "phase": "ack",
+        "httpStatus": 200
+      },
+      {
+        "at": "2026-11-03T07:28:59.742Z",
+        "phase": "message",
+        "httpStatus": 200,
+        "passive": true,
+        "nativeKeyboard": true,
+        "buttonLabels": [
+          "查看 Bug",
+          "查看建议",
+          "Steam 差评"
+        ]
+      },
+      {
+        "at": "2026-11-03T07:28:59.750Z",
+        "phase": "query_result",
+        "state": "succeeded",
+        "result": {
+          "status": "accepted"
+        }
+      },
+      {
+        "at": "2026-11-03T07:29:00.181Z",
+        "phase": "recall",
+        "httpStatus": 200,
+        "messageIdHash": "3ca9bd54c44212f5ccb31a97468038108cc2b2575e3b7956ad07af088795ff8d"
+      },
+      {
+        "at": "2026-11-03T07:29:00.183Z",
+        "phase": "retirement",
+        "processed": true,
+        "recallId": "qq-recall-2ca1740bbdca1c1694e41e6aea4e747db508e0acd255a03deaf3bd25936034ba",
+        "state": "succeeded"
+      },
+      {
+        "at": "2026-11-03T07:29:00.184Z",
+        "phase": "complete",
+        "status": "completed",
+        "queryAttempts": 5,
+        "recalls": 3,
+        "githubCalls": 0,
+        "reportPreserved": true,
+        "newCommands": 0
+      },
+      {
+        "at": "2026-11-03T07:29:00.201Z",
+        "phase": "closed",
+        "status": "completed",
+        "pendingOperation": null,
+        "cancelledPending": 0
+      }
+    ],
+    "clientFeedback": "完成",
+    "verifiedSequence": [
+      "Bug",
+      "original evidence",
+      "return half-day report",
+      "suggestion",
+      "return half-day report"
+    ],
+    "verificationBoundary": "User confirmed completion; backend verifies 6 accepted sends and 3 successful recalls, all 3 report messages retained. Steam not clicked in this round.",
+    "retirementReadback": [
+      {
+        "retained": true,
+        "retirement": []
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": true,
+        "retirement": []
+      },
+      {
+        "retained": false,
+        "retirement": [
+          "succeeded"
+        ]
+      },
+      {
+        "retained": true,
+        "retirement": []
+      }
+    ]
+  }
+}

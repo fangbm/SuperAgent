@@ -12,11 +12,13 @@ export function deliveryHost(plugin: DeliveryPluginV1, read: (key: string) => Pr
 }
 interface Row {
   operation_id: string; state: string; attempt: number; request_json: string;
-  result_json: string | null; lease_owner: string | null; lease_until: string | null;
+  result_json: string | null; lease_owner: string | null; lease_until: string | null; purpose:'report'|'acceptance'|'interaction';
 }
 export interface DeliveryHostOptions {
   projectId: string; recipientRef: string; recipientBindingId: string; allowWrites?: boolean; clock?: Clock;
   leaseMs?: number; timeoutMs?: number; maxAttempts?: number;
+  authorizeInteraction?: (request: DeliveryRequestV1) => void;
+  authorizeDelivery?: (request: DeliveryRequestV1) => void;
 }
 /** Trusted, platform-independent Host owns the send intent and uncertainty barrier. */
 export class DurableDeliveryService {
@@ -30,10 +32,11 @@ export class DurableDeliveryService {
     });
   }
   private now(): string { return timestamp((this.options.clock ?? systemClock)()); }
-  enqueue(input: DeliveryRequestV1, purpose: 'report' | 'acceptance' = 'report'): string {
+  enqueue(input: DeliveryRequestV1, purpose: 'report' | 'acceptance' | 'interaction' = 'report'): string {
     const request = parseContract('delivery-request-v1', input);
     if (request.projectId !== this.options.projectId || request.recipientRef !== this.options.recipientRef) throw new Error('DELIVERY_RECIPIENT_NOT_AUTHORIZED');
     if (purpose === 'acceptance' && (request.presentation || !request.title.startsWith('[QQ 验收]'))) throw new Error('DELIVERY_ACCEPTANCE_SCOPE_REQUIRED');
+    if (purpose === 'interaction') { if (!this.options.authorizeInteraction) throw new Error('INTERACTION_DELIVERY_NOT_AUTHORIZED'); this.options.authorizeInteraction(request); }
     if (purpose === 'report') {
       const report = this.store.get<{ project_id: string }>('SELECT r.project_id FROM report_revisions r JOIN report_revision_seals s USING(report_id,revision) WHERE r.report_id=? AND r.revision=?', request.reportId, request.reportRevision ?? 0);
       if (report?.project_id !== request.projectId) throw new Error('SEALED_REPORT_NOT_AUTHORIZED');
@@ -57,11 +60,11 @@ export class DurableDeliveryService {
     return Number(this.store.run(`UPDATE external_operations SET state='unknown',last_error='DELIVERY_SEND_WINDOW_EXPIRED',lease_owner=NULL,lease_until=NULL,updated_at=?
       WHERE kind='qq.c2c.send' AND state='in_flight' AND lease_until<=? AND operation_id IN (SELECT operation_id FROM plugin_delivery_requests WHERE plugin_id=? AND project_id=? AND recipient_ref=?)`, this.now(), this.now(), this.plugin.manifest.id, this.options.projectId, this.options.recipientRef).changes);
   }
-  async tick(): Promise<{ processed: boolean; operationId?: string; state?: string }> {
+  async tick(filter:{purpose?:'report'|'acceptance'|'interaction';operationId?:string}={}): Promise<{ processed: boolean; operationId?: string; state?: string }> {
     this.recover();
     if (!this.options.allowWrites) return { processed: false, state: 'write_disabled' };
     const row = this.store.get<Row>(`SELECT o.*,r.* FROM external_operations o JOIN plugin_delivery_requests r USING(operation_id)
-      WHERE plugin_id=? AND project_id=? AND recipient_ref=? AND state IN ('prepared','safe_retry') AND next_attempt_at<=? ORDER BY created_at,operation_id LIMIT 1`, this.plugin.manifest.id, this.options.projectId, this.options.recipientRef, this.now());
+      WHERE plugin_id=? AND project_id=? AND recipient_ref=? AND state IN ('prepared','safe_retry') AND next_attempt_at<=? ${filter.purpose?'AND purpose=?':''} ${filter.operationId?'AND operation_id=?':''} ORDER BY created_at,operation_id LIMIT 1`, this.plugin.manifest.id, this.options.projectId, this.options.recipientRef, this.now(),...(filter.purpose?[filter.purpose]:[]),...(filter.operationId?[filter.operationId]:[]));
     if (!row) return { processed: false };
     if (row.attempt >= (this.options.maxAttempts ?? 3)) {
       this.store.run("UPDATE external_operations SET state='manual_review',last_error='DELIVERY_RETRY_BUDGET' WHERE operation_id=? AND state='safe_retry'", row.operation_id);
@@ -76,12 +79,14 @@ export class DurableDeliveryService {
     if (!claimed) return { processed: false };
     let timer: ReturnType<typeof setTimeout> | undefined; let result: DeliveryResultV1;
     try {
+      const request=JSON.parse(row.request_json) as DeliveryRequestV1;
+      try{const binding=this.store.get<{binding_id:string}>('SELECT binding_id FROM plugin_delivery_bindings WHERE plugin_id=? AND project_id=? AND recipient_ref=?',this.plugin.manifest.id,this.options.projectId,this.options.recipientRef);if(binding?.binding_id!==this.options.recipientBindingId)throw new Error('BINDING_CHANGED');this.options.authorizeDelivery?.(request);if(row.purpose==='interaction'){if(!this.options.authorizeInteraction)throw new Error();this.options.authorizeInteraction(request);}}catch{result={status:'blocked',errorCode:'DELIVERY_AUTHORIZATION_REVOKED'};throw result;}
       result = await Promise.race([
-        this.plugin.send(JSON.parse(row.request_json) as DeliveryRequestV1, this.host),
+        this.plugin.send(request, this.host),
         new Promise<DeliveryResultV1>(resolve => { timer = setTimeout(() => resolve({ status: 'unknown', errorCode: 'DELIVERY_HOST_TIMEOUT' }), this.options.timeoutMs ?? 30_000); }),
       ]);
       result = parseContract('delivery-result-v1', result);
-    } catch { result = { status: 'unknown', errorCode: 'DELIVERY_PLUGIN_UNKNOWN' }; }
+    } catch(error) { result = error&&typeof error==='object'&&'errorCode' in error&&error.errorCode==='DELIVERY_AUTHORIZATION_REVOKED'?{status:'blocked',errorCode:'DELIVERY_AUTHORIZATION_REVOKED'}:{ status: 'unknown', errorCode: 'DELIVERY_PLUGIN_UNKNOWN' }; }
     finally { if (timer) clearTimeout(timer); }
     const state = result.status === 'accepted' ? 'succeeded' : result.status === 'retryable' ? 'safe_retry' : result.status === 'unknown' ? 'unknown' : 'blocked';
     this.store.transaction(() => {
@@ -97,3 +102,6 @@ export class DurableDeliveryService {
 
 export { DurableCommunityState } from './community-state.js';
 export type { CommunityStateReducer, DurableCommunityStateOptions } from './community-state.js';
+export { ReportDeliveryCoordinator } from './reports.js';
+export { QQCardRetirementService } from './cards.js';
+export type { MessageRecallPort } from './cards.js';

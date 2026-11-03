@@ -1,4 +1,4 @@
-# ADR 0005: Discord community features and private archive isolation
+# ADR 0013: Discord community features and private archive isolation
 
 Status: implemented, 2026-11-03; live deployment pending.
 
@@ -8,4 +8,4 @@ Private tickets use a separate private project and permanent archive-only source
 
 Original source events remain canonical; lifecycle state keeps references. Archive submissions before acceptance and flush history before destructive actions. Advance the shared Gateway sequence only after routed commits/intents; persist first-observation time without persisting interaction tokens/private payloads in its checkpoint.
 
-Lease fencing and entity/provider markers handle interrupted effects. Add migrations009/010 rather than altering frozen migrations, SDK contracts or job/external-operation kinds. Do not create a second queue/database or change QQ/M3 business workflows. Actual Discord permissions and container execution remain separate from local Host/transport verification.
+Lease fencing and entity/provider markers handle interrupted effects. Add migrations012/013 rather than altering frozen migrations, SDK contracts or job/external-operation kinds. Do not create a second queue/database or change QQ/M3 business workflows. Actual Discord permissions and container execution remain separate from local Host/transport verification.

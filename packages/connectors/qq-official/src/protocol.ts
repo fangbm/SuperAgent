@@ -15,6 +15,11 @@ export function text(value: unknown, max = 4096): string {
   if (typeof value !== 'string' || !value.length || value.length > max) throw new QQError('QQ_INVALID_FIELD', 'rejected');
   return value;
 }
+function providerCode(data:QQObject):number|'INVALID'|undefined{
+  const codes=[data.err_code,data.code].filter(v=>v!==undefined);
+  if(codes.some(v=>typeof v!=='number'||!Number.isSafeInteger(v)||v<0))return'INVALID';
+  const errors=[...new Set(codes.filter(v=>v!==0))];return errors.length>1?'INVALID':errors[0] as number|undefined;
+}
 function privateKey(secret: string) {
   let bytes = Buffer.from(text(secret), 'utf8');
   while (bytes.length < 32) bytes = Buffer.concat([bytes, bytes]);
@@ -32,8 +37,8 @@ export function endpoint(value: string, allowLoopbackHTTP = false): URL {
   if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(allowLoopbackHTTP && url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)))) throw new QQError('QQ_INVALID_ENDPOINT', 'blocked');
   return url;
 }
-async function responseJSON(response: Response): Promise<QQObject> {
-  if (!response.body) throw new QQError('QQ_EMPTY_RESPONSE');
+async function responseJSON(response: Response, allowEmpty = false): Promise<QQObject> {
+  if (!response.body) {if(allowEmpty)return {};throw new QQError('QQ_EMPTY_RESPONSE');}
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
   try {
     for (;;) {
@@ -41,6 +46,7 @@ async function responseJSON(response: Response): Promise<QQObject> {
       size += next.value.byteLength; if (size > 1_000_000) throw new QQError('QQ_RESPONSE_LIMIT');
       chunks.push(next.value);
     }
+    if(allowEmpty&&size===0)return {};
     return object(JSON.parse(Buffer.concat(chunks).toString('utf8')));
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
@@ -62,21 +68,24 @@ export class QQAPI {
     this.base = endpoint(options.baseURL ?? 'https://api.bot.qq.com', options.allowLoopbackHTTP);
     this.tokenURL = endpoint(options.tokenURL ?? new URL('/app/getAppAccessToken', this.base).href, options.allowLoopbackHTTP);
   }
-  private async request(url: URL, init: RequestInit, beforeSend: boolean): Promise<QQObject> {
+  private async request(url: URL, init: RequestInit, beforeSend: boolean, allowEmpty = false): Promise<QQObject> {
     try {
       const response = await (this.options.fetch ?? fetch)(url, { ...init, redirect: 'error', signal: AbortSignal.any([...(init.signal ? [init.signal] : []), AbortSignal.timeout(this.options.timeoutMs ?? 15_000)]) });
       if (!response.ok) {
-        await response.body?.cancel();
-        throw new QQError(`QQ_HTTP_${response.status}`, beforeSend ? ([400, 401, 403, 404].includes(response.status) ? 'blocked' : 'retryable') : ([401, 403].includes(response.status) ? 'blocked' : response.status === 400 ? 'rejected' : 'unknown'));
+        // Retain only a numeric provider code, never its free-form error text.
+        let code:number|undefined;
+        try{const value=providerCode(await responseJSON(response));if(typeof value==='number')code=value;}catch{/* Preserve the HTTP outcome for malformed/empty errors. */}
+        throw new QQError(code!==undefined&&[400,401,403].includes(response.status)?`QQ_API_${code}`:`QQ_HTTP_${response.status}`, beforeSend ? ([400, 401, 403, 404].includes(response.status) ? 'blocked' : 'retryable') : ([401, 403].includes(response.status) ? 'blocked' : response.status === 400 ? 'rejected' : 'unknown'));
       }
+      if (allowEmpty && response.status === 204) return {};
       let data: QQObject;
-      try { data = await responseJSON(response); }
+      try { data = await responseJSON(response,allowEmpty); }
       catch { throw new QQError('QQ_INVALID_RESPONSE', beforeSend ? 'retryable' : 'unknown'); }
-      if (data.code !== undefined && data.code !== 0) {
-        const code = typeof data.code === 'number' ? data.code : 'INVALID';
+      const code=providerCode(data);
+      if (code !== undefined) {
         const outcome = beforeSend ? ([100007, 100016, 10004].includes(Number(code)) ? 'blocked' : 'retryable')
-          : [40034105, 40054004, 40054013, 40034127, 304064].includes(Number(code)) ? 'blocked'
-          : [22006, 50059, 304061, 40034011, 40034024, 40034025, 40034026, 40034027, 40034029, 40054007, 40054018].includes(Number(code)) ? 'rejected' : 'unknown';
+          : [11253,11254,11265,40034105,40054004,40054013,40034127,304064,304036,304037].includes(Number(code)) ? 'blocked'
+          : [22006,50059,304061,304103,40034005,40034011,40034024,40034025,40034026,40034027,40034029,40034124,40034128,40054007,40054018].includes(Number(code)) ? 'rejected' : 'unknown';
         throw new QQError(`QQ_API_${code}`, outcome);
       }
       return data;
@@ -117,5 +126,14 @@ export class QQAPI {
     const token = await this.accessToken();
     const data = await this.request(new URL(`/v2/users/${encodeURIComponent(text(openid, 256))}/messages`, this.base), { method: 'POST', headers: { Authorization: `QQBot ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, false);
     return text(data.id);
+  }
+  async acknowledgeInteraction(id: string, code = 0): Promise<void> {
+    const token = await this.accessToken();
+    const appId=text(await this.getSecret('QQ_APP_ID'),256);
+    await this.request(new URL(`/interactions/${encodeURIComponent(text(id,512))}`, this.base), { method:'PUT', headers:{ Authorization:`QQBot ${token}`,'Content-Type':'application/json','X-Callback-AppID':appId }, body:JSON.stringify({code}),signal:AbortSignal.timeout(1500) }, true, true);
+  }
+  async recallC2C(openid:string,messageId:string):Promise<void>{
+    const token=await this.accessToken();
+    await this.request(new URL(`/v2/users/${encodeURIComponent(text(openid,256))}/messages/${encodeURIComponent(text(messageId,512))}`,this.base),{method:'DELETE',headers:{Authorization:`QQBot ${token}`,'Content-Type':'application/json'}},false,true);
   }
 }

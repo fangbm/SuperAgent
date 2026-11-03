@@ -1,0 +1,10 @@
+import { parseArgs } from 'node:util';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import path from 'node:path';
+import { createConsoleServer } from '@superagent/web-console';
+import { createDemo, demoKey } from './m5-demo-data.mjs';
+const {values}=parseArgs({options:{port:{type:'string',default:'8787'}}});const port=Number(values.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('INVALID_PORT');
+mkdirSync('.artifacts',{recursive:true});const directory=mkdtempSync(path.resolve('.artifacts/m5-demo-'));const app=await createDemo(path.join(directory,'state.sqlite'));const server=createConsoleServer(app.control,{demo:true,now:app.clock});
+const stop=()=>server.close(()=>{app.runtime.close();if(process.connected)process.disconnect();});process.once('SIGINT',stop);process.once('SIGTERM',stop);process.on('message',message=>{if(message?.type==='stop')stop();});
+await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
+console.log(JSON.stringify({url:`http://127.0.0.1:${server.address().port}`,database:path.join(directory,'state.sqlite'),demoAccessKey:demoKey,externalWrites:false,model:'deterministic-demo-adapter'}));
