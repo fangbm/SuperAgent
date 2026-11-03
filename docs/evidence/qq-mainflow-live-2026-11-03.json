@@ -1,7 +1,7 @@
 {
   "date": "2026-11-03",
   "timezone": "Asia/Shanghai",
-  "status": "live_ingress_batch_model_and_independent_count_verified; suggestion_matching_review_pending",
+  "status": "live_ingress_batch_model_verified; saved_real_QQ_replay_independent_count_and_original_suggestion_link_verified",
   "codeBaseline": "36a3d7d",
   "bindingDiscovery": {
     "status": "bound",
@@ -177,16 +177,16 @@
     "newSuccessfulRevision": false,
     "automaticRetryRemaining": false,
     "legacyPipelineRetryCompatibility": "passed; persisted triage-v2.1 analysis identity retained across default upgrade, new batch uses triage-v2.2",
-    "latestRealModelRetest": "2026-11-03 18:38 Asia/Shanghai: revision 5 succeeded with three real model calls; Bug independent feedback 2; suggestion feedback 1; suggestion matching requires review",
+    "latestRealModelRetest": "19:05 count 2/1 repeated with review; clarified suggestion matching and replayed the same baseline: three real calls, original suggestion reused, no review or duplicate",
     "latestSuccessfulRevision": 5
   },
   "checks": {
     "command": "pnpm check",
     "exitCode": 0,
-    "nodeTests": 217,
+    "nodeTests": 219,
     "referenceSuites": 6,
     "frozenFiles": 45,
-    "logSha256": "47ccb8141c4e17afbc4227afd56841de5f10b970def0c87dcfa15fa53a027478"
+    "logSha256": "5a041fb6a1216972f4eab28be7f49469bdbc653deee0380132eb8cda730b10cb"
   },
   "verificationBoundary": {
     "naturalQQMessages": true,
@@ -201,7 +201,8 @@
     "allGitHubCalls": 0,
     "rawPrivateMessagesCommitted": false,
     "rawOpenidsCommitted": false,
-    "suggestionReanalysisMatchingWithoutReview": false
+    "suggestionReanalysisMatchingWithoutReview": true,
+    "previousReviewCopiesAutomaticallyChanged": false
   },
   "countCorrectionRetest1816": {
     "startedAt": "2026-11-03T10:17:14.970Z",
@@ -419,6 +420,363 @@
       "newJobState": "completed",
       "newJobAttempts": 1,
       "foreignKeyCheck": "ok"
+    }
+  },
+  "countCorrectionRetest1905": {
+    "startedAt": "2026-11-03T11:05:39.525Z",
+    "status": "count_verified_suggestion_review_required",
+    "modelCalls": 3,
+    "maximumModelCalls": 6,
+    "input": "backup of prior real QQ sample analysis and its failed retries; no new collection",
+    "pipelineVersion": "triage-v2.2",
+    "qqMessagesSent": 0,
+    "githubCalls": 0,
+    "events": [
+      {
+        "at": "2026-11-03T11:05:39.527Z",
+        "phase": "waiting_model_config",
+        "echo": false
+      },
+      {
+        "at": "2026-11-03T11:05:46.885Z",
+        "phase": "reanalyze",
+        "batchId": "batch-b6abd8ed71ecd908e0a3a7594b333390a5cf8fdf627282cbbe014dc2b1c20d58",
+        "revision": 5,
+        "maximumRequests": 6
+      },
+      {
+        "at": "2026-11-03T11:05:46.913Z",
+        "phase": "model_request",
+        "call": 1
+      },
+      {
+        "at": "2026-11-03T11:05:49.303Z",
+        "phase": "model_request",
+        "call": 2
+      },
+      {
+        "at": "2026-11-03T11:05:51.193Z",
+        "phase": "model_request",
+        "call": 3
+      },
+      {
+        "at": "2026-11-03T11:05:52.790Z",
+        "phase": "analysis",
+        "processed": true,
+        "status": "succeeded",
+        "runId": "run-9f6eb2d1d624b5f3c4f28a445668ef62f472390f3fb7b3d54c5b36026c325180"
+      },
+      {
+        "at": "2026-11-03T11:05:52.794Z",
+        "phase": "verified",
+        "status": "count_verified_suggestion_review_required",
+        "works": [
+          {
+            "kind": "defect",
+            "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+            "feedbackCount": 2,
+            "primaryEvidence": 2,
+            "corroborationEvidence": 0,
+            "reviewRequired": false
+          },
+          {
+            "kind": "suggestion",
+            "id": "work-20f9c4cde7a630b0f4060cff2f516bc70b52b1cee157deecf03dd25ff3c78f29",
+            "feedbackCount": 1,
+            "primaryEvidence": 1,
+            "corroborationEvidence": 0,
+            "reviewRequired": true
+          },
+          {
+            "kind": "suggestion",
+            "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+            "feedbackCount": 0,
+            "primaryEvidence": 0,
+            "corroborationEvidence": 0,
+            "reviewRequired": false
+          }
+        ],
+        "sourceEventsUnchanged": true,
+        "priorExtractionPreserved": true,
+        "priorFailedJobsPreserved": true,
+        "qqMessagesSent": 0,
+        "githubCalls": 0
+      },
+      {
+        "at": "2026-11-03T11:05:52.804Z",
+        "phase": "closed",
+        "status": "count_verified_suggestion_review_required",
+        "modelCalls": 3,
+        "pendingJobs": 0
+      }
+    ],
+    "jobId": "job-d811525096045e2c9e62b0826137d8fa2f1a746c7ab30f0efab044fcd1548b58",
+    "revision": 5,
+    "works": [
+      {
+        "kind": "defect",
+        "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+        "feedbackCount": 2,
+        "primaryEvidence": 2,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      },
+      {
+        "kind": "suggestion",
+        "id": "work-20f9c4cde7a630b0f4060cff2f516bc70b52b1cee157deecf03dd25ff3c78f29",
+        "feedbackCount": 1,
+        "primaryEvidence": 1,
+        "corroborationEvidence": 0,
+        "reviewRequired": true
+      },
+      {
+        "kind": "suggestion",
+        "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+        "feedbackCount": 0,
+        "primaryEvidence": 0,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      }
+    ],
+    "activeWorks": [
+      {
+        "kind": "defect",
+        "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+        "feedbackCount": 2,
+        "primaryEvidence": 2,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      },
+      {
+        "kind": "suggestion",
+        "id": "work-20f9c4cde7a630b0f4060cff2f516bc70b52b1cee157deecf03dd25ff3c78f29",
+        "feedbackCount": 1,
+        "primaryEvidence": 1,
+        "corroborationEvidence": 0,
+        "reviewRequired": true
+      }
+    ],
+    "historicalEmptyWorks": [
+      {
+        "kind": "suggestion",
+        "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+        "feedbackCount": 0,
+        "primaryEvidence": 0,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      }
+    ],
+    "suggestionMatchingRequiresReview": true,
+    "sourceEventsUnchanged": true,
+    "originalDatabaseUnchanged": true,
+    "priorExtractionPreserved": true,
+    "priorFailedJobsPreserved": true,
+    "activeFeedbackItems": 2,
+    "revisions": [
+      {
+        "pipeline_version": "triage-v2.1",
+        "revision": 1
+      },
+      {
+        "pipeline_version": "triage-v2.2",
+        "revision": 5
+      }
+    ],
+    "modelUsage": [
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":978,\"outputTokens\":264}",
+        "error_code": null
+      },
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":2984,\"outputTokens\":386}",
+        "error_code": null
+      },
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":802,\"outputTokens\":227}",
+        "error_code": null
+      }
+    ],
+    "quickCheck": "ok",
+    "pendingJobs": 0
+  },
+  "suggestionMatchRetest": {
+    "startedAt": "2026-11-03T11:09:03.710Z",
+    "status": "succeeded",
+    "modelCalls": 3,
+    "maximumModelCalls": 3,
+    "input": "backup of prior real QQ sample analysis and its failed retries; no new collection",
+    "pipelineVersion": "triage-v2.2",
+    "qqMessagesSent": 0,
+    "githubCalls": 0,
+    "events": [
+      {
+        "at": "2026-11-03T11:09:03.713Z",
+        "phase": "waiting_model_config",
+        "echo": false
+      },
+      {
+        "at": "2026-11-03T11:09:12.371Z",
+        "phase": "reanalyze",
+        "batchId": "batch-b6abd8ed71ecd908e0a3a7594b333390a5cf8fdf627282cbbe014dc2b1c20d58",
+        "revision": 5,
+        "maximumRequests": 3
+      },
+      {
+        "at": "2026-11-03T11:09:12.407Z",
+        "phase": "model_request",
+        "call": 1
+      },
+      {
+        "at": "2026-11-03T11:09:14.850Z",
+        "phase": "model_request",
+        "call": 2
+      },
+      {
+        "at": "2026-11-03T11:09:17.177Z",
+        "phase": "model_request",
+        "call": 3
+      },
+      {
+        "at": "2026-11-03T11:09:18.852Z",
+        "phase": "analysis",
+        "processed": true,
+        "status": "succeeded",
+        "runId": "run-9f6eb2d1d624b5f3c4f28a445668ef62f472390f3fb7b3d54c5b36026c325180"
+      },
+      {
+        "at": "2026-11-03T11:09:18.855Z",
+        "phase": "verified",
+        "status": "succeeded",
+        "works": [
+          {
+            "kind": "defect",
+            "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+            "feedbackCount": 2,
+            "primaryEvidence": 2,
+            "corroborationEvidence": 0,
+            "reviewRequired": false
+          },
+          {
+            "kind": "suggestion",
+            "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+            "feedbackCount": 1,
+            "primaryEvidence": 1,
+            "corroborationEvidence": 0,
+            "reviewRequired": false
+          }
+        ],
+        "sourceEventsUnchanged": true,
+        "priorExtractionPreserved": true,
+        "priorFailedJobsPreserved": true,
+        "qqMessagesSent": 0,
+        "githubCalls": 0
+      },
+      {
+        "at": "2026-11-03T11:09:18.867Z",
+        "phase": "closed",
+        "status": "succeeded",
+        "modelCalls": 3,
+        "pendingJobs": 0
+      }
+    ],
+    "beforeSuggestionId": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+    "jobId": "job-d811525096045e2c9e62b0826137d8fa2f1a746c7ab30f0efab044fcd1548b58",
+    "revision": 5,
+    "works": [
+      {
+        "kind": "defect",
+        "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+        "feedbackCount": 2,
+        "primaryEvidence": 2,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      },
+      {
+        "kind": "suggestion",
+        "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+        "feedbackCount": 1,
+        "primaryEvidence": 1,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      }
+    ],
+    "activeWorks": [
+      {
+        "kind": "defect",
+        "id": "work-7c9c586820b71f4d3b827ca06c4685ee0f91b007aa9bf322c6dd95a0858f05b9",
+        "feedbackCount": 2,
+        "primaryEvidence": 2,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      },
+      {
+        "kind": "suggestion",
+        "id": "work-a4fffd48732bbc3c1425c9ffe4055adaf8ba7d6f3680e0cae6411295b4c1a50e",
+        "feedbackCount": 1,
+        "primaryEvidence": 1,
+        "corroborationEvidence": 0,
+        "reviewRequired": false
+      }
+    ],
+    "historicalEmptyWorks": [],
+    "suggestionMatchingRequiresReview": false,
+    "suggestionLinkedOriginal": true,
+    "autoLinkVerified": true,
+    "sourceEventsUnchanged": true,
+    "originalDatabaseUnchanged": true,
+    "priorExtractionPreserved": true,
+    "priorFailedJobsPreserved": true,
+    "activeFeedbackItems": 2,
+    "revisions": [
+      {
+        "pipeline_version": "triage-v2.1",
+        "revision": 1
+      },
+      {
+        "pipeline_version": "triage-v2.2",
+        "revision": 5
+      }
+    ],
+    "modelUsage": [
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":986,\"outputTokens\":226}",
+        "error_code": null
+      },
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":944,\"outputTokens\":221}",
+        "error_code": null
+      },
+      {
+        "status": "succeeded",
+        "usage_json": "{\"inputTokens\":2984,\"outputTokens\":394}",
+        "error_code": null
+      }
+    ],
+    "quickCheck": "ok",
+    "pendingJobs": 0,
+    "readbackVerification": {
+      "independentBugCount": 2,
+      "suggestionCount": 1,
+      "suggestionLinkedOriginal": true,
+      "suggestionReviewRequired": false,
+      "totalIssueRows": 1,
+      "totalSuggestionRows": 1,
+      "sourceEvents": 10,
+      "sourceEventsUnchanged": true,
+      "priorExtractionPreserved": true,
+      "oldFailedJobsPreserved": true,
+      "externalOperations": 0,
+      "foreignKeyCheck": "ok",
+      "suggestionMatch": {
+        "relationship": "same_request",
+        "distinguishingDetails": [],
+        "conflictingRequirements": []
+      }
     }
   }
 }
