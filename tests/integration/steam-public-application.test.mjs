@@ -142,10 +142,15 @@ test('Steam review-comment M1 batches include the exact same-app parent review c
   assert.ok(batch, 'comment must still enter the model candidate queue');
   assert.ok(batch.contextEventIds.includes(parentReceipt.refs[0].eventId), 'parent review belongs in M3 context');
   assert.ok(!batch.candidateEventIds.includes(parentReceipt.refs[0].eventId), 'parent review is not new comment evidence');
-  const bad = structuredClone(commentEvent); bad.id += ':wrong-app';
+  // An unrelated Steam comment Source cannot inherit the first Source's
+  // previously flushed context, even if the native review ID happens to match.
+  const foreign = { ...child, sourceId: 'review-comments-other-app', sourceUri: 'urn:steam:review-comments-other-app' };
+  runtime.ingress.registerSource(foreign);
+  const bad = structuredClone(commentEvent); bad.id += ':wrong-app'; bad.source = foreign.sourceUri;
+  bad.data.sourceId = foreign.sourceId;
   bad.data.object.externalId += ':other'; bad.data.object.revision = 'x2';
   bad.data.attributes.appId = 999;
-  const badReceipt = runtime.ingress.commitBatch(child, [bad]);
+  const badReceipt = runtime.ingress.commitBatch(foreign, [bad]);
   runtime.tick();
   const other = runtime.store.all('SELECT batch_json FROM feedback_batches').map(row => JSON.parse(row.batch_json))
     .find(item => item.candidateEventIds.includes(badReceipt.refs[0].eventId));
