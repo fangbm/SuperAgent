@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-04",
+  "pullRequest": 7,
+  "branch": "codex/unified-application",
+  "base": "codex/revert-pr4",
+  "startingCommit": "76cee0c860692883aaa6ac398529c0b6fbeb456d",
+  "scope": [
+    "recoverable Source long-term recovery",
+    "trusted builtin Source Registry"
+  ],
+  "excludedByUser": [
+    "QQ Source/Delivery Operator coupling changes"
+  ],
+  "revertPR6Unchanged": true,
+  "m0FrozenContentUnchanged": true,
+  "freezeManifestUnchanged": true,
+  "validation": {
+    "lockedInstall": true,
+    "fullCheck": true,
+    "nodeTests": 276,
+    "referenceSuites": 6,
+    "unifiedApplicationTests": 29,
+    "build": true,
+    "typecheck": true,
+    "boundaries": true,
+    "frozenFiles": 45,
+    "realSQLite": true,
+    "controlledPlatformFixtures": true,
+    "realNewPlatformAcceptance": false
+  },
+  "recovery": {
+    "shortExponentialBudgetPreserved": true,
+    "defaultIntervalMs": 900000,
+    "minIntervalMs": 300000,
+    "maxIntervalMs": 86400000,
+    "defaultJitterRatio": 0.2,
+    "minJitterRatio": 0.1,
+    "maxJitterRatio": 0.5,
+    "oneAttemptPerLongCooldown": true,
+    "permanentFailuresNotRetried": true,
+    "consecutiveFailuresAndLastSuccessRecorded": true,
+    "checkpointRecoveredWithoutDuplicateArchive": true,
+    "retiredHostRevoked": true,
+    "otherSourcesAndCoreContinue": true,
+    "shutdownCancelsRecovery": true,
+    "signalTest": "child IPC emits registered SIGTERM handler; not Windows OS POSIX delivery"
+  },
+  "registry": {
+    "trustedCodeOnly": true,
+    "arbitraryConfigModulesRejected": true,
+    "constructorsCentralized": true,
+    "parserAndSupervisorShareRegistry": true,
+    "manifestIdSdkSchemaPermissionsEnforced": true,
+    "hostAuthorizationSeparated": true,
+    "qqDeliveryKeptSeparateAndUnexpanded": true,
+    "newTrustedSourceWithoutSupervisorModification": true,
+    "allFourExistingSourcesE2E": true
+  },
+  "externalEffects": {
+    "paidModelCalls": 0,
+    "qqMessages": 0,
+    "discordResourceChanges": 0,
+    "githubIssueWrites": 0,
+    "deployments": 0,
+    "newPullRequests": 0
+  }
+}

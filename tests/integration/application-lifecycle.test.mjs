@@ -49,17 +49,17 @@ test('failed source is recreated within bounded budget; another source keeps com
   await app.tick();assert.equal(app.runtime.store.get('SELECT count(*) n FROM event_outbox WHERE status=?','pending').n,0);
 });
 
-test('unavailable plugin exhausts retries without stopping application or inventing coverage',async t=>{
+test('unsupported plugin stays unavailable without automatic retries or stopping Core',async t=>{
   const f=appFixture(t),entry=f.config.sources[3];entry.enabled=true;let starts=0;
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{'steam-discussions':()=>sourceDouble(entry,{start:()=>{starts++;},overrides:{probe:async()=>({connection:'poll',coverage:'unavailable',readMessages:false,readHistory:false,readEdits:false,readAttachments:false})}})}});
   t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='failed');
-  assert.equal(starts,0);assert.equal(app.plugins.status()[entry.id].restarts,1);await app.tick();assert.equal(app.runtime.store.get('SELECT coverage FROM sources WHERE source_id=?',entry.id).coverage,'unavailable');
+  assert.equal(starts,0);assert.equal(app.plugins.status()[entry.id].restarts,0);assert.equal(app.plugins.status()[entry.id].error,'UNSUPPORTED_CAPABILITY');await app.tick();assert.equal(app.runtime.store.get('SELECT coverage FROM sources WHERE source_id=?',entry.id).coverage,'unavailable');
 });
 
 test('background health failure is supervised and is not overwritten by successful sync',async t=>{
   const f=appFixture(t),entry=f.config.sources[0];entry.enabled=true;let starts=0;
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{'qq-official':()=>sourceDouble(entry,{start:async host=>{starts++;await host.reportHealth({coverage:'unavailable',reason:'QQ_GATEWAY_FAILED',checkedAt:new Date().toISOString()});},sync:async host=>host.reportHealth({coverage:'partial',checkedAt:new Date().toISOString()})})}});
-  t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='failed');assert.equal(starts,2);
+  t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='recovery_wait');assert.equal(starts,2);
 });
 
 test('SQLite owner excludes second main instance and releases after normal shutdown',async t=>{

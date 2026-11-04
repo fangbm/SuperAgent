@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SteamReviewsConnector } from '@superagent/connector-steam-reviews';
 import { createApplication } from '../../scripts/application.mjs';
-import { bounded } from '../../scripts/application-plugins.mjs';
+import { bounded } from '../../scripts/plugin-validation.mjs';
 import { appFixture,sourceDouble,material,eventually } from './application-helpers.mjs';
 
 test('actual process crash recovers SQLite main ownership, committed checkpoint, outbox and jobs without replay',async t=>{

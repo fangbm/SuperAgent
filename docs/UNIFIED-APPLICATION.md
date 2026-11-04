@@ -52,9 +52,13 @@ Web 设置 `enabled:true`、`port` 与既有 DPAPI accessConfig，或使用 `acc
 
 ## 生命周期、健康与恢复
 
-Source 状态区分 configured/probing/starting/running/unavailable/retry_wait/failed/stopped，coverage 独立保留 unknown/partial/unavailable。应用 started 只表示启动了管理程序，不能证明平台权限或完整采集。
+Source 状态区分 configured/probing/starting/running/unavailable/retry_wait/recovery_wait/failed/stopped，coverage 独立保留 unknown/partial/unavailable。应用 started 只表示启动了管理程序，不能证明平台权限或完整采集。状态还保留错误原因、连续失败次数、最近成功/失败时间及 nextRetryAt。
 
 Discord、Steam Reviews、Steam Discussions snapshot 的 start 已包含自身 sync/轮询，supervisor 监督其长期 Promise，不再并发调用 sync。QQ start 创建后台网关并返回，随后才周期串行 sync/probe。Host 健康异常超出 healthGraceMs 或任务异常结束时停止旧实例，按 maxRestarts、backoffMs 与 maxBackoffMs 有界重建；任何一次都读取 Host 已提交 checkpoint，不使用内存猜测进度。QQ 后台失败经健康上报监督，不能被下一次 sync 擦除。
+
+短期预算耗尽后，可恢复故障进入长期低频恢复，默认每次等待 15–18 分钟后只重建一个实例。runtime.recoveryIntervalMs 默认 900000，允许 300000–86400000；recoveryJitterRatio 默认 0.2，允许 0.1–0.5。每次间隔至少五分钟，不重新发放短期突发额度。明确配置、认证、权限、身份/Checkpoint 和不支持的能力进入 failed，操作员修复后重启。关闭取消全部恢复任务。
+
+可信内置定义集中于 scripts/source-registry.mjs，配置解析与 Supervisor 共享注册信息。构造、公共 Manifest 校验、Host 授权/撤权分别独立；新增可信 Source 只需注册和配置。正式 JSON 不接受任意模块路径。QQ Delivery 构造保留独立产品模块，未引入通用 Delivery 系统。详见 [ADR 0015](ADR/0015-source-registry-and-recovery.md)。
 
 每个 Source Host 只暴露 projectId、sourceId、日志、声明内的 getSecret、getCheckpoint、commitBatch 与 reportHealth。Ingress 继续校验运行时 Schema、来源身份、Checkpoint sourceId，并原子保存事件、投影、outbox 和 checkpoint。旧实例 Host 失效后不能再推进进度。插件是可信进程内代码，这些边界不是 JavaScript 或网络沙箱。
 

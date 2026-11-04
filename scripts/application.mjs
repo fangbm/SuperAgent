@@ -10,7 +10,11 @@ import { GitHubREST } from '@superagent/issue-tracker';
 import { deliveryHost } from '@superagent/plugin-host';
 import { createConsoleServer } from '@superagent/web-console';
 import { parseApplicationConfig } from './application-config.mjs';
-import { ApplicationPlugins,createDelivery,validatePlugin,secretReader,bounded } from './application-plugins.mjs';
+import { ApplicationPlugins } from './application-plugins.mjs';
+import { builtinSources } from './source-registry.mjs';
+import { createDelivery,validateDelivery } from './qq-delivery.mjs';
+import { secretReader } from './application-plugin-host.mjs';
+import { bounded } from './plugin-validation.mjs';
 import { acquireApplicationOwner } from './application-owner.mjs';
 import { createM3Services } from './m3-services.mjs';
 import { createM5 } from './m5-runtime.mjs';
@@ -36,7 +40,8 @@ function webhook(plugin) {
 const safeError=error=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'APPLICATION_FAILED';
 
 export async function createApplication(input,options={}) {
-  const config=parseApplicationConfig(input,options.directory),env=options.env??process.env,clock=options.clock,log=options.log??(()=>{});
+  const registry=options.sourceRegistry??builtinSources;
+  const config=parseApplicationConfig(input,options.directory,registry),env=options.env??process.env,clock=options.clock,log=options.log??(()=>{});
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
   let runtime,owner,m5,manager,m3,webServer,processor,closePromise,started=false,ticking=false;
@@ -55,8 +60,8 @@ export async function createApplication(input,options={}) {
       ...(config.github.baseURL?{baseURL:config.github.baseURL}:{}),allowLoopbackHTTP:config.github.allowLoopbackHTTP===true})):null;
     const analysisConfig={...config.analysis,...(config.analysis.enabled&&config.analysis.apiKeyEnv?{apiKey:required(config.analysis.apiKeyEnv)}:{})};
     const delivery=config.deliveries.find(e=>e.enabled);
-    if(delivery)validatePlugin((options.deliveryFactory??createDelivery)(delivery.config),delivery,'delivery');
-    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,
+    if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
+    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,
       ...(delivery?{operator:{receive:request=>m5.qq.receive(request)}}:{})});
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
@@ -75,7 +80,7 @@ export async function createApplication(input,options={}) {
     m5=await createM5({database:config.database,project:config.projectId,'qq-configured':!!delivery,'qq-write':delivery?.allowWrites===true,
       'qq-readonly':!config.github.allowWrites,'github-write':config.github.allowWrites},signal,
       {runtime,memory,domain,clock,access,repository:config.github.repository??'',github,tickIngress:false,scheduleReports:config.reports.enabled,
-        ...(delivery?{readSecret:secretReader(delivery,env),deliveryFactory:callbacks=>validatePlugin((options.deliveryFactory??createDelivery)({...delivery.config,...callbacks}),delivery,'delivery'),
+        ...(delivery?{readSecret:secretReader(delivery,env),deliveryFactory:callbacks=>validateDelivery((options.deliveryFactory??createDelivery)({...delivery.config,...callbacks}),delivery),
           deliveryHostFactory:(plugin,read)=>deliveryHost(plugin,read)}:{})});
     manager.runtime=runtime;manager.owner=owner;
     const tick=async()=>{

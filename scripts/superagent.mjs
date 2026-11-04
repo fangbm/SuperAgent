@@ -1,7 +1,8 @@
 import { parseArgs } from 'node:util';
 import { loadApplicationConfig } from './application-config.mjs';
 import { createApplication } from './application.mjs';
-import { ApplicationPlugins,createDelivery,validatePlugin } from './application-plugins.mjs';
+import { ApplicationPlugins } from './application-plugins.mjs';
+import { createDelivery,validateDelivery } from './qq-delivery.mjs';
 
 const {values}=parseArgs({options:{config:{type:'string',default:'config/superagent.json'},'check-config':{type:'boolean',default:false},'run-for-ms':{type:'string'}}});
 const controller=new AbortController(),stop=()=>controller.abort();
@@ -12,7 +13,7 @@ try{
   const config=loadApplicationConfig(values.config);
   if(values['check-config']){
     new ApplicationPlugins(null,config,null);
-    for(const entry of config.deliveries.filter(e=>e.enabled))validatePlugin(createDelivery(entry.config),entry,'delivery');
+    for(const entry of config.deliveries.filter(e=>e.enabled))validateDelivery(createDelivery(entry.config),entry);
     console.log(JSON.stringify({state:'config_valid',enabledSources:config.sources.filter(e=>e.enabled).map(e=>e.id)}));
   }else{
     const ms=values['run-for-ms']===undefined?null:Number(values['run-for-ms']);

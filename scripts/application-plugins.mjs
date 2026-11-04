@@ -1,123 +1,119 @@
-import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
-import { parseContract } from '@superagent/contract-validation';
-import { DiscordConnector } from '@superagent/connector-discord';
-import { SteamReviewsConnector } from '@superagent/connector-steam-reviews';
-import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
-import { QQSource, QQC2CDelivery } from '@superagent/qq-official';
-import { configuredSecrets } from './qq-common.mjs';
+import { builtinSources } from './source-registry.mjs';
+import { validatePlugin,bounded } from './plugin-validation.mjs';
+import { scopedSourceHost } from './application-plugin-host.mjs';
 
-const require=createRequire(import.meta.url), Ajv=require('ajv/dist/2020').default;
-// Existing schemas use conditional required fields declared in their parent object.
-const ajv=new Ajv({strict:true,strictRequired:false,allErrors:true});require('ajv-formats')(ajv);
-export const sourceCatalog={
-  'qq-official':{factory:c=>new QQSource(c),id:'qq-official-source',mode:'background'},
-  discord:{factory:c=>new DiscordConnector(c),id:'superagent.discord',mode:'blocking'},
-  'steam-reviews':{factory:c=>new SteamReviewsConnector(c),id:'superagent.steam-reviews',mode:'blocking'},
-  'steam-discussions':{factory:c=>new SteamDiscussionsConnector(c),id:'superagent.steam-discussions',mode:'blocking'},
-};
-export const createDelivery=c=>new QQC2CDelivery(c);
-const code = error => error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'PLUGIN_FAILED';
-export async function bounded(task,ms,label='PLUGIN_TIMEOUT') {
-  let timer;try{return await Promise.race([Promise.resolve(task),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label)),ms);})]);}finally{clearTimeout(timer);}
-}
-export function validatePlugin(plugin,entry,kind) {
-  const m=parseContract('plugin-manifest-v1',plugin.manifest);
-  const expected=kind==='source'?sourceCatalog[entry.plugin].id:'qq-official-c2c-delivery';
-  if(m.id!==expected||m.kind!==kind||!['^0.1.0','~0.1.0','0.1.0'].includes(m.engine.sdk))throw new Error('PLUGIN_API_INCOMPATIBLE');
-  if(kind==='source'&&(!m.permissions.eventPublish||m.permissions.deliverySend)||kind==='delivery'&&(!m.permissions.deliverySend||m.permissions.eventPublish))throw new Error('PLUGIN_PERMISSION_MISMATCH');
-  for(const key of ['networkHosts','secretKeys'])if(m.permissions[key].some(v=>!entry.permissions[key].includes(v))||entry.permissions[key].some(v=>!m.permissions[key].includes(v)))throw new Error('PLUGIN_PERMISSION_DENIED');
-  if(!ajv.compile(m.configSchema)(entry.config))throw new Error('INVALID_PLUGIN_CONFIGURATION');
-  for(const name of kind==='source'?['probe','start','sync','stop']:['probe','send'])if(typeof plugin[name]!=='function')throw new Error('INVALID_PLUGIN_IMPLEMENTATION');
-  return plugin;
-}
-export function secretReader(entry,env=process.env) {
-  let protectedReader;
-  return async key=>{
-    if(!entry.permissions.secretKeys.includes(key))throw new Error('SECRET_NOT_AUTHORIZED');
-    const name=entry.secrets?.[key];
-    if(name){if(!env[name])throw new Error('PLUGIN_SECRET_MISSING');return env[name];}
-    if(entry.protectedConfig){protectedReader??=configuredSecrets({'protected-config':entry.protectedConfig});return protectedReader(key==='QQ_OPERATOR_OPENID'?'QQ_RECIPIENT_OPENID':key);}
-    throw new Error('PLUGIN_SECRET_MISSING');
-  };
+const healthy=coverage=>['partial','complete'].includes(coverage);
+/** Keep provider error codes, not arbitrary exception bodies or credentials. */
+export function sourceFailure(error,fallback='PLUGIN_FAILED') {
+  const raw=typeof error==='string'?error:error?.reason??error?.code??error?.message??'';
+  const code=error?.name==='ContractValidationError'?(error.contract==='plugin-manifest-v1'?'INVALID_PLUGIN_MANIFEST':'INVALID_SOURCE_EVENT'):String(raw).match(/^([A-Z][A-Z0-9_]{0,99})(?=:|\s|$)/)?.[1]??fallback;
+  // This QQ budget is transient network exhaustion even though its SDK outcome is blocked.
+  const detail=String(raw).match(/^[A-Z][A-Z0-9_]{0,99}:([A-Z][A-Z0-9_]{0,99})(?:\s|$)/)?.[1];
+  const reason=detail?`${code}:${detail}`:code;
+  if(code==='QQ_GATEWAY_RECONNECT_BUDGET')return {code,reason,retryable:true};
+  const permanent=/^(?:INVALID_CONFIG|INVALID_PLUGIN_|INVALID_SOURCE_EVENT|PLUGIN_API_INCOMPATIBLE|PLUGIN_PERMISSION_|PLUGIN_SECRET_|UNAUTHORIZED|PERMISSION_DENIED|PLATFORM_BLOCKED|UNSUPPORTED_CAPABILITY|SECRET_NOT_AUTHORIZED|SOURCE_.*MISMATCH|CHECKPOINT_SOURCE_MISMATCH|INVALID_CHECKPOINT|APPLICATION_OWNERSHIP_LOST|ERR_INVALID_URL|QQ_SOURCE_(?:SECRETS_REQUIRED|BINDING_CHANGED)|QQ_INVALID_SOURCE_CONFIG|QQ_HTTP_(?:400|401|403|404)$|QQ_GATEWAY_CLOSE_(?:4001|4002|4004|4010|4011|4012|4013|4014|4914|4915)$)/.test(code);
+  return {code,reason,retryable:!permanent&&error?.outcome!=='blocked'&&error?.retryable!==false};
 }
 
-/** Trusted in-process plugins get only the frozen, scoped Host. Not a JavaScript sandbox. */
+/** One supervisor, one bound Host per live instance. Registry owns platform construction. */
 export class ApplicationPlugins {
-  constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{}}={}) {
-    Object.assign(this,{runtime,config,owner,env,factories,operator,log});this.controller=new AbortController();this.tasks=[];this.instances=new Map();this.states=new Map();this.prepared=new Map();this.closed=false;
+  constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{},registry=builtinSources,timing={}}={}) {
+    Object.assign(this,{runtime,config,owner,env,factories,operator,log,registry});
+    this.timing={now:()=>Date.now(),random:Math.random,wait:(ms,signal)=>delay(ms,undefined,{signal}),...timing};
+    this.controller=new AbortController();this.tasks=[];this.instances=new Map();this.states=new Map();this.prepared=new Map();this.closed=false;
     for(const entry of config.sources.filter(e=>e.enabled)) {
-      this.prepared.set(entry.id,this.make(entry)); // Validate before any Source is registered/started.
-      this.states.set(entry.id,{state:'configured',restarts:0,coverage:'unknown'});
+      this.prepared.set(entry.id,this.make(entry));
+      this.states.set(entry.id,{state:'configured',restarts:0,recoveries:0,coverage:'unknown',consecutiveFailures:0,lastSuccessAt:null,lastFailureAt:null,error:null,nextRetryAt:null});
     }
   }
   make(entry) {
-    const factory=this.factories[entry.plugin]??sourceCatalog[entry.plugin].factory;
-    return validatePlugin(factory({...entry.config,...(entry.plugin==='qq-official'&&this.operator?{operator:this.operator}:{})}),entry,'source');
+    const definition=this.registry.get(entry.plugin),factory=this.factories[entry.plugin]??definition.factory;
+    const config=definition.configure?definition.configure(entry.config,{operator:this.operator}):entry.config;
+    return validatePlugin(factory(config),entry,{id:definition.id,kind:'source'});
   }
-  status() { return Object.fromEntries([...this.states].map(([id,state])=>[id,{...state}])); }
+  status() {return Object.fromEntries([...this.states].map(([id,state])=>[id,structuredClone(state)]));}
   update(entry,change) {const s={...this.states.get(entry.id),...change};this.states.set(entry.id,s);this.log({kind:'plugin',sourceId:entry.id,...s});}
   start() {
     if(this.tasks.length||this.closed)throw new Error('PLUGIN_MANAGER_ALREADY_STARTED');
-    // Resolve every persisted binding before opening any connection.
-    for(const entry of this.config.sources.filter(e=>e.enabled)) {
-      const binding={projectId:this.config.projectId,sourceId:entry.id,sourceUri:entry.config.sourceUri,platform:entry.plugin};
-      this.runtime.ingress.registerSource(binding);
-    }
-    for(const entry of this.config.sources.filter(e=>e.enabled)) {
-      const binding={projectId:this.config.projectId,sourceId:entry.id,sourceUri:entry.config.sourceUri,platform:entry.plugin};
-      this.tasks.push(this.supervise(entry,binding).catch(error=>{this.update(entry,{state:'failed',error:code(error)});}));
-    }
+    const entries=this.config.sources.filter(e=>e.enabled);
+    const binding=entry=>({projectId:this.config.projectId,sourceId:entry.id,sourceUri:entry.config.sourceUri,platform:this.registry.get(entry.plugin).platform});
+    for(const entry of entries)this.runtime.ingress.registerSource(binding(entry));
+    for(const entry of entries)this.tasks.push(this.supervise(entry,binding(entry)).catch(error=>{
+      const failure=sourceFailure(error);this.update(entry,{state:'failed',coverage:'unavailable',error:failure.code,retryable:false,nextRetryAt:null});
+    }));
   }
   async supervise(entry,binding) {
-    const p=this.config.runtime;
-    for(let attempt=0;attempt<=p.maxRestarts&&!this.controller.signal.aborted;attempt++) {
-      const plugin=attempt===0?this.prepared.get(entry.id):this.make(entry), controller=new AbortController(),signal=AbortSignal.any([this.controller.signal,controller.signal]);
-      let open=true,run,settled=false,failure,unavailableSince=null;
-      const assert=()=>{if(!open)throw new Error('PLUGIN_HOST_CLOSED');this.owner.assert();};
-      const base=this.runtime.ingress.sourceHost({projectId:binding.projectId,sourceId:binding.sourceId},{secretKeys:plugin.manifest.permissions.secretKeys,getSecret:secretReader(entry,this.env)});
-      const host=Object.freeze({...base,
-        getSecret:async key=>{assert();return base.getSecret(key);},
-        getCheckpoint:async()=>{assert();return base.getCheckpoint();},
-        commitBatch:async(events,cp)=>{assert();return base.commitBatch(events,cp);},
-        reportHealth:async health=>{assert();await base.reportHealth(health);unavailableSince=health.coverage==='unavailable'?(unavailableSince??Date.now()):null;this.update(entry,{coverage:health.coverage,state:health.coverage==='unavailable'?'unavailable':'running'});},
-      });
-      this.instances.set(entry.id,{plugin,host,signal});this.update(entry,{state:'probing',restarts:attempt});
+    const p=this.config.runtime,definition=this.registry.get(entry.plugin);
+    let attempt=0,shortRetries=0,recoveries=0;
+    while(!this.controller.signal.aborted) {
+      const controller=new AbortController(),signal=AbortSignal.any([this.controller.signal,controller.signal]);
+      let plugin,capabilityHost,run,settled=false,startFailure,stopping=false,failure,unavailable=null;
+      const now=()=>new Date(this.timing.now()).toISOString();
+      const success=()=>{if(!stopping&&!this.controller.signal.aborted)this.update(entry,{lastSuccessAt:now(),consecutiveFailures:0,error:null});};
+      const observedHealth=health=>{
+        if(stopping||this.controller.signal.aborted)return;
+        unavailable=health.coverage==='unavailable'?{since:unavailable?.since??this.timing.now(),failure:sourceFailure(health.reason,'PLUGIN_HEALTH_UNAVAILABLE'),origin:'host'}:null;
+        if(healthy(health.coverage))success();
+        this.update(entry,{coverage:health.coverage,state:health.coverage==='unavailable'?'unavailable':'running',healthReason:health.reason??null});
+      };
       try {
-        const initial=await bounded(plugin.probe(),p.stopTimeoutMs);
-        signal.throwIfAborted();
+        plugin=attempt===0?this.prepared.get(entry.id):this.make(entry);
+        capabilityHost=scopedSourceHost(this.runtime,binding,entry,this.owner,{env:this.env,onHealth:observedHealth,onCommit:result=>{if(result.accepted>0)success();}});
+        const host=capabilityHost.host;
+        this.instances.set(entry.id,{plugin,host,signal});this.update(entry,{state:'probing',restarts:attempt,recoveries,nextRetryAt:null});
+        const initial=await bounded(plugin.probe(),p.stopTimeoutMs);signal.throwIfAborted();
         this.update(entry,{coverage:initial.coverage,capability:initial});
-        if(initial.coverage==='unavailable')throw new Error('PLUGIN_CAPABILITY_UNAVAILABLE');
+        const probeFailure=cap=>sourceFailure(definition.unavailableCode?.(entry.config)??cap.reason,'PLUGIN_CAPABILITY_UNAVAILABLE');
+        if(initial.coverage==='unavailable')throw probeFailure(initial);
         this.update(entry,{state:'starting'});
-        run=Promise.resolve().then(()=>plugin.start(host,signal)).then(()=>{settled=true;},error=>{settled=true;failure=error;});
+        run=Promise.resolve().then(()=>plugin.start(host,signal)).then(()=>{settled=true;},error=>{settled=true;startFailure=error;});
         while(!signal.aborted) {
-          if(failure)throw failure;
-          if(settled&&sourceCatalog[entry.plugin].mode==='blocking')throw new Error('PLUGIN_EXITED');
-          if(settled&&sourceCatalog[entry.plugin].mode==='background'&&this.states.get(entry.id).state==='starting')this.update(entry,{state:'running'});
-          // A background failure reported through Host health must not be erased by sync().
-          if(settled&&unavailableSince===null&&sourceCatalog[entry.plugin].mode==='background')await bounded(plugin.sync(host,signal),p.stopTimeoutMs);
-          const capability=await bounded(plugin.probe(),p.stopTimeoutMs);
-          this.update(entry,{capability});
-          if(capability.coverage==='unavailable')unavailableSince??=Date.now();
-          if(unavailableSince!==null&&Date.now()-unavailableSince>=p.healthGraceMs)throw new Error('PLUGIN_HEALTH_UNAVAILABLE');
-          await delay(p.probeIntervalMs,undefined,{signal});
+          if(startFailure)throw startFailure;
+          if(settled&&definition.mode==='blocking')throw new Error('PLUGIN_EXITED');
+          if(unavailable&&!unavailable.failure.retryable)throw unavailable.failure;
+          if(settled&&definition.mode==='background'&&this.states.get(entry.id).state==='starting')this.update(entry,{state:'running'});
+          // Never erase a dead background connection's health with an unrelated successful sync/probe.
+          if(settled&&!unavailable&&definition.mode==='background')await bounded(plugin.sync(host,signal),p.stopTimeoutMs);
+          const cap=await bounded(plugin.probe(),p.stopTimeoutMs);signal.throwIfAborted();
+          this.update(entry,{capability:cap});
+          if(startFailure)throw startFailure;
+          if(cap.coverage==='unavailable'){
+            const problem=probeFailure(cap);
+            unavailable??={since:this.timing.now(),failure:problem,origin:'probe'};
+            if(!problem.retryable)throw problem;
+            this.update(entry,{coverage:'unavailable',healthReason:problem.code});
+          }else if(unavailable?.origin==='probe'){
+            unavailable=null;this.update(entry,{coverage:cap.coverage});
+          }
+          if(settled&&!unavailable&&healthy(cap.coverage)&&cap.readMessages)success();
+          if(unavailable&&this.timing.now()-unavailable.since>=p.healthGraceMs)throw unavailable.failure;
+          await this.timing.wait(p.probeIntervalMs,signal);
         }
-      }catch(error){if(!this.controller.signal.aborted){
-        await host.reportHealth({coverage:'unavailable',reason:code(error),checkedAt:new Date().toISOString()}).catch(()=>{});
-        this.update(entry,{state:attempt===p.maxRestarts?'failed':'retry_wait',error:code(error)});
-      }}
+      }catch(error){if(!this.controller.signal.aborted)failure=sourceFailure(error);}
       finally {
-        controller.abort();
-        // Let stop flush accepted work; fence the Host before releasing the shared SQLite owner.
-        try{await bounded(Promise.resolve().then(()=>plugin.stop()),p.stopTimeoutMs,'PLUGIN_STOP_TIMEOUT');}catch(error){this.update(entry,{state:'failed',error:code(error)});}
-        open=false;
+        stopping=true;controller.abort();
+        if(plugin)try{await bounded(Promise.resolve().then(()=>plugin.stop()),p.stopTimeoutMs,'PLUGIN_STOP_TIMEOUT');}catch(error){this.update(entry,{stopError:sourceFailure(error).code});}
+        capabilityHost?.revoke();
         if(run)await bounded(run,p.stopTimeoutMs).catch(()=>{});
         this.instances.delete(entry.id);
       }
-      if(!this.controller.signal.aborted&&attempt<p.maxRestarts)await delay(Math.min(p.maxBackoffMs,p.backoffMs*2**attempt),undefined,{signal:this.controller.signal}).catch(()=>{});
+      if(this.controller.signal.aborted)break;
+      failure??=sourceFailure('PLUGIN_EXITED');
+      this.update(entry,{coverage:'unavailable',error:failure.code,lastFailureReason:failure.reason,healthReason:failure.reason,retryable:failure.retryable,
+        lastFailureAt:now(),consecutiveFailures:this.states.get(entry.id).consecutiveFailures+1});
+      this.runtime.ingress.reportHealth(binding,{coverage:'unavailable',reason:failure.reason,checkedAt:now()});
+      if(!failure.retryable){this.update(entry,{state:'failed',nextRetryAt:null});return;}
+      const short=shortRetries<p.maxRestarts;
+      const ms=short?Math.min(p.maxBackoffMs,p.backoffMs*2**shortRetries):Math.floor(p.recoveryIntervalMs*(1+p.recoveryJitterRatio*Math.max(0,Math.min(1,this.timing.random()))));
+      this.update(entry,{state:short?'retry_wait':'recovery_wait',nextRetryAt:new Date(this.timing.now()+ms).toISOString()});
+      try{await this.timing.wait(ms,this.controller.signal);}catch(error){if(!this.controller.signal.aborted)throw error;}
+      if(this.controller.signal.aborted)break;
+      if(short)shortRetries++;else recoveries++;
+      attempt++;
     }
-    if(this.controller.signal.aborted)this.update(entry,{state:'stopped'});
-    this.runtime.ingress.reportHealth({projectId:binding.projectId,sourceId:binding.sourceId},{coverage:'unavailable',reason:this.controller.signal.aborted?'APPLICATION_STOPPED':'PLUGIN_RESTART_BUDGET_EXHAUSTED',checkedAt:new Date().toISOString()});
+    this.update(entry,{state:'stopped',coverage:'unavailable',nextRetryAt:null});
+    this.runtime.ingress.reportHealth(binding,{coverage:'unavailable',reason:'APPLICATION_STOPPED',checkedAt:new Date(this.timing.now()).toISOString()});
   }
-  async close() {if(this.closed)return;this.closed=true;this.controller.abort();await Promise.allSettled(this.tasks);}
+  async close(){if(this.closed)return;this.closed=true;this.controller.abort();await Promise.allSettled(this.tasks);}
 }
