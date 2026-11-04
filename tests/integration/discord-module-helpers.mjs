@@ -20,7 +20,13 @@ export class CommunityAPI {
     }
     const match=route.match(/^\/channels\/(\d+)$/);
     if(match){const channel=this.channels.get(match[1]);if(!channel)throw new Error('NOT_FOUND');if(method==='DELETE'){if(this.mode==='delete_fail')throw new Error('OUTCOME_UNKNOWN');this.channels.delete(match[1]);return null;}return channel;}
-    if(route.includes('/permissions/'))return null;
+    if(route.includes('/permissions/')){
+      const [,channelId,user]=route.match(/^\/channels\/(\d+)\/permissions\/(\d+)$/)??[];
+      const channel=this.channels.get(channelId);if(!channel)throw new Error('NOT_FOUND');
+      const index=channel.permission_overwrites.findIndex(p=>p.id===user&&p.type===1),overwrite={id:user,...body};
+      if(index<0)channel.permission_overwrites.push(overwrite);else channel.permission_overwrites[index]=overwrite;
+      return null;
+    }
     if(route.includes('/messages?'))return [];
     if(route.endsWith('/messages'))return{id:'9999',channel_id:route.split('/')[2],...body};
     if(route.startsWith('/interactions/')||route.startsWith('/webhooks/'))return null;

@@ -164,6 +164,10 @@ export class DiscordTickets implements DiscordBusinessModule {
       if(!object(channel)||channel.guild_id!==this.guildId||channel.parent_id!==this.config.categoryId||channel.topic!==marker||channel.type!==0||!this.privateChannel(channel,t.userId))throw new Error('DISCORD_TICKET_CHANNEL_IDENTITY');
       if(t.status==='delete_pending'||t.status==='deleting'){
         if(t.status==='deleting'){await this.change(row,{status:'blocked',lastError:'DISCORD_DELETE_REQUIRES_RECONCILIATION'});continue;}
+        const requester=Array.isArray(channel.permission_overwrites)?channel.permission_overwrites.find(p=>object(p)&&p.id===t.userId&&p.type===1):undefined;
+        if(!object(requester)||(BigInt(String(requester.deny??'0'))&2048n)===0n||(BigInt(String(requester.allow??'0'))&2048n)!==0n){
+          await this.api.request('PUT',`/channels/${t.channelId}/permissions/${t.userId}`,{type:1,allow:String(1024n|65536n),deny:String(2048n|(1n<<35n)|(1n<<36n))},signal);await this.change(row,{appliedStatus:'closed'});continue;
+        }
         if(await this.host.pending()||!(await this.flush(t.channelId,signal)))continue;
         await this.change(row,{status:'deleting'});await this.api.request('DELETE','/channels/'+t.channelId,undefined,signal);const fresh=await this.host.get(row.key);if(fresh)await this.change(fresh,{status:'deleted'});continue;
       }

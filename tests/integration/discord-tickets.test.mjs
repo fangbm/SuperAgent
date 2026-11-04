@@ -47,7 +47,7 @@ test('requester owns only their ticket, current staff may claim/delete, and clos
   await f.handle(interaction('10004','222','claim',{ticket:ticket.id}));assert.equal(f.tickets()[0].value.claimedBy,'222');
   await f.handle(interaction('10005','111','close',{ticket:ticket.id}));assert.equal(f.tickets()[0].value.status,'closed');
   await f.handle(interaction('10006','111','reopen',{ticket:ticket.id}));assert.equal(f.tickets()[0].value.status,'open');assert.equal(f.host.list('history:'+ticket.id+':').length,4);
-  await f.handle(interaction('10007','111','close',{ticket:ticket.id}));await f.handle(interaction('10008','222','delete',{ticket:ticket.id}));await f.module.tick(new AbortController().signal);assert.equal(f.tickets()[0].value.status,'deleted');assert.equal(f.host.list('history:'+ticket.id+':').length,6);
+  await f.handle(interaction('10007','111','close',{ticket:ticket.id}));await f.handle(interaction('10008','222','delete',{ticket:ticket.id}));await f.module.tick(new AbortController().signal);assert.equal(f.api.calls.filter(c=>c.method==='DELETE').length,0);assert.equal(f.tickets()[0].value.status,'delete_pending');await f.module.tick(new AbortController().signal);assert.equal(f.tickets()[0].value.status,'deleted');assert.equal(f.host.list('history:'+ticket.id+':').length,6);
 });
 test('retired module port cannot write, binding changes cannot adopt another private project',async t=>{
   const f=ticketFixture(t),port=f.host.port();f.host.revoke();await assert.rejects(port.commit([{key:'ticket:bad',expectedVersion:null,value:{}}]),/DISCORD_MODULE_HOST_CLOSED/);
@@ -64,7 +64,7 @@ test('channel reclamation pages a full history and unknown delete never issues a
     if(method==='GET'&&route.startsWith(`/channels/${channel}/messages?`)&&!route.includes('before='))return Array.from({length:100},(_,i)=>({id:String(9000-i),channel_id:channel,guild_id:'100',content:'private history '+i,timestamp:'2026-11-02T00:00:00.000Z',author:{id:'111'},attachments:[]}));
     return request(method,route,body,signal);
   };
-  await f.handle(interaction('10002','111','close',{ticket:id}));await f.handle(interaction('10003','222','delete',{ticket:id}));f.api.mode='delete_fail';await assert.rejects(f.module.tick(new AbortController().signal),/OUTCOME_UNKNOWN/);
+  await f.handle(interaction('10002','111','close',{ticket:id}));await f.handle(interaction('10003','222','delete',{ticket:id}));await f.module.tick(new AbortController().signal);f.api.mode='delete_fail';await assert.rejects(f.module.tick(new AbortController().signal),/OUTCOME_UNKNOWN/);
   assert.equal(f.runtime.store.get('SELECT count(*) n FROM source_events WHERE project_id=?',f.binding.projectId).n,101);await f.module.tick(new AbortController().signal);
   assert.equal(f.api.calls.filter(c=>c.method==='DELETE').length,1);assert.equal(f.tickets()[0].value.status,'blocked');
 });
