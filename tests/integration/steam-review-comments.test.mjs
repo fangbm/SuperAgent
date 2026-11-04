@@ -210,7 +210,7 @@ test('Steam comment errors retain checkpoints; 429 honors Retry-After and malfor
   void seed;
   const waits = []; let calls = 0;
   const retry = new SteamReviewCommentsConnector(configValue, { sleep: async ms => waits.push(ms), now: () => 1800000000000, fetch: async () => { calls++; return new Response('', { status: 429, headers: { 'retry-after': '7' } }); } });
-  await retry.sync(f.host, signal()); assert.ok(waits.includes(7000));
+  await retry.sync(f.host, signal()); assert.deepEqual(waits, []); assert.equal(calls, 1, '429 must not be retried before its deadline');
   assert.ok((await f.host.getCheckpoint()).nextEligibleAt > 1800000000000);
   const before = await f.host.getCheckpoint(); await f.host.commitBatch([], { sourceId: f.scope.sourceId, cursor: { ...before, nextEligibleAt: 0 } });
   const immediate = await f.host.getCheckpoint();

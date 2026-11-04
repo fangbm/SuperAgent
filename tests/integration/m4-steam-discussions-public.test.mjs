@@ -113,15 +113,22 @@ test('public checkpoints are bound to source URI as well as app and forum', asyn
   assert.deepEqual(await f.host.getCheckpoint(), before);
 });
 
-test('actual retries consume the per-sync budget and honor Retry-After', async t => {
+test('discussion 429 commits Retry-After without waiting or retrying early', async t => {
   const f = connectorFixture(t, 'steam-discussions'); const waits = []; let calls = 0;
-  const connector = new SteamDiscussionsConnector({ ...config(f.binding.sourceUri), maxRequestsPerSync: 2 }, { sleep: async ms => { waits.push(ms); }, fetch: async () => {
+  let now = Date.parse('2026-11-04T00:00:00Z');
+  const connector = new SteamDiscussionsConnector({ ...config(f.binding.sourceUri), maxRequestsPerSync: 2 }, { clock: () => new Date(now), sleep: async ms => { waits.push(ms); }, fetch: async () => {
     calls++; return calls === 1 ? new Response('', { status: 429, headers: { 'retry-after': '3' } }) : new Response(fixture('forum.html'), { status: 200 });
   } });
   await connector.sync(f.host, signal());
-  assert.equal(calls, 2);
-  assert.equal(waits.some(ms => ms >= 3000), true);
-  assert.deepEqual((await f.host.getCheckpoint()).forums['0'].feature, '0');
+  assert.equal(calls, 1);
+  assert.deepEqual(waits, []);
+  assert.equal((await f.host.getCheckpoint()).retryAfter, now + 3000);
+  await connector.sync(f.host, signal());
+  assert.equal(calls, 1, 'no early retry while cooldown is committed');
+  now += 3000;
+  await connector.sync(f.host, signal());
+  assert.equal((await f.host.getCheckpoint()).forums['0'].feature, '0');
+  assert.ok(calls > 1);
 });
 
 test('a network failure retains the current list offset for the next poll', async t => {
