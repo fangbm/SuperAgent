@@ -1,0 +1,13 @@
+import { M1Runtime } from '@superagent/agent-core';
+import { DiscordModuleHost } from '@superagent/plugin-host';
+import { DiscordTickets } from '@superagent/connector-discord';
+import { readFileSync } from 'node:fs';
+import { interaction } from './discord-module-helpers.mjs';
+const [filename,mode]=process.argv.slice(2);
+const clock=()=>'2026-11-02T00:00:00.000Z';
+const policy=JSON.parse(readFileSync(new URL('../../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
+const runtime=new M1Runtime(filename,{policy:{...policy,auditSampleRate:0},clock}),binding={namespace:'ticket-fixture',kind:'tickets',guildId:'100',projectId:'staff-private',publicProjectId:'game-test',sourceId:'discord-private',sourceUri:'urn:superagent:source:discord-private'};
+const block=stage=>{process.send({stage});Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);};
+const host=new DiscordModuleHost(runtime.store,binding,{clock,assertOwner:()=>{},commit:events=>{const result=runtime.ingress.commitBatch({projectId:binding.projectId,sourceId:binding.sourceId},events);if(mode==='inside')block('inside');return result;},getEvent:id=>runtime.ingress.getEvent(binding.projectId,id)?.event});
+const module=new DiscordTickets('100',{enabled:true,allowWrites:false,projectId:binding.projectId,categoryId:'400',staffRoleIds:['500']},host.port(),{request:async()=>{throw new Error('NO_PLATFORM_CALL_ALLOWED');}});
+const packet=interaction();host.receive(packet);await module.handle(packet,new AbortController().signal);block('committed');

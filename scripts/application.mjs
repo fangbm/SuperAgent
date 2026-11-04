@@ -20,6 +20,7 @@ import { createM3Services } from './m3-services.mjs';
 import { createM5 } from './m5-runtime.mjs';
 import { loadM5Access } from './m5-local-access.mjs';
 import { readFileSync } from 'node:fs';
+import { prepareDiscordModules } from './discord-modules.mjs';
 
 const listen=async(server,port)=>{await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.removeListener('error',reject);resolve();});});};
 const closeServer=server=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
@@ -69,7 +70,9 @@ export async function createApplication(input,options={}) {
       ...(delivery?{operator:{receive:request=>m5.qq.receive(request)}}:{})});
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
-    if(runtime.store.get('SELECT 1 FROM projects WHERE project_id<>? LIMIT 1',config.projectId))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');
+    manager.context.discord=prepareDiscordModules(runtime,config,owner);
+    const restricted=runtime.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='restricted_projects'");
+    if(runtime.store.get(`SELECT 1 FROM projects WHERE project_id<>? ${restricted?'AND project_id NOT IN (SELECT project_id FROM restricted_projects WHERE owner_project_id=?)':''} LIMIT 1`,config.projectId,...(restricted?[config.projectId]:[])))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');
     const memory=new HybridMemory(runtime.store);
     const domain=new DomainService(runtime.store,memory,{authorizedActors:['web-developer','qq-developer'],...(clock?{clock}:{}),
       ...(config.github.enabled?{repositories:{[config.projectId]:config.github.repository}}:{})});

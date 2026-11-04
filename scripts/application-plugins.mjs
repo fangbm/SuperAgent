@@ -18,8 +18,8 @@ export function sourceFailure(error,fallback='PLUGIN_FAILED') {
 
 /** One supervisor, one bound Host per live instance. Registry owns platform construction. */
 export class ApplicationPlugins {
-  constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{},registry=builtinSources,timing={}}={}) {
-    Object.assign(this,{runtime,config,owner,env,factories,operator,log,registry});
+  constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{},registry=builtinSources,timing={},context={}}={}) {
+    Object.assign(this,{runtime,config,owner,env,factories,operator,log,registry,context});
     this.timing={now:()=>Date.now(),random:Math.random,wait:(ms,signal)=>delay(ms,undefined,{signal}),...timing};
     this.elapsed=timing.monotonicNow??timing.now??(()=>performance.now());
     this.controller=new AbortController();this.tasks=[];this.instances=new Map();this.states=new Map();this.prepared=new Map();this.closed=false;
@@ -33,7 +33,7 @@ export class ApplicationPlugins {
     const config=definition.configure?definition.configure(entry.config,{operator:this.operator}):entry.config;
     return validatePlugin(factory(config),entry,{id:definition.id,kind:'source'});
   }
-  status() {return Object.fromEntries([...this.states].map(([id,state])=>[id,structuredClone(state)]));}
+  status() {return Object.fromEntries([...this.states].map(([id,state])=>[id,{...structuredClone(state),...(this.instances.get(id)?.plugin.moduleStatus?{modules:this.instances.get(id).plugin.moduleStatus()}:{})}]));}
   update(entry,change) {const s={...this.states.get(entry.id),...change};this.states.set(entry.id,s);this.log({kind:'plugin',sourceId:entry.id,...s});}
   start() {
     if(this.tasks.length||this.closed)throw new Error('PLUGIN_MANAGER_ALREADY_STARTED');
@@ -87,14 +87,14 @@ export class ApplicationPlugins {
       };
       try {
         this.owner.assert();
-        const notBefore=await definition.initialize?.({ runtime:this.runtime, entry, binding });
+        plugin=attempt===0?this.prepared.get(entry.id):this.make(entry);
+        const notBefore=await definition.initialize?.({ runtime:this.runtime, entry, binding,plugin,context:this.context });
         if(Number.isSafeInteger(notBefore)&&notBefore>this.timing.now()) {
           this.update(entry,{state:'retry_wait',coverage:'unavailable',healthReason:'RATE_LIMITED',nextRetryAt:new Date(notBefore).toISOString()});
           this.runtime.ingress.reportHealth(binding,{coverage:'unavailable',reason:'RATE_LIMITED',checkedAt:now()});
           await this.timing.wait(notBefore-this.timing.now(),signal);
         }
         signal.throwIfAborted();
-        plugin=attempt===0?this.prepared.get(entry.id):this.make(entry);
         capabilityHost=scopedSourceHost(this.runtime,binding,entry,this.owner,{env:this.env,onHealth:observedHealth,onCommit:result=>{if(result.accepted>0)success();}});
         const host=capabilityHost.host;
         this.instances.set(entry.id,{plugin,host,signal});this.update(entry,{state:'probing',restarts:attempt,recoveries,nextRetryAt:null,shortRetriesUsed:shortRetries});
@@ -113,6 +113,8 @@ export class ApplicationPlugins {
           if(settled&&!unavailable&&definition.mode==='background')await bounded(plugin.sync(host,signal),p.stopTimeoutMs);
           const cap=await bounded(plugin.probe(),p.stopTimeoutMs);signal.throwIfAborted();
           this.update(entry,{capability:cap});
+          const modules=plugin.moduleStatus?.();
+          if(modules&&JSON.stringify(modules)!==JSON.stringify(this.states.get(entry.id).modules))this.update(entry,{modules});
           if(startFailure)throw startFailure;
           if(cap.coverage==='unavailable'){
             clearStable();
