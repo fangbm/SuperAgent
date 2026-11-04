@@ -20,9 +20,10 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   c.reports ??= { enabled:true }; c.web ??= { enabled:false };
   c.notifications ??= { p0Enabled:false };
   c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000,recoveryIntervalMs:900000,recoveryJitterRatio:0.2,stableResetMs:3600000, ...c.runtime };
-  if (!exact(c.analysis, ['enabled','allowExternalCalls','baseURL','model','apiKeyEnv','allowLoopbackHTTP','timeoutMs','maxCalls','maxInputCharacters'])
+  if (!exact(c.analysis, ['enabled','allowExternalCalls','baseURL','model','baseURLEnv','modelEnv','apiKeyEnv','allowLoopbackHTTP','timeoutMs','maxCalls','maxInputCharacters'])
     || typeof c.analysis.enabled !== 'boolean' || typeof c.analysis.allowExternalCalls !== 'boolean'
-    || c.analysis.enabled && (!c.analysis.allowExternalCalls || !text(c.analysis.baseURL) || !text(c.analysis.model))
+    || c.analysis.enabled && (!c.analysis.allowExternalCalls || !(text(c.analysis.baseURL)||text(c.analysis.baseURLEnv)) || !(text(c.analysis.model)||text(c.analysis.modelEnv)))
+    || ['baseURLEnv','modelEnv','apiKeyEnv'].some(key=>c.analysis[key]!==undefined&&(!text(c.analysis[key])||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.analysis[key])))
     || !exact(c.github, ['enabled','allowWrites','repository','tokenEnv','baseURL','allowLoopbackHTTP'])
     || typeof c.github.enabled !== 'boolean' || typeof c.github.allowWrites !== 'boolean'
     || c.github.allowWrites && !c.github.enabled

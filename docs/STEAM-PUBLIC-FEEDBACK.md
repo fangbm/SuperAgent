@@ -4,7 +4,7 @@ This guide describes Steam connector use through the unified application. The fo
 
 ## Steam-only application config
 
-`examples/steam-public/superagent.json` enables three Steam sources: all public reviews, comments on reviews, and public Discussions. It uses `.artifacts/steam-public/state.sqlite`. M3 analysis is enabled in this Steam-only config with a local OpenAI-compatible endpoint (default Ollama `http://127.0.0.1:11434/v1`, model `qwen3:8b`). Install and pull the model before running, or replace `analysis.baseURL` and `analysis.model` with your own compatible provider. Use `analysis.apiKeyEnv` for secrets, not a JSON key. GitHub writes, QQ Delivery, reports, and Web remain disabled. Core archives source events first; M1 filters trivial messages to `archive_only`, while actionable feedback reaches M3. No Steam publisher key or login credential is needed for these public routes.
+`examples/steam-public/superagent.json` enables three Steam sources: all public reviews, comments on reviews, and public Discussions. It uses `.artifacts/steam-public/state.sqlite`. M3 analysis is enabled in this Steam-only config, using a **user-selected OpenAI-compatible endpoint** (cloud API or local server). No Ollama installation or specific model is required. Set `SA_LLM_BASE_URL` (for example `https://your-provider.example/v1`), `SA_LLM_MODEL` (provider model identifier), and `SA_LLM_API_KEY` (provider credential) in the process environment. `analysis.baseURLEnv`, `analysis.modelEnv` and `analysis.apiKeyEnv` resolve the values at startup; do not commit credentials to JSON. If the chosen provider needs no key, remove `apiKeyEnv`. GitHub writes, QQ Delivery, reports and Web remain disabled. Core archives source events first; M1 filters trivial messages to `archive_only`, while actionable feedback reaches M3. No Steam publisher key or login credential is needed for these public routes.
 
 The three sources remain independently bound:
 
@@ -25,9 +25,7 @@ Validate without starting connectors or opening the database, then run the forma
 ```powershell
 pnpm install --frozen-lockfile
 pnpm build
-ollama pull qwen3:8b
-ollama serve
-# In another terminal:
+# Set SA_LLM_BASE_URL, SA_LLM_MODEL and SA_LLM_API_KEY for your chosen provider.
 pnpm start --config examples/steam-public/superagent.json --check-config
 pnpm start --config examples/steam-public/superagent.json --run-for-ms 60000
 ```

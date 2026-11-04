@@ -20,7 +20,7 @@
     }
   ],
   "deliveries": [],
-  "analysis": { "enabled": true, "allowExternalCalls": true, "baseURL": "http://127.0.0.1:11434/v1", "model": "qwen3:8b", "allowLoopbackHTTP": true },
+  "analysis": { "enabled": true, "allowExternalCalls": true, "baseURLEnv": "SA_LLM_BASE_URL", "modelEnv": "SA_LLM_MODEL", "apiKeyEnv": "SA_LLM_API_KEY" },
   "github": { "enabled": false, "allowWrites": false },
   "reports": { "enabled": false },
   "notifications": { "p0Enabled": false },

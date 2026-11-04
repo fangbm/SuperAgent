@@ -9,9 +9,11 @@ import { SteamReviewsConnector,SteamReviewCommentsConnector,seedSteamReviewComme
 import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
 import { appFixture,eventually,untilAbort,SupervisorClock } from './application-helpers.mjs';
 import { M1Runtime } from '@superagent/agent-core';
+import { fixtureAnswer } from './m3-helpers.mjs';
 
 const example=fileURLToPath(new URL('../../examples/steam-public/superagent.json',import.meta.url));
 const fixture=name=>readFileSync(new URL('../fixtures/m4/'+name,import.meta.url),'utf8');
+const modelEnv={SA_LLM_BASE_URL:'https://example-provider.invalid/v1',SA_LLM_MODEL:'test-model',SA_LLM_API_KEY:'test-only-placeholder'};
 
 test('Steam application example validates real manifests without opening its archive or enabling external services',t=>{
   const f=appFixture(t),config=loadApplicationConfig(example);config.database=f.config.database;
@@ -19,7 +21,9 @@ test('Steam application example validates real manifests without opening its arc
   assert.equal(existsSync(config.database),false);
   assert.deepEqual(config.sources.map(s=>s.plugin),['steam-reviews','steam-review-comments','steam-discussions']);
   assert.equal(config.analysis.enabled,true);assert.equal(config.analysis.allowExternalCalls,true);
-  assert.equal(config.analysis.baseURL,'http://127.0.0.1:11434/v1');
+  assert.equal(config.analysis.baseURLEnv,'SA_LLM_BASE_URL');
+  assert.equal(config.analysis.modelEnv,'SA_LLM_MODEL');
+  assert.equal(config.analysis.apiKeyEnv,'SA_LLM_API_KEY');
   assert.equal(config.github.allowWrites,false);assert.equal(config.deliveries.length,0);
   const defaults=loadApplicationConfig(fileURLToPath(new URL('../../config/superagent.json',import.meta.url)));
   assert.ok(defaults.sources.every(source=>!source.enabled));
@@ -40,7 +44,7 @@ test('three actual Steam plugins are supervised independently and archive throug
     }});
     const sync=plugin.sync.bind(plugin);plugin.sync=async(...args)=>{await sync(...args);done.add(kind);};return plugin;
   }]));
-  const app=await createApplication(config,{env:{},access:f.access,policy:f.policy,sourceFactories});f.after(()=>app.close());
+  const app=await createApplication(config,{env:modelEnv,access:f.access,policy:f.policy,sourceFactories});f.after(()=>app.close());
   await app.start();await eventually(()=>done.size===3);
   assert.equal(app.runtime.store.get('SELECT count(*) n FROM source_events').n,2);
   assert.equal(app.runtime.store.get('SELECT count(*) n FROM sources').n,3);
@@ -67,7 +71,7 @@ test('fresh application instances delay diagnostic probes until each Steam sourc
       cp={...runtime.ingress.getCheckpoint(binding),retryAfter:clock.now()+3600000};
     }
     runtime.ingress.commitBatch(binding,[],{sourceId:entry.id,cursor:cp});runtime.close();let probes=0;
-    const app=await createApplication(config,{env:{},policy:f.policy,access:f.access,supervisorTiming:clock,sourceFactories:{[kind]:c=>{
+    const app=await createApplication(config,{env:modelEnv,policy:f.policy,access:f.access,supervisorTiming:clock,sourceFactories:{[kind]:c=>{
       const plugin=kind==='steam-review-comments'?new SteamReviewCommentsConnector(c):new SteamDiscussionsConnector(c);
       plugin.probe=async()=>{probes++;return{connection:'poll',coverage:'partial',readMessages:true,readHistory:true,readEdits:true,readAttachments:false};};
       plugin.start=async(_host,signal)=>untilAbort(signal);return plugin;
@@ -97,13 +101,13 @@ test('first-ever 429 is persisted before any supervised probe and respected afte
       };
       return kind === 'steam-review-comments' ? new SteamReviewCommentsConnector(c, options) : new SteamDiscussionsConnector(c, options);
     } };
-    let app = await createApplication(config, { env: {}, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
+    let app = await createApplication(config, { env: modelEnv, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
     f.after(() => app?.close());
     await app.start();
     await eventually(() => app.runtime.ingress.getCheckpoint(scope)?.[deadlineField] === clock.now() + 3600000);
     assert.equal(calls, 1, 'no unbound startup probe or early retry of a rate-limited request');
     await app.close();
-    app = await createApplication(config, { env: {}, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
+    app = await createApplication(config, { env: modelEnv, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
     await app.start();
     await eventually(() => app.status().plugins[entry.id].state === 'retry_wait');
     assert.equal(calls, 1, 'fresh process must not make any early external request');
@@ -156,4 +160,34 @@ test('Steam review-comment M1 batches include the exact same-app parent review c
     .find(item => item.candidateEventIds.includes(badReceipt.refs[0].eventId));
   assert.ok(other);
   assert.ok(!other.contextEventIds.includes(parentReceipt.refs[0].eventId), 'wrong-app parent must not cross-link');
+});
+
+
+test('Steam review comment traverses M1 and invokes enabled M3 with its parent review as context', async t => {
+  const f=appFixture(t),config=loadApplicationConfig(example);
+  config.database=f.config.database;config.projectId='steam-m3-fixture';config.sources=[];
+  const modelRequests=[];
+  const model={modelId:'test-model',generate:async request=>{
+    const task=JSON.parse(request.prompt);modelRequests.push(task);
+    return {value:fixtureAnswer(task),modelId:'test-model',usage:{inputTokens:1,outputTokens:1}};
+  }};
+  const app=await createApplication(config,{env:modelEnv,model,policy:{...f.policy,maxCandidateMessages:1},access:f.access});
+  f.after(()=>app.close());await app.start();
+  const parent={projectId:config.projectId,sourceId:'reviews-all',sourceUri:'urn:steam:reviews-all',platform:'steam-reviews'};
+  const child={projectId:config.projectId,sourceId:'review-comments',sourceUri:'urn:steam:review-comments',platform:'steam-reviews'};
+  app.runtime.ingress.registerSource(parent);app.runtime.ingress.registerSource(child);
+  const native=JSON.parse(fixture('steam-review.json')),rid=native.recommendationid;
+  const review=normalizeSteamReview(native,{sourceUri:parent.sourceUri,appId:570},parent);
+  const comment=structuredClone(review);comment.source=child.sourceUri;
+  comment.id='comment:'+rid+':9001:created:x1';comment.type='com.superagent.feedback.comment.created.v1';
+  comment.data.sourceId=child.sourceId;comment.data.object={kind:'comment',externalId:'comment:'+rid+':9001',revision:'x1',parentExternalId:rid,threadExternalId:'review:'+rid};
+  comment.data.content={text:'Windows 1.2.0 联机载入90%时崩溃'};
+  comment.data.attributes={appId:570,surface:'review-comments',parentReviewSourceId:parent.sourceId,parentRecommendationId:rid};
+  const parentReceipt=app.runtime.ingress.commitBatch(parent,[review]);
+  const childReceipt=app.runtime.ingress.commitBatch(child,[comment]);
+  for(let i=0;i<8&&!modelRequests.some(q=>q.task==='extract'&&q.messages.some(m=>m.eventId===childReceipt.refs[0].eventId));i++)await app.tick();
+  const extract=modelRequests.find(q=>q.task==='extract'&&q.messages.some(m=>m.eventId===childReceipt.refs[0].eventId));
+  assert.ok(extract,'M3 must receive comment candidate when model is enabled');
+  assert.ok(extract.messages.some(m=>m.role==='candidate'&&m.eventId===childReceipt.refs[0].eventId));
+  assert.ok(extract.messages.some(m=>m.role==='context'&&m.eventId===parentReceipt.refs[0].eventId));
 });
