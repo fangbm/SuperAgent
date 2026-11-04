@@ -64,17 +64,18 @@ export class DurableJobQueue {
       available_at=?,lease_owner=NULL,lease_token=NULL,lease_until=NULL
       WHERE status IN ('leased','running') AND lease_until<=?`, now, now).changes);
   }
-  claim(worker: string, lane: QueueLane, leaseMs = 30_000, kinds?: readonly AgentTaskV1['kind'][]): JobView | undefined {
+  claim(worker: string, lane: QueueLane, leaseMs = 30_000, kinds?: readonly AgentTaskV1['kind'][], minimumPriority?: number): JobView | undefined {
     if (!worker || !Number.isInteger(leaseMs) || leaseMs < 1) throw new Error('INVALID_LEASE');
     const now = timestamp(this.clock());
     if (kinds?.length === 0) return undefined;
-    const filter = kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : '';
+    if(minimumPriority!==undefined&&!Number.isSafeInteger(minimumPriority))throw new Error('INVALID_PRIORITY_FILTER');
+    const filter = (kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : '')+(minimumPriority!==undefined?' AND priority>=?':'');
     return this.store.transaction(() => {
       this.recoverExpired(now);
       const active = this.store.get<{ n: number }>("SELECT count(*) n FROM jobs WHERE lane=? AND status IN ('leased','running') AND lease_until>?", lane, now)!.n;
       if (active >= (this.concurrency[lane] ?? 1)) return undefined;
       const candidates = ['pending', 'retry_wait'].flatMap(status => {
-        const row = this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status=? AND available_at<=?${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`, lane, status, now, ...(kinds ?? []));
+        const row = this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status=? AND available_at<=?${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`, lane, status, now, ...(kinds ?? []),...(minimumPriority!==undefined?[minimumPriority]:[]));
         return row ? [row] : [];
       }).sort((a, b) => b.priority - a.priority || a.created_at.localeCompare(b.created_at) || a.queue_sequence - b.queue_sequence);
       const candidate = candidates[0];

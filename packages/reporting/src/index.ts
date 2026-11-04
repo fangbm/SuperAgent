@@ -16,6 +16,12 @@ interface EventRow { event_id: InternalEventId; source_id: string; received_at: 
 export class ReportService {
   constructor(readonly store: SqliteStore, readonly domain: DomainService, readonly queue: DurableJobQueue, private readonly options: { clock?: Clock; recipients?: readonly string[]; graceSeconds?: number } = {}) {}
   private now(): string { return timestamp((this.options.clock ?? systemClock)()); }
+  private p0Status(projectId:string,issueId:string):string{
+    const row=this.store.get<{status:string|null}>('SELECT d.status FROM p0_alerts a JOIN p0_incidents i USING(incident_id) LEFT JOIN p0_alert_deliveries d USING(alert_id) WHERE i.project_id=? AND a.issue_id=? ORDER BY a.created_at DESC,a.alert_generation DESC LIMIT 1',projectId,issueId);
+    if(!row)return '';
+    const labels:Record<string,string>={pending:'待发送',sending:'发送中',accepted:'接口已受理，未确认已读',rejected:'被拒绝',blocked:'未获发送权限',unknown:'结果未知，禁止自动重发',manual_review:'需人工核对'};
+    return ` · P0 告警：${labels[row.status??'']??'已归档，待建立投递记录'}`;
+  }
   async requestReport(window:ReportWindowV1):Promise<{reportId:string;revision:number}>{const report=this.generate(window);return{reportId:report.reportId,revision:report.revision};}
   generate(window: ReportWindowV1, options: { revise?: boolean; expectedRevision?: number } = {}): ReportV2 {
     const valid = reportWindow(window.projectId, window.endExclusive);
@@ -46,7 +52,7 @@ export class ReportService {
         counts:{newFeedbackItems:itemRows.length,newDefectItems:itemRows.filter(i=>i.kind==='defect').length,newSuggestionItems:itemRows.filter(i=>i.kind==='suggestion').length,uniqueDefects:works.filter(w=>w.kind==='defect').length,uniqueSuggestions:works.filter(w=>w.kind==='suggestion').length,pendingAnalysis:pending},
         issueIds:works.filter(w=>w.kind==='defect').map(w=>w.id),suggestionIds:works.filter(w=>w.kind==='suggestion').map(w=>w.id),uniqueSourceEventCount:eventRows.length,steamNegativeReviews:steam,markdown:'' };
       const lines = ['# 社区反馈半日报',`${this.local(valid.startInclusive)} — ${this.local(valid.endExclusive)} · 北京时间`,`修订 ${revision} · 独立来源事件 ${eventRows.length} · 待分析 ${pending}`,
-        `\n## Bug · ${report.counts.uniqueDefects}`, ...works.filter(w=>w.kind==='defect').slice(0,5).map(w=>`- ${title(w.title)} · 本期反馈 ${itemRows.filter(i=>i.work_id===w.id).length} · ${w.status}${this.store.get('SELECT 1 FROM p0_alerts WHERE issue_id=?',w.id)?' · 已有 P0 告警记录':''}`),
+        `\n## Bug · ${report.counts.uniqueDefects}`, ...works.filter(w=>w.kind==='defect').slice(0,5).map(w=>`- ${title(w.title)} · 本期反馈 ${itemRows.filter(i=>i.work_id===w.id).length} · ${w.status}${this.p0Status(window.projectId,w.id)}`),
         `\n## 建议 · ${report.counts.uniqueSuggestions}`, ...works.filter(w=>w.kind==='suggestion').slice(0,5).map(w=>`- ${title(w.title)} · ${w.status}`),
         `\n## Steam 差评 · ${steam.length}`,'按来源评价去重；原文通过授权详情查询。', '\n## 覆盖与待处理', ...coverage.map(c=>`- ${c.sourceId}: ${c.status}${c.reason?' · '+c.reason:''}`), '仅统计已接入来源；空列表不代表没有反馈。', '查看 Bug / 查看建议 / 查看 Steam 差评'];
       report.markdown=lines.join('\n'); parseContract('report-v2',report);

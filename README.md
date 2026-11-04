@@ -34,7 +34,7 @@ pnpm start --config config/superagent.json
 
 统一入口负责 M1、M3、M5、Web、Source 与 Delivery 的组装和生命周期；无需另开 Worker。配置内启用的 QQ、Discord、Steam Reviews、Steam review comments 和 Steam Discussions 自动加载、探测、运行和停止。默认关闭所有平台实例、模型调用、GitHub 与 QQ 写入；启用模型必须同时显式授权外部调用。仅设置环境变量不会启用服务。Steam 专用示例为 `examples/steam-public/superagent.json`，运行及 partial 覆盖说明见 [Steam 运行说明](docs/STEAM-PUBLIC-FEEDBACK.md)。
 
-连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。P0 即时调度未交付，不能启用。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
+连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。本分支新增默认关闭的 [P0 即时告警与 Embedding](docs/P0-AND-EMBEDDING.md)，均需显式授权。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
 
 ## 工程结构
 
@@ -132,7 +132,7 @@ demo 使用独立数据库和合成数据，终端输出本机地址与演示访
 
 M5 基础范围已完成验收：QQ 导航按轮次完成有限真实验收，GitHub 与 QQ 状态按钮完成真实关闭/重新打开与读回，Web 在 Markdown 修复后获得用户人工确认。后续支持成功后回发同一状态卡，并在平台两分钟窗口内撤回旧交互消息；半日报始终保留。状态卡刷新和两次撤回已获客户端确认，扩展到其他交互的覆盖范围见验收记录。测试监听不是常驻服务，自动浏览器视觉与其他未覆盖项仍单列。
 
-独立 `start:m5` 不安装模型 worker；正式统一入口可同时运行已配置的 M3 和 M5。P0 即时通知调度尚未实现；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
+独立 `start:m5` 不安装模型 worker；正式统一入口可同时运行已配置的 M3、M5、P0 与 Embedding。P0 只对证据确认的严重 Bug 告警，仍计入半日报；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
 
 2026-11-03 的 [QQ 主链路实测](docs/QQ-MAINFLOW-ACCEPTANCE.md) 已覆盖真实用户群普通消息、120 秒自动合批和真实模型，以及验收群三条明确反馈与 60 秒静默合批。修订独立反馈证据及建议匹配字段说明后，保存的真实 QQ 样例已通过真实模型复测：Bug 独立反馈数 2、建议有效反馈数 1，建议关联原条目，无重复或误触发人工复核。旧复核副本保留，真实群与验收群配置分开保存，临时监听均已关闭。
 

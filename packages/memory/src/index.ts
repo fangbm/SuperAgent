@@ -42,16 +42,18 @@ export class HybridMemory {
     const scores=new Map<string,number>();
     if(terms){const rows=this.store.all<{work_id:string}>(`SELECT work_id FROM work_fts WHERE work_fts MATCH ? AND project_id=? AND work_kind=? ORDER BY bm25(work_fts) LIMIT ?`,terms,projectId,kind,limit*4);rows.forEach((r,i)=>scores.set(r.work_id,1/(60+i)));}
     let truncated=false;
-    if(this.embeddings){
+    let semanticAvailable=false;
+    if(this.embeddings){try{
       const [vector]=await this.embeddings.embed([query],signal);if(!vector?.length||!vector.every(Number.isFinite))throw new Error('INVALID_QUERY_EMBEDDING');
       const rows=this.store.all<{work_id:string;vector_json:string}>(`SELECT v.work_id,v.vector_json FROM work_embeddings v JOIN embedding_outbox o
         ON o.project_id=v.project_id AND o.work_kind=v.work_kind AND o.work_id=v.work_id AND o.text_hash=v.text_hash
         WHERE v.project_id=? AND v.work_kind=? AND v.model_id=? ORDER BY v.work_id LIMIT 2049`,projectId,kind,this.embeddings.modelId);
       truncated=rows.length>2048;
       rows.slice(0,2048).map(r=>({id:r.work_id,score:cosine(vector,JSON.parse(r.vector_json) as number[])})).filter(r=>r.score>0).sort((a,b)=>b.score-a.score).slice(0,limit*4).forEach((r,i)=>scores.set(r.id,(scores.get(r.id)??0)+1/(60+i)));
-    }
+      semanticAvailable=true;
+    }catch(error){if(signal.aborted||error instanceof Error&&error.name==='AbortError')throw error;}}
     const items=[...scores].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).flatMap(([id])=>{const work=this.get(projectId,kind,id);return work?[work]:[];}).slice(0,limit);
-    return {items,mode:this.embeddings?'hybrid':'lexical',semanticPoolTruncated:truncated};
+    return {items,mode:semanticAvailable?'hybrid':'lexical',semanticPoolTruncated:truncated};
   }
   async drainEmbeddings(signal:AbortSignal,limit=8):Promise<number>{
     if(!this.embeddings)return 0;
