@@ -5,6 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { types } from 'node:util';
 import type { JSONValue } from '@superagent/contracts';
+export {ensureQQFeatures} from './qq-features.js';
 
 export type Clock = () => string;
 export const systemClock: Clock = () => new Date().toISOString();

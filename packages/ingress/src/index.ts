@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { parseContract } from '@superagent/contract-validation';
 import { SqliteStore, canonicalJSON, systemClock, timestamp } from '@superagent/persistence';
+import {ensureQQFeatures} from '@superagent/persistence';
+import {qqFeedbackConfig,validatedQQIntent,equivalentQQCommand,archivedQQIntent} from './qq-feedback.js';
+import type {QQFeedbackConfig} from './qq-feedback.js';
+export {qqFeedbackConfig} from './qq-feedback.js';
 import type { Clock } from '@superagent/persistence';
 import { DurableJobQueue } from '@superagent/job-queue';
 import type { CommitResultV1, InternalEventId, JSONValue, NormalizedEventV1, SyncCheckpointV1, SourceCoverage } from '@superagent/contracts';
@@ -14,7 +18,11 @@ const silentLogger: PluginLogger = { debug() {}, info() {}, warn() {}, error() {
 
 export class IngressService {
   constructor(readonly store: SqliteStore, private readonly queue: DurableJobQueue,
-    private readonly clock: Clock = systemClock, private readonly idFactory: () => string = randomUUID) {}
+    private readonly clock: Clock = systemClock, private readonly idFactory: () => string = randomUUID) {ensureQQFeatures(store);}
+  configureQQFeedback(scope:SourceScope,input:Partial<QQFeedbackConfig>&{enabled:boolean}):void {
+    const binding=this.binding(scope);if(binding.platform!=='qq-official')throw new Error('QQ_FEEDBACK_SOURCE_REQUIRED');
+    const config=qqFeedbackConfig(input);this.store.run('INSERT INTO qq_feedback_sources VALUES(?,?,?) ON CONFLICT(source_id) DO UPDATE SET config_json=excluded.config_json',scope.sourceId,scope.projectId,canonicalJSON(config as unknown as JSONValue));
+  }
   registerSource(binding: SourceBinding): void {
     if (Object.values(binding).some(value => typeof value !== 'string' || !value.trim())) throw new Error('INVALID_SOURCE_BINDING');
     try { new URL(binding.sourceUri); } catch { throw new Error('INVALID_SOURCE_URI'); }
@@ -51,7 +59,13 @@ export class IngressService {
       for (const { event, json } of events) {
         const existing = this.store.get<EventRow>('SELECT * FROM source_events WHERE source_uri=? AND external_event_id=?', event.source, event.id);
         if (existing) {
-          if (existing.payload_json !== json) throw new Error('EVENT_IDENTITY_CONFLICT');
+          if (existing.payload_json !== json && !(source.platform==='qq-official'&&this.store.get('SELECT 1 FROM qq_feedback_sources WHERE source_id=? AND project_id=?',scope.sourceId,scope.projectId)&&equivalentQQCommand(JSON.parse(existing.payload_json) as NormalizedEventV1,event))) throw new Error('EVENT_IDENTITY_CONFLICT');
+          const trusted=this.store.get<{config_json:string}>('SELECT config_json FROM qq_feedback_sources WHERE source_id=? AND project_id=?',scope.sourceId,scope.projectId);
+          const intent=trusted&&JSON.parse(trusted.config_json).enabled?archivedQQIntent(JSON.parse(existing.payload_json) as NormalizedEventV1,event):undefined;
+          if(intent&&!this.store.get('SELECT 1 FROM qq_explicit_feedback WHERE event_id=?',existing.event_id)){
+            this.store.run('INSERT INTO qq_explicit_feedback(event_id,source_id,project_id,intent_json,config_json,received_at) VALUES(?,?,?,?,?,?)',existing.event_id,scope.sourceId,scope.projectId,canonicalJSON(intent),trusted!.config_json,existing.received_at);
+            this.queue.create(scope.projectId,'feedback.admit',{eventId:existing.event_id},`qq-explicit-upgrade:${existing.event_id}`);
+          }
           refs.push({ eventId: existing.event_id, source: event.source, id: event.id, inserted: false });
           continue;
         }
@@ -59,6 +73,9 @@ export class IngressService {
         this.store.run(`INSERT INTO source_events(event_id,source_uri,external_event_id,project_id,source_id,event_type,payload_json,received_at)
           VALUES(?,?,?,?,?,?,?,?)`, eventId, event.source, event.id, scope.projectId, scope.sourceId, event.type, json, now);
         this.store.run('INSERT INTO event_outbox(event_id,handler_version,status) VALUES(?,?,?)', eventId, 'admission-v1', 'pending');
+        const trusted=this.store.get<{config_json:string}>('SELECT config_json FROM qq_feedback_sources WHERE source_id=? AND project_id=?',scope.sourceId,scope.projectId);
+        const intent=trusted&&JSON.parse(trusted.config_json).enabled?validatedQQIntent(event):undefined;
+        if(intent)this.store.run('INSERT INTO qq_explicit_feedback(event_id,source_id,project_id,intent_json,config_json,received_at) VALUES(?,?,?,?,?,?)',eventId,scope.sourceId,scope.projectId,canonicalJSON(intent),trusted!.config_json,now);
         if (event.type === 'com.superagent.source.coverage.changed.v1') this.reportHealth(scope, { coverage: event.data.coverage, checkedAt: now, ...(event.data.reason ? { reason: event.data.reason } : {}) });
         else this.project(eventId, event, now);
         refs.push({ eventId, source: event.source, id: event.id, inserted: true });

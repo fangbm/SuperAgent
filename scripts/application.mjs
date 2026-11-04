@@ -13,6 +13,7 @@ import { parseApplicationConfig } from './application-config.mjs';
 import { ApplicationPlugins } from './application-plugins.mjs';
 import { builtinSources } from './source-registry.mjs';
 import { createDelivery,validateDelivery } from './qq-delivery.mjs';
+import {qqMenuDenial} from './qq-menu-denial.mjs';
 import { secretReader } from './application-plugin-host.mjs';
 import { bounded } from './plugin-validation.mjs';
 import { acquireApplicationOwner } from './application-owner.mjs';
@@ -45,7 +46,7 @@ export async function createApplication(input,options={}) {
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
   let runtime,owner,m5,manager,m3,webServer,processor,closePromise,started=false,ticking=false;
-  const servers=[];
+  const servers=[];let menuDenial=async()=>{};
   const close=()=>closePromise??=(async()=>{
     controller.abort();
     // First stop accepting callbacks, then drain plugins/workers before closing their shared store.
@@ -66,7 +67,7 @@ export async function createApplication(input,options={}) {
     const delivery=config.deliveries.find(e=>e.enabled);
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
     manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,
-      ...(delivery?{operator:{receive:request=>m5.qq.receive(request)}}:{})});
+      ...(delivery?{operator:{receive:request=>m5.qq.receive(request),reject:request=>menuDenial(request)}}:{})});
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
     if(runtime.store.get('SELECT 1 FROM projects WHERE project_id<>? LIMIT 1',config.projectId))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');
@@ -83,9 +84,10 @@ export async function createApplication(input,options={}) {
     let deliveryState={state:'disabled'};
     m5=await createM5({database:config.database,project:config.projectId,'qq-configured':!!delivery,'qq-write':delivery?.allowWrites===true,
       'qq-readonly':!config.github.allowWrites,'github-write':config.github.allowWrites},signal,
-      {runtime,memory,domain,clock,access,repository:config.github.repository??'',github,tickIngress:false,scheduleReports:config.reports.enabled,
+      {runtime,memory,domain,clock,access,repository:config.github.repository??'',github,tickIngress:false,scheduleReports:config.reports.enabled,operatorMenu:delivery?.config.operatorMenu,
         ...(delivery?{readSecret:secretReader(delivery,env),deliveryFactory:callbacks=>validateDelivery((options.deliveryFactory??createDelivery)({...delivery.config,...callbacks}),delivery),
           deliveryHostFactory:(plugin,read)=>deliveryHost(plugin,read)}:{})});
+    if(delivery&&m5.delivery)menuDenial=qqMenuDenial({runtime,plugin:m5.delivery.plugin,host:m5.qqHost,enabled:delivery.config.operatorMenu?.enabled===true,allowWrites:delivery.allowWrites,clock});
     manager.runtime=runtime;manager.owner=owner;
     const tick=async()=>{
       if(processor)throw new Error('APPLICATION_MANAGED_WORKERS_RUNNING');

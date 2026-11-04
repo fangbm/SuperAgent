@@ -74,11 +74,23 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
   admitSync(eventId: InternalEventId, policy: BatchingPolicyV1 = this.policy, forced = false): AdmissionDecisionV1 {
     return this.store.transaction(() => {
       const old = this.store.get<DecisionRow>('SELECT * FROM admission_decisions WHERE event_id=? AND policy_version=?', eventId, policy.policyVersion);
-      if (old) return { schemaVersion: '1.0', eventId, policyVersion: policy.policyVersion, decision: old.decision, rationaleCode: old.rationale_code, decidedAt: old.decided_at };
+      if(old){
+        const pending=!forced&&this.store.get('SELECT 1 FROM qq_explicit_feedback WHERE event_id=? AND outcome IS NULL',eventId);
+        const sealed=this.store.get("SELECT 1 FROM batch_events WHERE event_id=? AND role='candidate'",eventId);
+        if(pending&&!sealed){
+          const memberships=this.store.all<{segment_id:string}>("SELECT se.segment_id FROM segment_events se JOIN conversation_segments s USING(segment_id) WHERE se.event_id=? AND se.role='candidate' AND s.state='open'",eventId);
+          for(const member of memberships){this.store.run('DELETE FROM segment_events WHERE segment_id=? AND event_id=?',member.segment_id,eventId);this.store.run('UPDATE conversation_segments SET candidate_count=candidate_count-1 WHERE segment_id=?',member.segment_id);
+            if(this.store.get<{candidate_count:number}>('SELECT candidate_count FROM conversation_segments WHERE segment_id=?',member.segment_id)!.candidate_count===0){this.store.run('DELETE FROM segment_events WHERE segment_id=?',member.segment_id);this.store.run('DELETE FROM conversation_segments WHERE segment_id=?',member.segment_id);}
+          }
+          this.store.run('DELETE FROM admission_decisions WHERE event_id=? AND policy_version=?',eventId,policy.policyVersion);
+        }else{if(pending)this.store.run("UPDATE qq_explicit_feedback SET outcome='QQ_EXPLICIT_ALREADY_BATCHED' WHERE event_id=?",eventId);return {schemaVersion:'1.0',eventId,policyVersion:policy.policyVersion,decision:old.decision,rationaleCode:old.rationale_code,decidedAt:old.decided_at};}
+      }
       const stored = this.store.get<EventRow>('SELECT * FROM source_events WHERE event_id=?', eventId);
       if (!stored) throw new Error('EVENT_NOT_FOUND');
       const event = JSON.parse(stored.payload_json) as NormalizedEventV1;
       const now = timestamp(this.clock());
+      const explicit=this.store.get<{intent_json:string;config_json:string}>('SELECT intent_json,config_json FROM qq_explicit_feedback WHERE event_id=?',eventId);
+      if(!forced&&explicit&&event.type!=='com.superagent.source.coverage.changed.v1')return this.admitExplicit(stored,event,explicit,policy,now);
       let result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
       // A queued later edit must never be mistaken for an already-admitted
       // predecessor. Skip only when the immediately preceding *earlier* event
@@ -191,7 +203,7 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
     else this.store.run('UPDATE conversation_segments SET context_omitted=context_omitted+1 WHERE segment_id=?', segmentId);
   }
   async flush(segmentId: string, reason: BatchFlushReasonV1): Promise<string> { return this.flushSync(segmentId, reason); }
-  flushSync(segmentId: string, reason: BatchFlushReasonV1): string {
+  flushSync(segmentId: string, reason: BatchFlushReasonV1, isolated=false): string {
     if (!['quiet_timeout', 'max_wait', 'size_limit', 'urgent', 'replay'].includes(reason)) throw new Error('INVALID_FLUSH_REASON');
     return this.store.transaction(() => {
       const target = this.store.get<SegmentRow>('SELECT * FROM conversation_segments WHERE segment_id=?', segmentId);
@@ -202,7 +214,7 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       let total = target.candidate_count;
       if (total < 1 || total > policy.maxCandidateMessages) throw new Error('INVALID_SEGMENT_SIZE');
       const others = this.store.all<SegmentRow>("SELECT * FROM conversation_segments WHERE source_id=? AND policy_version=? AND state='open' AND segment_id<>? ORDER BY opened_at,segment_id", target.source_id, target.policy_version, segmentId);
-      for (const segment of others) if (segment.candidate_count > 0 && total + segment.candidate_count <= policy.maxCandidateMessages) { selected.push(segment); total += segment.candidate_count; }
+      for (const segment of others) if (!isolated&&!target.segment_key.startsWith('qq-explicit:')&&!segment.segment_key.startsWith('qq-explicit:')&&segment.candidate_count > 0 && total + segment.candidate_count <= policy.maxCandidateMessages) { selected.push(segment); total += segment.candidate_count; }
       selected.sort((a, b) => a.segment_id.localeCompare(b.segment_id));
       const candidates = new Set<InternalEventId>();
       const contexts = new Set<InternalEventId>();
@@ -226,9 +238,36 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       }
       for (const id of batch.candidateEventIds) this.store.run("INSERT INTO batch_events VALUES(?,?,'candidate')", batch.batchId, id);
       for (const id of batch.contextEventIds) this.store.run("INSERT INTO batch_events VALUES(?,?,'context')", batch.batchId, id);
-      this.queue.create(batch.projectId, 'feedback.batch.triage', { batchId: batch.batchId }, `triage:${batch.batchId}`, urgent ? 100 : 0);
+      this.queue.create(batch.projectId, 'feedback.batch.triage', { batchId: batch.batchId }, `triage:${batch.batchId}`, urgent ? 100 : target.segment_key.startsWith('qq-explicit:')?50:0);
       return batch.batchId;
     });
+  }
+  private admitExplicit(stored:EventRow,event:Exclude<NormalizedEventV1,{type:'com.superagent.source.coverage.changed.v1'}>,record:{intent_json:string;config_json:string},policy:BatchingPolicyV1,now:string):AdmissionDecisionV1 {
+    const config=JSON.parse(record.config_json) as {allowReplyContext:boolean;maxDescriptionLength:number;rateWindowMs:number;perUserRateLimit:number;perGroupRateLimit:number;perProjectRateLimit:number},intent=JSON.parse(record.intent_json) as {start:number};
+    const body=(event.data.content?.text??'').slice(intent.start).trim();
+    const parent=config.allowReplyContext&&event.data.object.parentExternalId?this.store.get<{event_id:string;payload_json:string}>(`SELECT e.event_id,e.payload_json FROM source_objects o JOIN source_events e ON e.event_id=o.event_id WHERE o.source_id=? AND o.external_id=? AND o.deleted=0 AND e.project_id=? AND json_extract(e.payload_json,'$.data.object.threadExternalId')=?`,stored.source_id,event.data.object.parentExternalId,stored.project_id,event.data.object.threadExternalId??''):undefined;
+    const parentEvent=parent?JSON.parse(parent.payload_json) as NormalizedEventV1:undefined;
+    const readable=policy.maxContextMessages>0&&parentEvent&&parentEvent.type!=='com.superagent.source.coverage.changed.v1'&&Boolean(parentEvent.data.content?.text?.trim());
+    let rationale=!body&&!event.data.content?.attachments?.length&&!readable?'QQ_EXPLICIT_EMPTY':body.length>config.maxDescriptionLength?'QQ_EXPLICIT_DESCRIPTION_LIMIT':'QQ_EXPLICIT_IMMEDIATE';
+    const window=new Date(Math.floor(Date.parse(now)/config.rateWindowMs)*config.rateWindowMs).toISOString();
+    const limits:[string,string,number][]=[['user',stableId('qq-rate',stored.source_id,event.data.actor?.opaqueId??'unknown'),config.perUserRateLimit],['group',stored.source_id,config.perGroupRateLimit],['project',stored.project_id,config.perProjectRateLimit]];
+    if(rationale==='QQ_EXPLICIT_IMMEDIATE'){
+      for(const [scope,key,max] of limits)if((this.store.get<{used:number}>('SELECT used FROM qq_feedback_rate WHERE scope=? AND identity=? AND window_start=?',scope,key,window)?.used??0)>=max){rationale=`QQ_EXPLICIT_RATE_${scope.toUpperCase()}`;break;}
+      if(rationale==='QQ_EXPLICIT_IMMEDIATE')for(const [scope,key]of limits)this.store.run('INSERT INTO qq_feedback_rate VALUES(?,?,?,1) ON CONFLICT(scope,identity,window_start) DO UPDATE SET used=used+1',scope,key,window);
+    }
+    const decision=rationale==='QQ_EXPLICIT_IMMEDIATE'?'candidate':'archive_only';
+    this.store.run('INSERT INTO admission_decisions VALUES(?,?,?,?,?)',stored.event_id,policy.policyVersion,decision,rationale,now);
+    let batchId:string|null=null;
+    if(decision==='candidate'){
+      const segment=this.openSegment(stored,`qq-explicit:${stored.event_id}`,policy,now);
+      this.store.run("INSERT INTO segment_events VALUES(?,?,'candidate')",segment.segment_id,stored.event_id);
+      if(parent)this.addContext(segment.segment_id,parent.event_id,policy.maxContextMessages);
+      this.store.run('UPDATE conversation_segments SET candidate_count=1,quiet_due_at=? WHERE segment_id=?',now,segment.segment_id);
+      batchId=this.flushSync(segment.segment_id,'quiet_timeout',true);
+    }
+    this.store.run('UPDATE qq_explicit_feedback SET outcome=?,batch_id=? WHERE event_id=?',rationale,batchId,stored.event_id);
+    this.store.run('DELETE FROM qq_feedback_rate WHERE window_start<?',addMilliseconds(now,-86400000));
+    return{schemaVersion:'1.0',eventId:stored.event_id,policyVersion:policy.policyVersion,decision,rationaleCode:rationale,decidedAt:now};
   }
   private dueReason(segment: SegmentRow, now: string): BatchFlushReasonV1 | undefined {
     if (segment.urgent_due_at && segment.urgent_due_at <= now) return 'urgent';

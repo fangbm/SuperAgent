@@ -32,12 +32,13 @@ export async function createM5(values,signal,options={}){
     auth.register({actorRef:'qq-developer',role:values['qq-readonly']?'reader':'developer',projects:[values.project]},randomBytes(32).toString('base64url'));
     if(process.env.SA_WEB_READER_KEY)auth.register({actorRef:'web-reader',role:'reader',projects:[values.project]},process.env.SA_WEB_READER_KEY);
     const tokens=new TokenService(runtime.store,access.signingKey);const control=new ControlPlane(runtime.store,domain,reports,auth,tokens);
-    let delivery,coordinator,qq,retirement;
+    let delivery,coordinator,qq,retirement,qqHost;
     if(values['qq-configured']){
-      const read=options.readSecret??configuredSecrets(values);qq=new QQOperatorService(control,{projectId:values.project,actorRef:'qq-developer',recipientRef:'qq-developer'});
+      const read=options.readSecret??configuredSecrets(values);qq=new QQOperatorService(control,{projectId:values.project,actorRef:'qq-developer',recipientRef:'qq-developer',menu:options.operatorMenu,...(options.clock?{clock:options.clock}:{})});
       const plugin=(options.deliveryFactory??(config=>new QQC2CDelivery(config)))({projectId:values.project,recipientRef:'qq-developer',navigationTokens:async request=>qq.navigationTokens(request),messageOptions:async request=>coordinator.messageOptions(request.deliveryId)});
       const recipientBindingId=stableId('qq-recipient',await read('QQ_APP_ID'),await read('QQ_RECIPIENT_OPENID'));
       const host=options.deliveryHostFactory?options.deliveryHostFactory(plugin,read):deliveryHost(plugin,read);
+      qqHost=host;
       delivery=new DurableDeliveryService(runtime.store,plugin,host,{projectId:values.project,recipientRef:'qq-developer',recipientBindingId,allowWrites:Boolean(values['qq-write']),authorizeDelivery:()=>auth.authorize(auth.principal('qq-developer'),values.project),authorizeInteraction:request=>coordinator.authorizeReply(request)});
       coordinator=new ReportDeliveryCoordinator(runtime.store,delivery,{getReport:(p,id,rev)=>reports.getExact(p,id,rev)});
       retirement=new QQCardRetirementService(runtime.store,{recallMessage:id=>plugin.recallMessage(id,host)},{pluginId:plugin.manifest.id,projectId:values.project,recipientRef:'qq-developer',bindingId:recipientBindingId,allowWrites:Boolean(values['qq-write']),authorize:()=>auth.authorize(auth.principal('qq-developer'),values.project)});
@@ -64,6 +65,6 @@ export async function createM5(values,signal,options={}){
       const recalled=retirement?await retirement.tick():{processed:false};
       return{report,delivery:delivered,github:remote,recall:recalled,sends};
     };
-    return{runtime,domain,reports,auth,control,qq,coordinator,delivery,retirement,backupFile,tick,close:async()=>{await source?.stop();if(!options.runtime)runtime.close();}};
+    return{runtime,domain,reports,auth,control,qq,coordinator,delivery,qqHost,retirement,backupFile,tick,close:async()=>{await source?.stop();if(!options.runtime)runtime.close();}};
   }catch(error){await source?.stop();if(!options.runtime)runtime.close();throw error;}
 }

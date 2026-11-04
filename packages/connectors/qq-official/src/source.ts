@@ -3,23 +3,26 @@ import type { ConnectorCapabilityV1, NormalizedEventV1, PluginManifestV1, Source
 import { object, QQAPI, QQError, qqSignature, text, verifyQQSignature } from './protocol.js';
 import type { QQAPIOptions, QQObject } from './protocol.js';
 import { QQGateway } from './gateway.js';
+import {parseQQFeedback,qqFeedbackSchema} from './feedback-commands.js';
+import type {QQFeedbackCommands} from './feedback-commands.js';
 import type { QQGatewayOptions, QQSession } from './gateway.js';
 
 export const sourceManifest: PluginManifestV1 = {
   apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-source', version: '0.1.0', displayName: 'QQ Official Source', kind: 'source', engine: { sdk: '^0.1.0' },
   permissions: { networkHosts: ['api.bot.qq.com', 'api.sgroup.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_SCOPE_ID', 'QQ_PSEUDONYM_KEY', 'QQ_OPERATOR_OPENID'], eventPublish: true },
-  configSchema: { type: 'object', additionalProperties: false, properties: { kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] },channelMessages:{enum:['mentions','all']} }, required: ['kind', 'sourceUri'] },
+  configSchema: { type: 'object', additionalProperties: false, properties: { feedbackCommands:qqFeedbackSchema, kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] },channelMessages:{enum:['mentions','all']} }, required: ['kind', 'sourceUri'] },
 };
 export interface QQSourceOptions {
   kind: 'group' | 'channel' | 'c2c';
   sourceUri: string;
   transport?: 'webhook' | 'websocket';
   channelMessages?:'mentions'|'all';
+  feedbackCommands?:QQFeedbackCommands;
   gateway?: Pick<QQGatewayOptions, 'createSocket' | 'backoffMs' | 'maxFailures' | 'maxPendingDispatches'>;
   api?: QQAPIOptions;
   now?: () => number;
   maxClockSkewMs?: number;
-  operator?: { interactions?:boolean; receive: (request: {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}) => Promise<{accepted:boolean;duplicate:boolean}> };
+  operator?: { interactions?:boolean; reject?:(request:{identity:string;actor:string;openid:string;reply:{messageId?:string;eventId?:string}})=>Promise<void>; receive: (request: {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}) => Promise<{accepted:boolean;duplicate:boolean}> };
 }
 export interface WebhookResponse { statusCode: number; body: object }
 function coverageReason(eventType: unknown): string {
@@ -37,6 +40,7 @@ function failureReason(error: unknown, fallback: string): string {
 export class QQSource implements SourcePluginV1 {
   readonly manifest = sourceManifest;
   private active: { host: SourcePluginHostV1; signal: AbortSignal; appId: string; secret: string; scopeId: string; pseudonymKey: string; binding: string; api: QQAPI; operatorOpenid?:string } | undefined;
+  private botId:string|undefined;
   private gatewayController: AbortController | undefined;
   private gatewayTask: Promise<void> | undefined;
   constructor(private readonly options: QQSourceOptions) {
@@ -56,6 +60,7 @@ export class QQSource implements SourcePluginV1 {
     const activeSignal = AbortSignal.any([signal, this.gatewayController.signal]);
     this.active = { host, signal: activeSignal, appId, secret, scopeId, pseudonymKey, binding, api: new QQAPI(key => host.getSecret(key), this.options.api),...(this.options.operator?{operatorOpenid:text(await host.getSecret('QQ_OPERATOR_OPENID'),256)}:{}) };
     try {
+      if(this.options.feedbackCommands?.enabled)this.botId=await this.active.api.identity(activeSignal);
       const cp = await host.getCheckpoint(); signal.throwIfAborted();
       if (cp !== null && (typeof cp !== 'object' || Array.isArray(cp) || cp.kind !== 'qq-webhook-v1' || cp.binding !== binding)) throw new QQError('QQ_SOURCE_BINDING_CHANGED', 'blocked');
       if (cp === null) await host.commitBatch([], { sourceId: host.sourceId, cursor: { kind: 'qq-webhook-v1', binding, observed: false } });
@@ -134,19 +139,20 @@ export class QQSource implements SourcePluginV1 {
     const normalizedTime = new Date(time).toISOString();
     const actorId = author.member_openid ?? author.user_openid ?? author.id;
     const content = typeof message.content === 'string' ? message.content.replace(/<@!?([^>]+)>/g, (_match, id: string) => id === 'all' ? '<@all>' : `<@${pseudonym('actor', id)}>`): null;
-    const attachments = Array.isArray(message.attachments) ? message.attachments.slice(0, 20).map(value => {
+    const attachments = Array.isArray(message.attachments) ? message.attachments.slice(0, 20).map((value,ordinal) => {
       const a = object(value); const mime = typeof a.content_type === 'string' ? a.content_type : 'application/octet-stream';
       // Signed CDN URLs and auth_token are deliberately not copied to Core/LLM.
-      return { kind: (mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file') as 'image' | 'video' | 'file', mimeType: mime, assetRef: pseudonym('attachment', JSON.stringify([externalId, a.filename ?? '', a.url ?? ''])) };
+      return { kind: (mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file') as 'image' | 'video' | 'file', mimeType: mime, assetRef: pseudonym('attachment', JSON.stringify([externalId, ordinal, a.filename ?? '', mime])) };
     }) : [];
     const parent = reference ? pseudonym('message', reference) : undefined;
+    const explicit=group&&!deleted&&this.options.feedbackCommands?.enabled&&content!==null?parseQQFeedback(content,this.botId?pseudonym('actor',this.botId):undefined):undefined;
     return {
       specversion: '1.0', id: `${externalId}:${deleted ? 'deleted:' + normalizedTime : 'created'}`, source: this.options.sourceUri,
       type: deleted ? 'com.superagent.feedback.message.deleted.v1' : 'com.superagent.feedback.message.created.v1', time: normalizedTime, datacontenttype: 'application/json',
       data: { schemaVersion: '1.0', projectId: state.host.projectId, sourceId: state.host.sourceId, platform: 'qq-official',
         object: { kind: 'message', externalId, revision: deleted ? normalizedTime : 'original', ...(parent ? { parentExternalId: parent } : {}), threadExternalId: pseudonym('conversation', state.scopeId) },
         ...(typeof actorId === 'string' ? { actor: { opaqueId: pseudonym('actor', actorId), isBot: false } } : {}),
-        ...(!deleted ? { content: { text: content, attachments } } : {}), attributes: { qqScope: this.options.kind, attachmentsOmitted: Array.isArray(message.attachments) && message.attachments.length > 20, structuredContentUnsupported: !deleted && message.message_type !== undefined && message.message_type !== 0 },
+        ...(!deleted ? { content: { text: content, attachments } } : {}), attributes: { ...(explicit?{qqFeedbackCommand:explicit}:{}), qqScope: this.options.kind, attachmentsOmitted: Array.isArray(message.attachments) && message.attachments.length > 20, structuredContentUnsupported: !deleted && message.message_type !== undefined && message.message_type !== 0 },
       },
     };
   }
@@ -169,21 +175,35 @@ export class QQSource implements SourcePluginV1 {
     const state=this.active!;if(!this.options.operator||!state.operatorOpenid)return false;
     if(payload.t==='C2C_MESSAGE_CREATE'){
       const data=object(payload.d),author=object(data.author);
-      if((author.user_openid??author.id)!==state.operatorOpenid)return false;
       const content=typeof data.content==='string'?data.content.trim():'';
+      if((author.user_openid??author.id)!==state.operatorOpenid){
+        if(typeof author.user_openid==='string'&&/^\/(pending|recent|reports|more|menu|all-bugs|all-suggestions|web|history|bugs|suggestions|steam-negative|open)(?:\s|$)/.test(content)&&this.options.operator.reject){
+          const actor=createHmac('sha256',state.pseudonymKey).update(author.user_openid).digest('hex'),identity=createHmac('sha256',state.pseudonymKey).update(JSON.stringify([author.user_openid,text(data.id,480)])).digest('hex');
+          await this.options.operator.reject({actor,identity,openid:author.user_openid,reply:{messageId:text(data.id,480)}});
+        }
+        return true;
+      }
       const messageId=text(data.id,480),ext=data.message_scene?object(data.message_scene).ext:undefined;
       const index=Array.isArray(ext)?ext.find((v):v is string=>typeof v==='string'&&v.startsWith('msg_idx='))?.slice(8):undefined;
       const identity=index?createHmac('sha256',state.pseudonymKey).update(JSON.stringify([messageId,index])).digest('hex'):messageId;
-      if(content.length<=512&&content.startsWith('/'))await this.options.operator.receive({interactionId:`command:${identity}`,kind:'command',content,reply:{messageId}});
+      if(content.length<=512&&content.startsWith('/'))try{await this.options.operator.receive({interactionId:`command:${identity}`,kind:'command',content,reply:{messageId}});}catch(error){
+        if(!error||typeof error!=='object'||!('code' in error)||!['FORBIDDEN','UNAUTHORIZED'].includes(String(error.code)))throw error;
+        await this.options.operator.reject?.({actor:createHmac('sha256',state.pseudonymKey).update(state.operatorOpenid).digest('hex'),identity:`command:${identity}`,openid:state.operatorOpenid,reply:{messageId}});
+      }
       return true;
     }
     if(payload.t==='INTERACTION_CREATE'){
-      const data=object(payload.d);if(data.user_openid!==state.operatorOpenid||!(data.scene==='c2c'||data.chat_type===2)||data.group_openid||data.guild_id)return true;
+      const data=object(payload.d);if(!(data.scene==='c2c'||data.chat_type===2)||data.group_openid||data.guild_id)return true;
       if(data.application_id!==undefined&&data.application_id!==state.appId)return true;
       const body=object(data.data);if(Number(body.type??data.type)!==11)return true;const resolved=object(body.resolved);
       const token=typeof resolved.button_data==='string'?resolved.button_data:'';if(!/^[A-Za-z0-9_-]{43}$/.test(token))return true;
       const id=text(data.id,480);const eventId=typeof payload.id==='string'&&payload.id&&payload.id!==id?text(payload.id,512):undefined;
-      const result=await this.options.operator.receive({interactionId:`button:${id}`,kind:'button',content:token,reply:eventId?{eventId}:{}});
+      if(data.user_openid!==state.operatorOpenid){if(typeof data.user_openid==='string'&&eventId)await this.options.operator.reject?.({identity:createHmac('sha256',state.pseudonymKey).update(JSON.stringify([data.user_openid,id])).digest('hex'),actor:createHmac('sha256',state.pseudonymKey).update(data.user_openid).digest('hex'),openid:data.user_openid,reply:{eventId}});return true;}
+      let result;
+      try{result=await this.options.operator.receive({interactionId:`button:${id}`,kind:'button',content:token,reply:eventId?{eventId}:{}});}catch(error){
+        if(!error||typeof error!=='object'||!('code' in error)||!['FORBIDDEN','UNAUTHORIZED'].includes(String(error.code)))throw error;
+        if(eventId)await this.options.operator.reject?.({identity:`button:${id}`,actor:createHmac('sha256',state.pseudonymKey).update(state.operatorOpenid).digest('hex'),openid:state.operatorOpenid,reply:{eventId}});return true;
+      }
       if(result.accepted&&!result.duplicate)await state.api.acknowledgeInteraction(id).catch(error=>{state.host.logger.warn('QQ_INTERACTION_ACK_UNCONFIRMED',{code:error instanceof QQError?error.code:'QQ_ACK_FAILED'});});
       return true;
     }

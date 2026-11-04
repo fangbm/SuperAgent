@@ -9,6 +9,7 @@ import type { Principal } from './auth.js';
 export { ControlError, hash, OperatorAuth, TokenService } from './auth.js';
 export type { Principal } from './auth.js';
 export { QQOperatorService } from './qq.js';
+export {QQLiveQueries} from './qq-live.js';
 export type { QQOperatorRequest, QQReplyOptions, QQButton } from './qq.js';
 const json=(v:unknown)=>canonicalJSON(v as JSONValue);
 export interface StatusCommand {kind:WorkKind;id:string;action:string;expectedVersion:number;rationale?:string}

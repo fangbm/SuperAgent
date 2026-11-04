@@ -14,3 +14,5 @@
 - Steam 后续采集通过 `examples/steam-public/superagent.json` 接入同一主程序：官方评价可选 all、评价评论为独立 Source、Discussions 可选 public（默认仍 unavailable，snapshot 保留）。站点原生接口只报告 partial；真实有界读取、合成回归和旧19条评论回放分别记录在 docs/STEAM-PUBLIC-FEEDBACK.md。原始库不得因测试改写，不恢复 #6 已回滚的社区/工单/语音/部署实现。
 - 修改后运行适合变更范围的检查；完整入口为 `pnpm check`。验证后创建仅包含本次改动的本地 Git 提交，保留无关改动。
 - 验收说明应区分类型检查、内存 SQLite、模拟测试、真实平台联调和实际送达。
+
+- QQ 显式反馈与常驻菜单扩展默认关闭；只通过可信 QQ Source/Ingress 认领立即单候选批次，复用 M3。全局菜单只由受控工具在具体计划获批后更新，应用启动不得调用 PUT；真实平台验收以 docs/QQ-FEEDBACK-MENU.md 为准。
