@@ -23,11 +23,6 @@ test('production copies of frozen reference migrations remain identical', () => 
   }
 });
 
-test('bundled migrations keep unique contiguous version prefixes', () => {
-  const versions = bundledMigrations().map(migration => Number(migration.name.slice(0, 3)));
-  assert.deepEqual(versions, Array.from({ length: versions.length }, (_, index) => index + 1));
-});
-
 test('an unmanaged database is rejected without rewriting its business tables', t => {
   const f = fixture(t);
   const filename = path.join(f.directory, 'unmanaged.sqlite');

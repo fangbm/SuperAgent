@@ -1,13 +1,5 @@
 # M4 验收记录
 
-## 2026-11-03：指定游戏的归档补充
-
-本节更新下方2026-11-02记录中的目标 App 状态。AppID5335850 已实际读取并归档129条公开好/差评（116/13）；另经未文档化公开评论读取端点完成一次有界观察，归档19条评价下评论，共148条现有 Source Host 原始事件。评价扫描重启完成、相同快照新增0、真实 Host 重放返回相同内部 ID。评论关联、原生 HTML、渲染文本和平台时间保留；没有评论常驻采集器或全量历史承诺。
-
-新增 reviewScope=all 和 --archive-only，保持默认 negative 兼容旧 checkpoint。整仓 `pnpm check` 通过：167个 Node 测试及6个 Python 参考套件，包含新旧 checkpoint、终止页省略 reviews、all 范围修订、单次及持续 archive-only 子进程验证。运行使用此前已装在 .artifacts 的 uv/Python3.13，未修改全局安装。冻结45文件及依赖边界均通过。
-
-当前148条 Outbox 保持 pending，零 admission 决定/分析任务；未调用 M3。真实范围和原始档案路径见 [Steam 归档记录](M4-STEAM-ARCHIVE.md)，各网页/接口和明确缺口见 [平台调查矩阵](M4-STEAM-SURFACES-RESEARCH.md)。Discussions 的常驻远端采集仍为 unavailable；公开主题 HTML 可访问，但一个原生回复端点样本明确返回隐私错误，不能把它推断为所有公开回复均不可访问。发行商密钥、真实上游编辑/删除及 Discord Bot 权限仍未在本次验证。
-
 日期：2026-11-02。实现起点为 main 的 fc3da33，随后合入并行更新 5c2dedf，保留其 QQ 实现并重跑完整检查。先读取 README、PLUGIN-DEVELOPMENT、API-CONTRACTS、M1-PERSISTENCE、ARCHITECTURE 与实际 SDK/Ingress，并核对更新后的边界。M4 只修改自身连接器、工程接入、专用测试和文档；冻结 contracts、plugin-sdk、config、M3 包均未改动。
 
 ## 自动化验证

@@ -25,8 +25,6 @@ pnpm source:m4 --connector steam-discussions --config packages/connectors/steam-
 
 去掉 --once 持续运行；Ctrl+C 中止网络请求、停止插件，再关闭 M1。单次模式执行有限分页及一次 M1 tick，可能仍有未完成分页/缓冲分段，不能据此声称全历史或 M3 分析完成。持续模式只运行既有 M1 轻量处理，M3 由用户自己的 worker:m3 消费。不会加载 .env；密钥仅从当前进程环境经 Host 授权读取。
 
-加 `--archive-only` 时仍使用同一 M1 Source Host 原子写入事件、投影、Outbox 和 Checkpoint，但不执行 M1 tick/worker，不创建 admission 决定或分析批次。Outbox 保留 pending；以后启动普通 worker 会消费它，历史仅作上下文的策略须在启用前明确。Steam AppID5335850 全评价归档的实际路径、命令和覆盖缺口见 [M4-STEAM-ARCHIVE.md](M4-STEAM-ARCHIVE.md)。
-
 sourceUri 必须与注册来源一致；同一个 source ID 不得更换项目、URI、平台或采集对象集合。更换 Discord Guild/Channel 集合、Steam AppID 或 Discussions 快照路径时建立独立来源。一个来源只运行一个活跃插件实例；Host 的 checkpoint 接口没有多写者比较交换锁，不能启动两个实例争写同一来源。
 
 --probe 不运行采集。Discord 在绑定 Host 前返回 unknown，绑定后探测当前机器人、应用 Intent、角色/覆盖权限和指定频道；--once 会绑定并实际读取历史。Steam Reviews 的 probe 是匿名公开读取，即使配置了 publisherKeySecret，也不代表发行商密钥已验证；密钥仅在 sync/start 由 Host 读取。Discussions 的 probe 只验证本地快照或报告 unavailable。
@@ -38,14 +36,12 @@ sourceUri 必须与注册来源一致；同一个 source ID 不得更换项目�
 | Discord MESSAGE_CREATE / MESSAGE_UPDATE / MESSAGE_DELETE | message.created / updated / deleted.v1 | 消息 ID 字符串 | Gateway session+sequence；保留引用和指定 Thread ID |
 | Discord MESSAGE_DELETE_BULK | 每条 message.deleted.v1 | 各被删消息 ID | 同一批 dispatch 原子提交 |
 | Discord REST 快照 | message.created / updated.v1 | 消息 ID | 原生快照哈希；保留原始创建/编辑时间 |
-| Steam 评价与修订（默认差评；all 模式包含好评） | review.created / updated.v1 | recommendationid 字符串 | 原生更新时间与完整快照哈希；保留 voted_up 和 native 元数据 |
+| Steam 差评和已追踪差评的后续修订 | review.created / updated.v1 | recommendationid 字符串 | 原生更新时间与完整快照哈希；保留 voted_up 和 native 元数据 |
 | Discussions 运营方快照 | thread/comment.created / updated / deleted.v1 | 带 kind 前缀的原生 ID | 精确记录哈希、thread/parent 引用；删除必须显式提供 deletedAt |
 
 事件类型均以 com.superagent.feedback. 开头；无新契约类型。原文放在 content.text，平台元数据放在 attributes，permalink 放在 origin。大整数平台 ID 全程保留字符串，禁止经过 JS Number。
 
 同一输入重放返回 Host 原有 refs；新修订使用新源事件 ID，object.externalId 保持稳定。插件不制造 InternalEventId，不合并内容相似的不同玩家对象。Steam 只在同一评价 ID 内比较原文、语言、作者、推荐状态及平台时间的精确值；票数/游玩时长单独变化不生成新玩家反馈，元数据在实际内容修订时保留快照。
-
-上段 Steam 的内容比较适用于默认 negative 模式。显式 `reviewScope=all` 是先归档的模式：保留每个对象的不同原生快照，包括票数、评论数、游玩时间和开发者回复变化；不在连接器中筛除好评。它逐页回扫所有对象，不用旧更新时间截断。元数据变化没有可靠平台变更时间时仍保留原 timestamp_updated；M1 可记为同时间歧义修订，原始历史完整保留，不声称当前投影已自动解决排序。API 返回的 comment_count 不是评论正文，query_summary 是查询聚合，不能当作额外玩家评价。
 
 每页/dispatch/本地快照先构造完整批次，再调用 commitBatch(events, checkpoint)。成功前不改变持久进度。非法输入、来源冲突、数据库故障会拒绝整批，插件保留旧 checkpoint 并报告错误。Gateway 对后续排队事件设失败屏障，不能跨过失败 dispatch 推进 sequence。心跳使用接收序号维持协议；Resume 使用 Host 已提交序号，两者不混用。Discord 心跳 ACK 是服务器对心跳的响应，并非业务事件入库确认。
 
