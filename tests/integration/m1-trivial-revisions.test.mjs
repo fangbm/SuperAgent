@@ -41,14 +41,19 @@ test('queued bug -> thanks -> laughter edits remain candidates even before prior
 test('queued later edits cannot influence an earlier trivial update', t => {
   const f=fixture(t);
   const obj='trivial-backlog';
-  const refs=f.runtime.ingress.commitBatch(scope,[
+  // Only the first trivial version has been admitted. The later bug event is
+  // already archived when M1 judges the middle edit, but must not influence it.
+  f.runtime.ingress.commitBatch(scope,[
     event('hello-old',{objectId:obj,text:'谢谢',time:'2026-11-02T00:00:00.000Z'}),
+  ]);
+  f.runtime.tick();
+  const refs=f.runtime.ingress.commitBatch(scope,[
     event('hello-mid',{objectId:obj,action:'updated',revision:'r2',text:'哈哈',time:'2026-11-02T00:00:01.000Z'}),
     event('bug-new',{objectId:obj,action:'updated',revision:'r3',text:'联机崩溃',time:'2026-11-02T00:00:02.000Z'}),
   ]).refs;
   f.runtime.tick();
-  assert.equal(f.runtime.store.get('SELECT decision FROM admission_decisions WHERE event_id=?',refs[1].eventId).decision,'archive_only');
-  assert.equal(f.runtime.store.get('SELECT decision FROM admission_decisions WHERE event_id=?',refs[2].eventId).decision,'candidate');
+  assert.equal(f.runtime.store.get('SELECT decision FROM admission_decisions WHERE event_id=?',refs[0].eventId).decision,'archive_only');
+  assert.equal(f.runtime.store.get('SELECT decision FROM admission_decisions WHERE event_id=?',refs[1].eventId).decision,'candidate');
 });
 
 test('trivial-text edit with a new screenshot still reaches the analysis queue', t => {
