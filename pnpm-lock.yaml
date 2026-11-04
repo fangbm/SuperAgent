@@ -74,6 +74,12 @@ importers:
       '@types/node':
         specifier: 24.0.15
         version: 24.0.15
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
       commonmark:
         specifier: 0.31.2
         version: 0.31.2

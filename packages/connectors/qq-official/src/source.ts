@@ -27,6 +27,13 @@ function coverageReason(eventType: unknown): string {
   if (eventType === 'GROUP_AT_MESSAGE_CREATE' || eventType === 'AT_MESSAGE_CREATE') return 'QQ_MENTIONS_ONLY_OBSERVED_NO_HISTORY_OR_EDITS';
   return 'QQ_PUSH_ONLY_NO_HISTORY_OR_EDIT_RECONCILIATION';
 }
+function failureReason(error: unknown, fallback: string): string {
+  if (!(error instanceof QQError)) return fallback;
+  // Preserve explicit permanent platform rejection for Host supervision. Network
+  // retry exhaustion remains recoverable even though Gateway marks it blocked.
+  return error.outcome === 'blocked' && error.code !== 'QQ_GATEWAY_RECONNECT_BUDGET'
+    ? `PLATFORM_BLOCKED:${error.code}` : error.code;
+}
 export class QQSource implements SourcePluginV1 {
   readonly manifest = sourceManifest;
   private active: { host: SourcePluginHostV1; signal: AbortSignal; appId: string; secret: string; scopeId: string; pseudonymKey: string; binding: string; api: QQAPI; operatorOpenid?:string } | undefined;
@@ -71,10 +78,15 @@ export class QQSource implements SourcePluginV1 {
           },
           health: async reason => {
             if (reason.startsWith('QQ_GATEWAY_DISCONNECTED_COVERAGE_GAP')) await host.reportHealth({ coverage: 'unavailable', reason, checkedAt: new Date(this.now()).toISOString() });
+            else if (reason.startsWith('QQ_GATEWAY_CONNECTED') || reason === 'QQ_GATEWAY_HEARTBEAT_ACK') {
+              const cp = await host.getCheckpoint();
+              const observed = cp && typeof cp === 'object' && !Array.isArray(cp) && cp.observed === true;
+              await host.reportHealth({ coverage: observed ? 'partial' : 'unknown', reason, checkedAt: new Date(this.now()).toISOString() });
+            }
           },
         });
         this.gatewayTask = gateway.run(activeSignal).catch(async error => {
-          if (!activeSignal.aborted) await host.reportHealth({ coverage: 'unavailable', reason: error instanceof QQError ? error.code : 'QQ_GATEWAY_FAILED', checkedAt: new Date(this.now()).toISOString() });
+          if (!activeSignal.aborted) await host.reportHealth({ coverage: 'unavailable', reason: failureReason(error, 'QQ_GATEWAY_FAILED'), checkedAt: new Date(this.now()).toISOString() });
         }).catch(() => {});
       }
     } catch (error) { this.active = undefined; throw error; }
@@ -95,7 +107,7 @@ export class QQSource implements SourcePluginV1 {
     const state = this.active;
     const result: ConnectorCapabilityV1 = { connection: 'push', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'QQ_NOT_STARTED' };
     if (!state) return result;
-    try { await state.api.identity(state.signal); } catch { return { ...result, coverage: 'unavailable', reason: 'QQ_AUTH_PROBE_FAILED' }; }
+    try { await state.api.identity(state.signal); } catch (error) { return { ...result, coverage: 'unavailable', reason: failureReason(error, 'QQ_AUTH_PROBE_FAILED') }; }
     const cp = await state.host.getCheckpoint();
     const observed = cp && typeof cp === 'object' && !Array.isArray(cp) && cp.kind === 'qq-webhook-v1' && cp.observed === true;
     return { ...result, coverage: observed ? 'partial' : 'unknown', readMessages: Boolean(observed), reason: observed ? coverageReason(cp.observedEventType) : 'QQ_AUTHENTICATED_EVENT_PERMISSION_UNVERIFIED' };

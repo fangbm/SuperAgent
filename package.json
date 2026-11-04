@@ -27,7 +27,8 @@
     "demo:m5": "node scripts/m5-demo.mjs",
     "start:m5": "node scripts/m5-run.mjs",
     "m5:key": "node scripts/m5-access.mjs",
-    "preview:qq": "node scripts/qq-template-preview.mjs"
+    "preview:qq": "node scripts/qq-template-preview.mjs",
+    "start": "node scripts/superagent.mjs"
   },
   "devDependencies": {
     "@superagent/agent-core": "workspace:*",
@@ -52,6 +53,8 @@
     "@superagent/reporting": "workspace:*",
     "@superagent/web-console": "workspace:*",
     "@types/node": "24.0.15",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "commonmark": "0.31.2",
     "linkedom": "0.18.15",
     "typescript": "5.9.3"

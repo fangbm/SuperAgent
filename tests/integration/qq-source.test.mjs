@@ -92,3 +92,10 @@ test('probe separates authentication from event entitlement, mentions from full 
   assert.equal(f.source.manifest.permissions.deliverySend, undefined);
   f.controller.abort(); assert.equal((await f.receive(qqEvent('after-cancel'))).statusCode, 503);
 });
+
+test('QQ probe preserves permanent platform rejection versus transient network failure for supervisor recovery',async t=>{
+  let status=401;
+  const f=await qqFixture(t,{source:{api:{fetch:async url=>String(url).endsWith('/app/getAppAccessToken')?Response.json({access_token:'fixture-token',expires_in:7200}):Response.json({}, {status})}}});
+  const rejected=await f.source.probe();assert.equal(rejected.coverage,'unavailable');assert.equal(rejected.reason,'PLATFORM_BLOCKED:QQ_HTTP_401');
+  status=503;const transient=await f.source.probe();assert.equal(transient.coverage,'unavailable');assert.equal(transient.reason,'QQ_HTTP_503');
+});

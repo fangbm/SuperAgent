@@ -1,6 +1,7 @@
 {
   "baseline": "v0.9 / M0 0.1.0",
   "schemaDialect": "2020-12",
+  "applicationConfigPaths": ["config/superagent.json", "config/plugins/"],
   "files": {
     "config/batching.default.json": "815874e10a49d874d7931ccc5d1ce8d4ad35d785f54598d4dbc3df5afb73022a",
     "config/notifications.default.json": "27ebba43e958de2c583264132306e4cf44886a3f3b4536502639ba5725814884",

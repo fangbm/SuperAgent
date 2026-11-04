@@ -27,13 +27,14 @@ export function checkBoundaries(root = defaultRoot) {
     const sdk = name === '@superagent/plugin-sdk';
     const core = name === '@superagent/agent-core';
     const domain = name === '@superagent/domain';
+    const platformIndependent = ['ingress','feedback-buffer','memory','agent-workers','job-queue','reporting','control-plane','persistence','llm'].some(p=>name===`@superagent/${p}`);
     const connector = inside(pkg.directory, path.join(root, 'packages', 'connectors')) || inside(pkg.directory, path.join(root, 'packages', 'delivery-plugins'));
     const forbidden = target =>
       (contracts && true) ||
       (sdk && target !== '@superagent/contracts') ||
       (connector && target.startsWith('@superagent/') && target !== '@superagent/plugin-sdk') ||
       (core && /(?:connectors|delivery-plugins|qq|discord|steam)/.test(target)) ||
-      (domain && /(?:connectors|delivery-plugins|qq|discord|steam)/.test(target));
+      ((domain || platformIndependent) && /(?:connectors|delivery-plugins|qq|discord|steam)/.test(target));
     for (const dependency of dependencies) if (forbidden(dependency)) errors.push(`${name}: forbidden dependency ${dependency}`);
     for (const file of walk(path.join(pkg.directory, 'src')).filter(f => /\.[cm]?[jt]s$/.test(f))) {
       const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
@@ -52,7 +53,7 @@ export function checkBoundaries(root = defaultRoot) {
         } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
           const argument = node.arguments[0];
           if (argument && ts.isStringLiteral(argument)) specifier = argument.text;
-          else if (contracts || sdk || connector || core || domain) errors.push(`${name}: computed module import in ${path.relative(root, file)}`);
+          else if (contracts || sdk || connector || core || domain || platformIndependent) errors.push(`${name}: computed module import in ${path.relative(root, file)}`);
         }
         if (specifier) {
           let targetName = specifier;

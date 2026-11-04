@@ -235,11 +235,29 @@ test('Discord rate limits and network failures retry without losing the durable 
     if (++calls === 1) return Response.json({ retry_after: 3 }, { status: 429 });
     if (calls === 2) throw new TypeError('network'); return real(url, init);
   }, sleep: async ms => { waits.push(ms); } });
-  await connector.sync(f.host, signal()); assert.deepEqual(waits, [3000, 2000]);
+  const health=[];
+  await connector.sync({...f.host,reportHealth:async info=>{await f.host.reportHealth(info);health.push(info);}}, signal()); assert.deepEqual(waits, [3000, 2000]);
+  assert.ok(health.some(h=>h.reason==='DISCORD_POLL_INTERRUPTED:RATE_LIMITED'));
+  assert.ok(health.some(h=>h.reason==='DISCORD_POLL_INTERRUPTED:TRANSIENT_NETWORK'));
   const checkpoint = await f.host.getCheckpoint();
   const failed = new DiscordConnector(config(f), { fetch: discordFetch({ fail: 503 }), sleep: async () => {} });
   await assert.rejects(failed.sync(f.host, signal()), /PLATFORM_UNAVAILABLE/);
   assert.deepEqual(await f.host.getCheckpoint(), checkpoint);
+});
+
+test('idle Discord confirms durable READY and heartbeat ACK without receiving player messages', async t => {
+  const f=connectorFixture(t,'discord',['DISCORD_BOT_TOKEN']),health=[],controller=new AbortController();
+  const connector=new DiscordConnector({...config(f),historyPollMs:60000},{fetch:discordFetch(),webSocket:()=>new FakeSocket((packet,socket)=>{
+    if(packet.op===2)ready(socket);
+    if(packet.op===1)socket.receive({op:11});
+  },20)});
+  const run=connector.start({...f.host,reportHealth:async info=>{await f.host.reportHealth(info);health.push(info);}},controller.signal);
+  try {
+    await eventually(()=>health.some(h=>h.reason==='DISCORD_GATEWAY_HEARTBEAT_ACK'));
+    assert.ok(health.some(h=>h.reason==='DISCORD_GATEWAY_CONNECTED'));
+    assert.equal(f.events(f.runtime).length,0);
+    assert.equal((await f.host.getCheckpoint()).gateway.sequence,1);
+  } finally {controller.abort();await run;await connector.stop();}
 });
 
 test('Discord missing heartbeat ACK closes the stale socket and resumes from durable sequence', async t => {

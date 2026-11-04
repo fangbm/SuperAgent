@@ -1,0 +1,1 @@
+{ "sourceUri": "urn:superagent:source:discord-main", "guildId": "100", "channelIds": ["200"], "tokenSecret": "DISCORD_BOT_TOKEN", "historyPollMs": 60000 }

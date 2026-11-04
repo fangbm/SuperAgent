@@ -7,7 +7,7 @@ import { qqEvent, readSecret } from './qq-helpers.mjs';
 class FakeSocket extends EventTarget {
   readyState = WebSocket.OPEN;
   sent = [];
-  constructor(onSend) { super(); this.onSend = onSend; queueMicrotask(() => this.message({ op: 10, d: { heartbeat_interval: 20 } })); }
+  constructor(onSend, heartbeatInterval = 20) { super(); this.onSend = onSend; queueMicrotask(() => this.message({ op: 10, d: { heartbeat_interval: heartbeatInterval } })); }
   message(payload) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(payload) })); }
   send(raw) { const payload = JSON.parse(raw); this.sent.push(payload); this.onSend(payload, this); }
   close() { this.readyState = WebSocket.CLOSED; }
@@ -15,6 +15,41 @@ class FakeSocket extends EventTarget {
 }
 const api = { gateway: async () => 'ws://fixture.invalid', accessToken: async () => 'fixture-token' };
 const until = async predicate => { const deadline = Date.now() + 2000; while (!predicate()) { if (Date.now() > deadline) throw new Error('QQ_GATEWAY_FIXTURE_TIMEOUT'); await new Promise(r => setTimeout(r, 5)); } };
+
+test('idle QQ Source confirms committed connection and heartbeat without claiming message coverage or advancing the cursor', async t => {
+  const f = fixture(t), health = [];
+  const base = f.runtime.ingress.sourceHost(scope, {secretKeys:['QQ_APP_ID','QQ_APP_SECRET','QQ_SCOPE_ID','QQ_PSEUDONYM_KEY'],getSecret:readSecret});
+  const source = new QQSource({kind:'group',sourceUri:binding.sourceUri,transport:'websocket',api:{allowLoopbackHTTP:true,fetch:async url=>Response.json(String(url).endsWith('/app/getAppAccessToken')?{access_token:'fixture-token',expires_in:7200}:{url:'ws://localhost/gateway'})},gateway:{createSocket:()=>new FakeSocket((packet,socket)=>{
+    if(packet.op===2)socket.message({op:0,s:1,t:'READY',d:{session_id:'idle-session'}});
+    if(packet.op===1)socket.message({op:11});
+  })}});
+  await source.start({...base,reportHealth:async info=>{await base.reportHealth(info);health.push(info);}},new AbortController().signal);
+  try {
+    await until(()=>health.some(h=>h.reason==='QQ_GATEWAY_HEARTBEAT_ACK'));
+    assert.ok(health.some(h=>h.reason.startsWith('QQ_GATEWAY_CONNECTED')));
+    assert.ok(health.every(h=>h.coverage==='unknown'));
+    assert.equal(count(f.runtime.store,'source_events'),0);
+    assert.equal((await base.getCheckpoint()).gateway.seq,1);
+  } finally {await source.stop();}
+});
+
+test('QQ pre-authentication and unsolicited ACKs cannot assert stable connection health', async () => {
+  const controller=new AbortController(),health=[];let socket;
+  let acknowledge=true;
+  const gateway=new QQGateway(api,{intents:1<<25,loadSession:async()=>null,invalidateSession:async()=>{},dispatch:async()=>{},health:async reason=>health.push(reason),createSocket:()=>socket=new FakeSocket((packet,ws)=>{if(packet.op===2)ws.message({op:11});if(packet.op===1&&acknowledge)ws.message({op:11});},100)});
+  const run=gateway.run(controller.signal);
+  try {
+    await until(()=>socket?.sent.some(p=>p.op===1));
+    assert.deepEqual(health,[]);
+    acknowledge=false;
+    socket.message({op:0,s:1,t:'READY',d:{session_id:'idle-session'}});
+    await until(()=>health.some(h=>h.startsWith('QQ_GATEWAY_CONNECTED')));
+    const before=health.length;socket.message({op:11});await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(health.length,before);
+    acknowledge=true;
+    await until(()=>health.includes('QQ_GATEWAY_HEARTBEAT_ACK'));
+  } finally {controller.abort();await run;}
+});
 test('Gateway identifies and advances heartbeat sequence only after durable dispatch resolves', async () => {
   const controller = new AbortController(); let saved = null, socket, release, entered = false;
   const blocked = new Promise(resolve => { release = resolve; });

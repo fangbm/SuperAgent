@@ -46,7 +46,7 @@ export class QQGateway {
     let session = await this.options.loadSession();
     await new Promise<void>((resolve, reject) => {
       const socket = (this.options.createSocket ?? (value => new WebSocket(value)))(url);
-      let ended = false; let hello = false; let awaitingAck = false;
+      let ended = false; let hello = false; let awaitingAck = false; let authenticated = false; let healthPending = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let queue: Promise<void> = Promise.resolve();
       let pendingDispatches=0;
@@ -77,7 +77,17 @@ export class QQGateway {
         try {
           if (typeof event.data !== 'string' || Buffer.byteLength(event.data) > 1_000_000) throw new QQError('QQ_GATEWAY_PAYLOAD_LIMIT', 'blocked');
           const payload = object(JSON.parse(event.data));
-          if (payload.op === 11) { awaitingAck = false; return; }
+          if (payload.op === 11) {
+            const confirmed = awaitingAck && authenticated; awaitingAck = false;
+            // At most one pending health update; share dispatch draining on shutdown.
+            if (confirmed && !healthPending) {
+              healthPending = true;
+              queue = queue.then(async () => { if (!ended && !signal.aborted) await this.options.health?.('QQ_GATEWAY_HEARTBEAT_ACK'); })
+                .catch(error => { finish(error instanceof QQError ? error : new QQError('QQ_GATEWAY_COMMIT_FAILED')); })
+                .finally(() => { healthPending = false; });
+            }
+            return;
+          }
           if (payload.op === 10) {
             if (hello) throw new QQError('QQ_GATEWAY_DUPLICATE_HELLO'); hello = true;
             const interval = Number(object(payload.d).heartbeat_interval);
@@ -102,7 +112,8 @@ export class QQGateway {
             if (payload.t !== 'READY' && session && next.seq <= session.seq) return;
             await this.options.dispatch(payload, next); // Ack/Resume sequence advances only after durable Host commit.
             session = next;
-            if (payload.t === 'READY' || payload.t === 'RESUMED') {
+            if ((payload.t === 'READY' || payload.t === 'RESUMED') && !ended && !signal.aborted) {
+              authenticated = true;
               clearTimeout(deadline); await this.options.health?.('QQ_GATEWAY_CONNECTED_EVENT_PERMISSION_UNVERIFIED');
             }
           }).catch(error => { finish(error instanceof QQError ? error : new QQError('QQ_GATEWAY_COMMIT_FAILED')); }).finally(()=>{pendingDispatches--;});

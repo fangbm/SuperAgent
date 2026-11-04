@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "database": "../.artifacts/superagent/state.sqlite",
+  "projectId": "superagent",
+  "sources": [
+    {
+      "id": "qq-main", "plugin": "qq-official", "enabled": false, "config": "plugins/qq.json",
+      "permissions": { "networkHosts": ["api.bot.qq.com", "api.sgroup.qq.com"], "secretKeys": ["QQ_APP_ID", "QQ_APP_SECRET", "QQ_SCOPE_ID", "QQ_PSEUDONYM_KEY", "QQ_OPERATOR_OPENID"] },
+      "secrets": { "QQ_APP_ID": "SA_QQ_APP_ID", "QQ_APP_SECRET": "SA_QQ_APP_SECRET", "QQ_SCOPE_ID": "SA_QQ_SCOPE_ID", "QQ_PSEUDONYM_KEY": "SA_QQ_PSEUDONYM_KEY", "QQ_OPERATOR_OPENID": "SA_QQ_DEVELOPER_OPENID" }
+    },
+    {
+      "id": "discord-main", "plugin": "discord", "enabled": false, "config": "plugins/discord.json",
+      "permissions": { "networkHosts": ["discord.com", "gateway.discord.gg", "*.discord.gg"], "secretKeys": ["DISCORD_BOT_TOKEN"] },
+      "secrets": { "DISCORD_BOT_TOKEN": "SA_DISCORD_BOT_TOKEN" }
+    },
+    {
+      "id": "steam-reviews-main", "plugin": "steam-reviews", "enabled": false, "config": "plugins/steam-reviews.json",
+      "permissions": { "networkHosts": ["api.steampowered.com"], "secretKeys": [] }, "secrets": {}
+    },
+    {
+      "id": "steam-discussions-main", "plugin": "steam-discussions", "enabled": false, "config": "plugins/steam-discussions.json",
+      "permissions": { "networkHosts": [], "secretKeys": [] }, "secrets": {}
+    }
+  ],
+  "deliveries": [
+    {
+      "id": "qq-developer-delivery", "plugin": "qq-c2c", "enabled": false, "allowWrites": false, "config": "plugins/qq-delivery.json",
+      "permissions": { "networkHosts": ["api.bot.qq.com"], "secretKeys": ["QQ_APP_ID", "QQ_APP_SECRET", "QQ_RECIPIENT_OPENID"] },
+      "secrets": { "QQ_APP_ID": "SA_QQ_APP_ID", "QQ_APP_SECRET": "SA_QQ_APP_SECRET", "QQ_RECIPIENT_OPENID": "SA_QQ_DEVELOPER_OPENID" }
+    }
+  ],
+  "analysis": { "enabled": false, "allowExternalCalls": false },
+  "github": { "enabled": false, "allowWrites": false },
+  "reports": { "enabled": true },
+  "notifications": { "p0Enabled": false },
+  "web": { "enabled": false, "port": 8787, "accessConfig": "../.artifacts/m5-access.dpapi" },
+  "runtime": { "pollMs": 1000, "probeIntervalMs": 30000, "healthGraceMs": 60000, "maxRestarts": 3, "backoffMs": 1000, "maxBackoffMs": 30000, "stopTimeoutMs": 10000 }
+}

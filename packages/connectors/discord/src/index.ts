@@ -162,14 +162,15 @@ export class DiscordConnector implements SourcePluginV1 {
       signal.throwIfAborted();
       let response: Response;
       try { response = await this.fetcher('https://discord.com/api/v10' + route, { headers: { Authorization: 'Bot ' + this.token }, redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]) }); }
-      catch { signal.throwIfAborted(); if (attempt === 3) throw new Error('TRANSIENT_NETWORK'); await this.pause(1000 * 2 ** attempt, signal); continue; }
+      catch { signal.throwIfAborted(); if (attempt === 3) throw new Error('TRANSIENT_NETWORK'); await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:TRANSIENT_NETWORK',checkedAt:new Date().toISOString()});await this.pause(1000 * 2 ** attempt, signal); continue; }
       if (response.status === 429) {
         const body: unknown = await response.json().catch(() => null);
         if (attempt === 3) throw new Error('RATE_LIMITED');
+        await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:RATE_LIMITED',checkedAt:new Date().toISOString()});
         const seconds = object(body) && typeof body.retry_after === 'number' ? body.retry_after : Number(response.headers.get('retry-after'));
         await this.pause(Math.max(1000, Number.isFinite(seconds) ? seconds * 1000 : 1000 * 2 ** attempt), signal); continue;
       }
-      if (response.status >= 500) { await response.body?.cancel(); if (attempt === 3) throw new Error('PLATFORM_UNAVAILABLE'); await this.pause(1000 * 2 ** attempt, signal); continue; }
+      if (response.status >= 500) { await response.body?.cancel(); if (attempt === 3) throw new Error('PLATFORM_UNAVAILABLE');await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:PLATFORM_UNAVAILABLE',checkedAt:new Date().toISOString()}); await this.pause(1000 * 2 ** attempt, signal); continue; }
       if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 401 ? 'UNAUTHORIZED' : response.status === 403 || response.status === 404 ? 'PERMISSION_DENIED' : 'PLATFORM_UNAVAILABLE'); }
       try { return await response.json(); } catch { throw new Error('INVALID_EVENT: discord JSON'); }
     }
@@ -283,9 +284,17 @@ export class DiscordConnector implements SourcePluginV1 {
     let heartbeat: ReturnType<typeof setTimeout> | undefined;
     let helloTimer: ReturnType<typeof setTimeout> | undefined;
     let acked = true;
+    let connected = false, healthPending = false;
     let failure: unknown;
     let next: 'resume' | 'identify' = 'resume';
     const send = (op: number, data: unknown) => { if (socket.readyState === 1) socket.send(JSON.stringify({ op, d: data })); };
+    const heartbeatHealth = () => {
+      if (!connected || healthPending || signal.aborted) return;
+      healthPending = true;
+      void this.serial(async () => {
+        if (connected && socket.readyState === 1 && !signal.aborted) await host.reportHealth({coverage:'partial',reason:'DISCORD_GATEWAY_HEARTBEAT_ACK',checkedAt:new Date().toISOString()});
+      }).catch(error => { failure ??= error; socket.close(4000, 'Host health failed'); }).finally(() => { healthPending = false; });
+    };
     const beat = (interval: number) => {
       if (!acked) { socket.close(4000, 'Heartbeat timeout'); return; }
       acked = false; send(1, receivedSequence); heartbeat = setTimeout(() => beat(interval), interval);
@@ -306,7 +315,7 @@ export class DiscordConnector implements SourcePluginV1 {
               heartbeat = setTimeout(() => beat(interval), interval * Math.random());
               if (gateway) send(6, { token: this.token, session_id: gateway.sessionId, seq: gateway.sequence });
               else { this.lastIdentifyAt = Date.now(); send(2, { token: this.token, intents: 1 | 512 | 32768, properties: { os: process.platform, browser: 'superagent', device: 'superagent' } }); }
-            } else if (packet.op === 11) acked = true;
+            } else if (packet.op === 11) { const confirmed = !acked; acked = true; if (confirmed) heartbeatHealth(); }
             else if (packet.op === 1) send(1, receivedSequence);
             else if (packet.op === 7) socket.close(4000, 'Reconnect');
             else if (packet.op === 9) { next = packet.d === true ? 'resume' : 'identify'; socket.close(4000, 'Invalid session'); }
@@ -343,11 +352,16 @@ export class DiscordConnector implements SourcePluginV1 {
                 }
                 state.gateway = { ...session, sequence };
                 await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
+                if ((type === 'READY' || type === 'RESUMED') && socket.readyState === 1 && !signal.aborted) {
+                  connected = true;
+                  await host.reportHealth({coverage:'partial',reason:'DISCORD_GATEWAY_CONNECTED',checkedAt:new Date().toISOString()});
+                }
               }).catch(error => { failure ??= error; socket.close(4000, 'Host commit failed'); }).finally(() => { pending--; });
             }
           } catch (error) { failure = error; socket.close(4000, 'Invalid payload'); }
         });
         socket.addEventListener('close', event => {
+          connected = false;
           if ([4004, 4010, 4011, 4012, 4013, 4014].includes(event.code)) { failure = new Error('PERMISSION_DENIED: Gateway close ' + event.code); }
           if ([4007, 4009].includes(event.code)) next = 'identify';
           resolve();
