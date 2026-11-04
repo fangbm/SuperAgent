@@ -8,7 +8,6 @@ import type { SourcePluginHostV1, PluginLogger } from '@superagent/plugin-sdk';
 
 export interface SourceBinding { projectId: string; sourceId: string; sourceUri: string; platform: string }
 export interface SourceScope { projectId: string; sourceId: string }
-export interface SourcePolicy { processingMode: 'standard' | 'archive_only'; visibility: 'public' | 'staff' }
 interface EventRow { event_id: InternalEventId; payload_json: string; received_at: string; project_id: string; source_id: string }
 interface ObjectRow { event_id: InternalEventId; occurred_at: string; action_rank: number; object_kind: string; conversation_key: string; deleted: number }
 const silentLogger: PluginLogger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -34,28 +33,8 @@ export class IngressService {
     if (!source) throw new Error('SOURCE_NOT_AUTHORIZED');
     return { ...scope, sourceUri: source.source_uri, platform: source.platform };
   }
-  /** Trusted host configuration, deliberately outside the frozen Source SDK. */
-  setSourcePolicy(scope: SourceScope, policy: SourcePolicy): void {
-    this.binding(scope);
-    if (!['standard', 'archive_only'].includes(policy.processingMode) || !['public', 'staff'].includes(policy.visibility)
-      || (policy.visibility === 'staff' && policy.processingMode !== 'archive_only')) throw new Error('INVALID_SOURCE_POLICY');
-    this.store.transaction(() => {
-      const old = this.store.get<{ visibility: string }>('SELECT visibility FROM source_policies WHERE source_id=?', scope.sourceId);
-      if (old?.visibility === 'staff' && policy.visibility !== 'staff') throw new Error('PRIVATE_SOURCE_POLICY_IMMUTABLE');
-      const mixed = this.store.get(`SELECT 1 FROM sources s LEFT JOIN source_policies p USING(source_id)
-        WHERE s.project_id=? AND s.source_id<>? AND coalesce(p.visibility,'public')<>? LIMIT 1`, scope.projectId, scope.sourceId, policy.visibility);
-      if (mixed) throw new Error('PROJECT_VISIBILITY_CONFLICT');
-      if (policy.processingMode === 'archive_only' && this.store.get(`SELECT 1 FROM admission_decisions a JOIN source_events e USING(event_id)
-        WHERE e.source_id=? LIMIT 1`, scope.sourceId)) throw new Error('SOURCE_ALREADY_PROCESSED');
-      this.store.run(`INSERT INTO source_policies(source_id,processing_mode,visibility,updated_at) VALUES(?,?,?,?)
-        ON CONFLICT(source_id) DO UPDATE SET processing_mode=excluded.processing_mode,visibility=excluded.visibility,updated_at=excluded.updated_at`,
-      scope.sourceId, policy.processingMode, policy.visibility, timestamp(this.clock()));
-    });
-  }
   commitBatch(scope: SourceScope, inputs: readonly unknown[], checkpoint?: SyncCheckpointV1): CommitResultV1 {
     const source = this.binding(scope);
-    if (this.store.get(`SELECT 1 FROM sources s JOIN source_policies p USING(source_id) WHERE s.project_id=? AND p.visibility='staff'`, scope.projectId)
-      && !this.store.get("SELECT 1 FROM source_policies WHERE source_id=? AND visibility='staff'", scope.sourceId)) throw new Error('PROJECT_VISIBILITY_CONFLICT');
     if (checkpoint && checkpoint.sourceId !== source.sourceId) throw new Error('CHECKPOINT_SOURCE_MISMATCH');
     const cursor = checkpoint ? canonicalJSON(checkpoint.cursor) : undefined;
     // Validate and snapshot the complete input before any write. No async boundary
@@ -126,8 +105,7 @@ export class IngressService {
     if (!Number.isInteger(limit) || limit < 1) throw new Error('INVALID_DISPATCH_LIMIT');
     return this.store.transaction(() => {
       const rows = this.store.all<{ id: number; event_id: string; project_id: string; handler_version: string }>(`SELECT o.id,o.event_id,e.project_id,o.handler_version FROM event_outbox o
-        JOIN source_events e ON e.event_id=o.event_id LEFT JOIN source_policies p ON p.source_id=e.source_id
-        WHERE o.status='pending' AND coalesce(p.processing_mode,'standard')='standard' ORDER BY o.id LIMIT ?`, limit);
+        JOIN source_events e ON e.event_id=o.event_id WHERE o.status='pending' ORDER BY o.id LIMIT ?`, limit);
       for (const row of rows) {
         this.queue.create(row.project_id, 'feedback.admit', { eventId: row.event_id }, `admit:${row.handler_version}:${row.event_id}`);
         this.store.run("UPDATE event_outbox SET status='dispatched' WHERE id=?", row.id);

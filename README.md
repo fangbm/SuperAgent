@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。M4 提供 Discord/Steam Source 适配器及能力降级，并新增归档优先的 Discord 私密工单和临时语音房。QQ/M5 的真实验收边界与 Discord 机器人尚未上线的限制见下文。
+跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 新增 Discord/Steam Source 适配器及明确的 Steam Discussions 本地快照降级；真实平台覆盖边界见下文。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 依次执行依赖边界与契约冻结检查、workspace 包构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
+`pnpm check` 依次执行依赖边界与契约冻结检查、所有 workspace 包的构建、类型正反例、Node 契约与集成测试，以及六个 Python/SQLite 参考验证脚本。集成测试包含真实文件数据库、子进程强制终止、10,000 条合成消息及本地 HTTP 协议验证，不调用外部付费接口。Python 验证使用精确依赖版本的隔离环境。
 
 单独运行：
 
@@ -42,11 +42,10 @@ pnpm test:reference
 | `packages/llm` | 兼容 Chat/Embedding HTTP provider、JSON Schema 与超时限制 |
 | `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
 | `packages/connectors/qq-official` | 官方 WebSocket/签名回调 Source 与独立开发者私聊 Delivery |
-| `packages/connectors/discord` | 指定/自动发现的公开频道与主题采集、共享 Gateway 和有限历史恢复 |
-| `packages/discord-community` | 同一 Bot 的私密工单、临时语音房与平台交互；只经 Host 保存状态 |
-| `packages/connectors/steam-reviews` | 评价分页、差评追踪或全评价原文/元数据归档 |
+| `packages/connectors/discord` | 指定频道/线程 Gateway 采集与有限历史恢复 |
+| `packages/connectors/steam-reviews` | 评价分页、差评修订与更新回扫 |
 | `packages/connectors/steam-discussions` | 默认 unavailable 与显式本地快照降级 |
-| `packages/plugin-host` | 批准收件人、私聊持久操作、社区生命周期状态与控制器租约 |
+| `packages/plugin-host` | 批准收件人、私聊持久操作与 unknown 屏障 |
 | `packages/reporting` | 固定窗口、封存修订、Steam 成员与补报调度 |
 | `packages/control-plane` | 项目/角色权限、QQ 查询、状态操作、关联纠错与审计 |
 | `packages/web-console` | 本机 Web 工作台及 HTTP 入口 |
@@ -70,15 +69,9 @@ Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源�
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
 
-## Discord 社区 Bot
-
-仓库内已实现私密工单、加入即创建的临时语音房和共享 Gateway 采集。使用同一 M1 归档，私密来源有持久 archive-only 隔离；默认不运行 AI/GitHub。当前为朋友电脑部署准备状态，尚未安装/启用真实 Bot。行为、入口和验收见 [Discord Bot](docs/DISCORD-BOT.md)，部署与现有148条记录的安全交接见 [部署说明](docs/DISCORD-BOT-DEPLOYMENT.md)。
-
 ## 运行 M3
 
 M4 已新增三个独立 Source 插件与 `pnpm source:m4` 运行入口：Discord Gateway/REST、Steam Reviews，以及 Steam Discussions 的显式本地快照降级。接入既有 M1 Source Host，不修改 M3。配置、覆盖限制和运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，真实平台验证范围见 [M4 验收记录](docs/M4-ACCEPTANCE.md)。Discussions 远程采集当前为 unavailable。
-
-Steam AppID5335850 已用 `reviewScope=all --archive-only` 实际归档129条公开好/差评；另经一次有界网站读取归档19条评价下评论，共148条原始事件，未运行分析。归档路径、恢复命令和评论/讨论覆盖缺口见 [Steam 归档记录](docs/M4-STEAM-ARCHIVE.md)。
 
 ```powershell
 pnpm build

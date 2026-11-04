@@ -1,2 +1,0 @@
-Create the real token file outside Git at .artifacts/discord-bot/secrets/discord_token.txt.
-Do not put a token in this template, bot-config.json, Compose environment values, or command history.

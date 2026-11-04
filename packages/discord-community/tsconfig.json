@@ -1,6 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
-  "references": [{ "path": "../plugin-sdk" }],
-  "include": ["src/**/*.ts"]
-}

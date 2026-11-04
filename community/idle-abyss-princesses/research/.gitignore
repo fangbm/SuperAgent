@@ -1,4 +1,0 @@
-# Anonymous raw page snapshots remain available locally for research replay.
-# Commit the curated facts, references and original game artwork instead of whole web pages.
-*.html
-steam-appdetails-*.json
