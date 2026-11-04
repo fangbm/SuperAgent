@@ -1,6 +1,6 @@
 # SuperAgent
 
-跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 新增 Discord/Steam Source 适配器及明确的 Steam Discussions 本地快照降级；真实平台覆盖边界见下文。
+跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 包含 Discord、Steam Reviews、评价评论和可选的公开 Discussions 采集；平台原文先通过主程序 Host 留档，再由既有管道处理，真实覆盖边界见下文。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
 
@@ -30,7 +30,7 @@ pnpm test:reference
 pnpm start --config config/superagent.json
 ```
 
-统一入口负责 M1、M3、M5、Web、Source 与 Delivery 的组装和生命周期；无需另开 Worker。配置内启用的 QQ、Discord、Steam Reviews 和 Steam Discussions（仅本地快照模式）自动加载、探测、运行和停止。默认关闭所有平台实例、模型调用、GitHub 与 QQ 写入；启用模型必须同时显式授权外部调用。仅设置环境变量不会启用服务。
+统一入口负责 M1、M3、M5、Web、Source 与 Delivery 的组装和生命周期；无需另开 Worker。配置内启用的 QQ、Discord、Steam Reviews、Steam review comments 和 Steam Discussions 自动加载、探测、运行和停止。默认关闭所有平台实例、模型调用、GitHub 与 QQ 写入；启用模型必须同时显式授权外部调用。仅设置环境变量不会启用服务。Steam 专用示例为 `examples/steam-public/superagent.json`，运行及 partial 覆盖说明见 [Steam 运行说明](docs/STEAM-PUBLIC-FEEDBACK.md)。
 
 连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。P0 即时调度未交付，不能启用。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
 
@@ -81,7 +81,7 @@ Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行�
 
 ## 运行 M3
 
-M4 已新增三个独立 Source 插件与 `pnpm source:m4` 运行入口：Discord Gateway/REST、Steam Reviews，以及 Steam Discussions 的显式本地快照降级。接入既有 M1 Source Host，不修改 M3。配置、覆盖限制和运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，真实平台验证范围见 [M4 验收记录](docs/M4-ACCEPTANCE.md)。Discussions 远程采集当前为 unavailable。
+M4 的三个连接器包提供四个独立 Source 实现：Discord Gateway/REST、Steam Reviews、同包内的评价评论插件和 Steam Discussions。Reviews 默认负评，可显式开启 all；Discussions 默认 unavailable，可选匿名公开页面或本地快照。配置、覆盖限制和主程序运行方式见 [M4 连接器](docs/M4-CONNECTORS.md)，初期验收见 [M4 验收记录](docs/M4-ACCEPTANCE.md)，本轮真实 Steam 读取与重放结果见 [Steam 运行说明](docs/STEAM-PUBLIC-FEEDBACK.md)。公开站点接口不保证全历史；所有插件仅提交原始材料，不直接调用 M3 Worker。
 
 ```powershell
 pnpm build

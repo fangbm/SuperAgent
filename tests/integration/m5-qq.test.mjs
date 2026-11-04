@@ -11,7 +11,16 @@ import { qqSecrets, readSecret, signed } from './qq-helpers.mjs';
 import { createDemo,demoProject } from '../../scripts/m5-demo-data.mjs';
 
 async function setup(t,options={}){
-  const f=await m5Fixture(t);f.add('one',options.text);await f.worker.tick();const report=f.generate();const qq=new QQOperatorService(f.control,{projectId:binding.projectId,actorRef:'developer',recipientRef:'developer',clock:f.clock});
+  const f=await m5Fixture(t);
+  if(options.threadTitle){
+    const original=event('one',{text:options.text??'如题'});
+    original.type='com.superagent.feedback.thread.created.v1';
+    original.data.object.kind='thread';original.data.attributes={title:options.threadTitle};
+    f.runtime.ingress.commitBatch(scope,[original]);f.runtime.tick();
+    for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+      f.runtime.buffer.flushSync(row.segment_id,'replay');
+  }else f.add('one',options.text);
+  await f.worker.tick();const report=f.generate();const qq=new QQOperatorService(f.control,{projectId:binding.projectId,actorRef:'developer',recipientRef:'developer',clock:f.clock});
   const requests=[];let coordinator;
   const plugin=new QQC2CDelivery({projectId:binding.projectId,recipientRef:'developer',navigationTokens:async request=>qq.navigationTokens(request),messageOptions:async request=>coordinator.messageOptions(request.deliveryId),api:{fetch:async(url,init)=>{if(String(url).endsWith('/app/getAppAccessToken'))return Response.json({access_token:'fixture-token',expires_in:7200});requests.push({url:String(url),body:JSON.parse(init.body),method:init.method});return options.send?options.send(requests.length):Response.json({id:`fixture-message-${requests.length}`});}}});
   const service=new DurableDeliveryService(f.runtime.store,plugin,deliveryHost(plugin,readSecret),{projectId:binding.projectId,recipientRef:'developer',recipientBindingId:'m5-fixture-binding',clock:f.clock,allowWrites:true,authorizeInteraction:r=>coordinator.authorizeReply(r),authorizeDelivery:()=>f.auth.authorize(f.auth.principal('developer'),binding.projectId)});
@@ -138,4 +147,18 @@ test('C2C msg_idx separates control commands sharing msg_id and allocates distin
   try{for(const index of ['one','two','one']){const callback={op:0,t:'C2C_MESSAGE_CREATE',d:{id:'same-msg-id',author:{user_openid:qqSecrets.QQ_RECIPIENT_OPENID},content:'/bugs',message_scene:{ext:[`msg_idx=${index}`,'auth_token=not-for-core']}}};assert.equal((await source.handleWebhook(...signed(callback,f.clock))).statusCode,200);f.qq.tick();}
     assert.equal(count(f.runtime.store,'operator_inbox'),2);const plans=f.runtime.store.all('SELECT message_options_json FROM operator_reply_plans ORDER BY rowid').map(p=>JSON.parse(p.message_options_json));assert.deepEqual(plans.map(p=>p.replyTo.sequence),[1,2]);assert.ok(plans.every(p=>p.replyTo.messageId==='same-msg-id'));assert.equal(JSON.stringify(f.runtime.store.all('SELECT request_json FROM operator_inbox')).includes('not-for-core'),false);
   }finally{await source.stop();}
+});
+
+
+test('QQ developer original navigation shows thread title and body for title-backed evidence',async t=>{
+  const title='Windows 联机加载90%时崩溃';
+  const f=await setup(t,{threadTitle:title,text:'如题'});
+  const original='标题：'+title+'\n正文：如题';
+  const page=f.receive('thread-title-view','command','/bugs');
+  assert.equal(originalFromMarkdown(page.request.text),original);
+  const work=f.control.listWorks(f.principal,binding.projectId,'defect')[0];
+  const evidence=f.control.evidence(f.principal,binding.projectId,'defect',work.id);
+  assert.equal(evidence.items[0].originalText,original);
+  const next=page.options.buttons.find(b=>b.label==='继续原文');
+  assert.equal(next,undefined);
 });

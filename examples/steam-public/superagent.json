@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "database": "../../.artifacts/steam-public/state.sqlite",
+  "projectId": "idle-abyss-princesses",
+  "sources": [
+    {
+      "id": "steam-5335850-reviews-all", "plugin": "steam-reviews", "enabled": true,
+      "config": "../../packages/connectors/steam-reviews/examples/idle-abyss-princesses-all.json",
+      "permissions": { "networkHosts": ["api.steampowered.com"], "secretKeys": [] }, "secrets": {}
+    },
+    {
+      "id": "steam-5335850-review-comments-observed", "plugin": "steam-review-comments", "enabled": true,
+      "config": "../../packages/connectors/steam-reviews/examples/idle-abyss-princesses-comments.json",
+      "permissions": { "networkHosts": ["api.steampowered.com", "steamcommunity.com"], "secretKeys": [] }, "secrets": {}
+    },
+    {
+      "id": "steam-5335850-discussions-public", "plugin": "steam-discussions", "enabled": true,
+      "config": "../../packages/connectors/steam-discussions/examples/idle-abyss-princesses-public.json",
+      "permissions": { "networkHosts": ["steamcommunity.com"], "secretKeys": [] }, "secrets": {}
+    }
+  ],
+  "deliveries": [],
+  "analysis": { "enabled": true, "allowExternalCalls": true, "baseURLEnv": "SA_LLM_BASE_URL", "modelEnv": "SA_LLM_MODEL", "apiKeyEnv": "SA_LLM_API_KEY" },
+  "github": { "enabled": false, "allowWrites": false },
+  "reports": { "enabled": false },
+  "notifications": { "p0Enabled": false },
+  "web": { "enabled": false },
+  "runtime": { "pollMs": 1000, "probeIntervalMs": 600000, "healthGraceMs": 60000, "stopTimeoutMs": 60000 }
+}

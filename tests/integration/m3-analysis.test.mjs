@@ -119,3 +119,92 @@ test('suggestion identity claims with actual distinguishing details still requir
   const f=await m3Fixture(t,{responder:task=>task.task==='match_suggestion'?{...fixtureAnswer(task),distinguishingDetails:['断线重试是否保留当前多人会话尚未明确']}:fixtureAnswer(task)});f.add('one');await f.worker.tick();const original=f.runtime.store.get('SELECT suggestion_id FROM suggestions').suggestion_id;f.add('two');assert.equal((await f.worker.tick()).status,'succeeded');assert.equal(count(f.runtime.store,'suggestions'),2);const newer=f.runtime.store.get('SELECT suggestion_id FROM suggestions WHERE suggestion_id<>?',original).suggestion_id;
   assert.equal(f.domain.getWork(binding.projectId,'suggestion',original).feedbackCount,1);assert.equal(f.domain.getWork(binding.projectId,'suggestion',newer).feedbackCount,1);assert.equal(f.domain.getWork(binding.projectId,'suggestion',newer).reviewRequired,true);assert.equal(f.runtime.store.get("SELECT count(*) n FROM github_sync_outbox WHERE work_kind='suggestion'").n,1);
 });
+
+
+test('Steam Discussion title reaches M3 and a title-only quote stays grounded',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{
+    const result=fixtureAnswer(task);
+    if(task.task==='extract'){
+      const thread=task.messages.find(m=>m.role==='candidate');
+      result.items[0].evidence[0].quote=thread.title;
+    }
+    return result;
+  }});
+  const title='Windows 联机加载90%时崩溃';
+  const original=event('title-source',{text:'如题'});
+  original.type='com.superagent.feedback.thread.created.v1';
+  original.data.object.kind='thread';
+  original.data.attributes={title};
+  const id=f.runtime.ingress.commitBatch(scope,[original]).refs[0].eventId;
+  f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  const task=f.server.requests.find(r=>r.task.task==='extract')?.task;
+  assert.ok(task);
+  assert.deepEqual(task.messages.filter(m=>m.role==='candidate').map(m=>({title:m.title,text:m.text,eventId:m.eventId})),
+    [{title,text:'如题',eventId:id}]);
+  assert.equal(f.runtime.store.get('SELECT quote FROM feedback_item_evidence WHERE event_id=? LIMIT 1',id).quote,title);
+});
+
+test('untrusted thread-title quotes still fail exact source-evidence validation',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{
+    const result=fixtureAnswer(task);
+    if(task.task==='extract')result.items[0].evidence[0].quote='not part of the real title or body';
+    return result;
+  }});
+  const original=event('title-bad',{text:'如题'});
+  original.type='com.superagent.feedback.thread.created.v1';
+  original.data.object.kind='thread';original.data.attributes={title:'Windows 联机加载90%时崩溃'};
+  f.runtime.ingress.commitBatch(scope,[original]);f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'EVIDENCE_QUOTE_MISMATCH');
+});
+
+
+test('bug matching receives the native Steam thread title, not just an LLM summary',async t=>{
+  const f=await m3Fixture(t);
+  const title='Windows 联机加载90%时崩溃';
+  const original=event('steam-title-original',{text:'如题'});
+  original.type='com.superagent.feedback.thread.created.v1';
+  original.data.object.kind='thread';
+  original.data.attributes={title};
+  const initial=f.runtime.ingress.commitBatch(scope,[original]).refs[0].eventId;
+  f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  f.add('new-report','Windows 1.2.0 联机载入90%时崩溃');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  const match=f.server.requests.find(r=>r.task.task==='match_bug');
+  assert.ok(match,'the second bug should be compared to the existing thread report');
+  const native=match.task.candidate.evidence.find(e=>e.eventId===initial);
+  assert.deepEqual(native,{eventId:initial,text:'如题',title});
+  assert.notEqual(match.task.candidate.summary,title,'native title must be provided separately from summary');
+});
+
+test('suggestion matching receives original Steam thread title independently of summary',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{
+    const answer=fixtureAnswer(task);
+    if(task.task==='extract'&&task.messages.some(m=>m.title?.includes('自动重连'))){
+      const msg=task.messages.find(m=>m.role==='candidate');
+      answer.items=[{kind:'suggestion',category:'feature_request',title:'断线自动重连',description:'希望断线后自动重连',confidence:0.95,
+        requestedOutcome:'网络断开后自动重连',evidence:[{eventId:msg.eventId,role:'primary',quote:msg.text}]}];
+    }
+    return answer;
+  }});
+  const title='希望增加断线自动重连';
+  const thread=event('thread-suggestion',{text:'如题'});
+  thread.type='com.superagent.feedback.thread.created.v1';thread.data.object.kind='thread';thread.data.attributes={title};
+  const id=f.runtime.ingress.commitBatch(scope,[thread]).refs[0].eventId;
+  f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  f.add('suggest-again','断线以后希望自动重连');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  const match=f.server.requests.find(r=>r.task.task==='match_suggestion');
+  assert.ok(match);
+  assert.deepEqual(match.task.candidate.evidence.find(e=>e.eventId===id),{eventId:id,text:'如题',title});
+});

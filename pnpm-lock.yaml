@@ -149,12 +149,18 @@ importers:
       '@superagent/plugin-sdk':
         specifier: workspace:*
         version: link:../../plugin-sdk
+      linkedom:
+        specifier: 0.18.15
+        version: 0.18.15
 
   packages/connectors/steam-reviews:
     dependencies:
       '@superagent/plugin-sdk':
         specifier: workspace:*
         version: link:../../plugin-sdk
+      linkedom:
+        specifier: 0.18.15
+        version: 0.18.15
 
   packages/contract-validation:
     dependencies:

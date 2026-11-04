@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ConnectorCapabilityV1, FeedbackEventV1, JSONValue, PluginManifestV1, SourcePluginHostV1, SourcePluginV1 } from '@superagent/plugin-sdk';
+export { SteamReviewCommentsConnector, seedSteamReviewCommentsCheckpoint, steamReviewCommentsConfigSchema } from './comments.js';
+export type { SteamReviewCommentsConfig } from './comments.js';
 
 export interface SteamReviewsConfig {
   sourceUri: string;
   appId: number;
+  reviewScope?: 'negative' | 'all';
   publisherKeySecret?: string;
   pageSize?: number;
   maxPagesPerSync?: number;
@@ -15,6 +18,7 @@ export const steamReviewsConfigSchema = {
   type: 'object', additionalProperties: false, required: ['sourceUri', 'appId'],
   properties: {
     sourceUri: { type: 'string', format: 'uri' }, appId: { type: 'integer', minimum: 1, maximum: 4294967295 },
+    reviewScope: { enum: ['negative', 'all'] },
     publisherKeySecret: { type: 'string', minLength: 1 }, pageSize: { type: 'integer', minimum: 1, maximum: 100 },
     maxPagesPerSync: { type: 'integer', minimum: 1, maximum: 10000 }, overlapSeconds: { type: 'integer', minimum: 1, maximum: 604800 },
     pollIntervalMs: { type: 'integer', minimum: 1000, maximum: 86400000 },
@@ -27,6 +31,7 @@ interface Review extends RecordJSON {
 }
 interface State {
   version: 1; appId: number; cursor: string; watermark: number; scanHigh: number;
+  reviewScope?: 'negative' | 'all'; sequences?: Record<string, number>; observationTimes?: Record<string, number>;
   tracked: Record<string, string>;
 }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -62,9 +67,12 @@ export function normalizeSteamReview(input: unknown, config: SteamReviewsConfig,
     },
   };
 }
-function readState(input: JSONValue | null, appId: number): State {
-  if (input === null) return { version: 1, appId, cursor: '*', watermark: 0, scanHigh: 0, tracked: {} };
+function readState(input: JSONValue | null, appId: number, scope: 'negative' | 'all'): State {
+  if (input === null) return { version: 1, appId, reviewScope: scope, cursor: '*', watermark: 0, scanHigh: 0, tracked: {}, sequences: {} };
   if (!object(input) || input.version !== 1 || input.appId !== appId || typeof input.cursor !== 'string' || !input.cursor
+    || (input.reviewScope ?? 'negative') !== scope
+    || (input.sequences !== undefined && (!object(input.sequences) || Object.entries(input.sequences).some(([id, count]) => !/^\d+$/.test(id) || !Number.isSafeInteger(count) || Number(count) < 1)))
+    || (input.observationTimes !== undefined && (!object(input.observationTimes) || Object.entries(input.observationTimes).some(([id, time]) => !/^\d+$/.test(id) || !Number.isSafeInteger(time) || Number(time) < 1)))
     || !Number.isSafeInteger(input.watermark) || Number(input.watermark) < 0 || !Number.isSafeInteger(input.scanHigh) || Number(input.scanHigh) < 0
     || !object(input.tracked) || Object.entries(input.tracked).some(([id, revision]) => !/^\d+$/.test(id) || typeof revision !== 'string')) throw new Error('INVALID_CHECKPOINT');
   return structuredClone(input) as unknown as State;
@@ -83,8 +91,9 @@ export class SteamReviewsConnector implements SourcePluginV1 {
     new URL(config.sourceUri);
     if (Object.keys(config).some(key => !Object.hasOwn(steamReviewsConfigSchema.properties, key))
       || !Number.isInteger(config.appId) || config.appId < 1 || config.appId > 4294967295
+      || (config.reviewScope !== undefined && !['negative', 'all'].includes(config.reviewScope))
       || (config.publisherKeySecret !== undefined && !config.publisherKeySecret.trim())) throw new Error('INVALID_CONFIG');
-    this.config = { pageSize: 100, maxPagesPerSync: 10, overlapSeconds: 600, pollIntervalMs: 60000, ...config };
+    this.config = { reviewScope: 'negative', pageSize: 100, maxPagesPerSync: 10, overlapSeconds: 600, pollIntervalMs: 60000, ...config };
     for (const [key, min, max] of [['pageSize', 1, 100], ['maxPagesPerSync', 1, 10000], ['overlapSeconds', 1, 604800], ['pollIntervalMs', 1000, 86400000]] as const) {
       const value = this.config[key]; if (!Number.isInteger(value) || value < min || value > max) throw new Error('INVALID_CONFIG: ' + key);
     }
@@ -120,14 +129,22 @@ export class SteamReviewsConnector implements SourcePluginV1 {
       if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 401 ? 'UNAUTHORIZED' : response.status === 403 ? 'PERMISSION_DENIED' : 'PLATFORM_UNAVAILABLE'); }
       let body: unknown;
       try { body = await response.json(); } catch { throw new Error('INVALID_EVENT: response JSON'); }
-      if (!object(body) || !object(body.response) || !Array.isArray(body.response.reviews)
+      if (!object(body) || !object(body.response)
         || typeof body.response.cursor !== 'string' || !body.response.cursor) throw new Error('INVALID_EVENT: response shape');
-      return { reviews: body.response.reviews.map(parseReview), cursor: body.response.cursor };
+      // Steam omits the repeated protobuf field on terminal pages; require an explicit zero count.
+      const reviews = body.response.reviews === undefined && object(body.response.query_summary) && body.response.query_summary.num_reviews === 0 ? [] : body.response.reviews;
+      if (!Array.isArray(reviews)) throw new Error('INVALID_EVENT: response reviews');
+      return { reviews: reviews.map(parseReview), cursor: body.response.cursor };
     }
   }
-  async probe(): Promise<ConnectorCapabilityV1> {
+  probe(): Promise<ConnectorCapabilityV1> {
+    const job = this.tail.then(() => this.checkAccess());
+    this.tail = job.then(() => {}, () => {});
+    return job;
+  }
+  private async checkAccess(): Promise<ConnectorCapabilityV1> {
     try {
-      await this.page('*', AbortSignal.timeout(30000), undefined, this.healthHost);
+      await this.page('*', AbortSignal.any([this.controller.signal, AbortSignal.timeout(30000)]), undefined, this.healthHost);
       this.capability = { connection: 'poll', coverage: 'partial', readMessages: true, readHistory: true, readEdits: true, readAttachments: false,
         reason: 'Public current review snapshots only; deleted reviews and intermediate revisions between polls are unavailable; scan completion is reported by sync' };
     } catch (error) {
@@ -142,7 +159,7 @@ export class SteamReviewsConnector implements SourcePluginV1 {
   }
   private async scan(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {
     try {
-      let state = readState(await host.getCheckpoint(), this.config.appId);
+      let state = readState(await host.getCheckpoint(), this.config.appId, this.config.reviewScope);
       const key = this.config.publisherKeySecret ? await host.getSecret(this.config.publisherKeySecret) : undefined;
       for (let page = 0; page < this.config.maxPagesPerSync; page++) {
         signal.throwIfAborted();
@@ -151,14 +168,30 @@ export class SteamReviewsConnector implements SourcePluginV1 {
         const events: FeedbackEventV1[] = [];
         let crossed = false;
         for (const review of result.reviews) {
-          if (state.watermark > 0 && review.timestamp_updated < state.watermark - this.config.overlapSeconds) { crossed = true; continue; }
+          if (this.config.reviewScope === 'negative' && state.watermark > 0 && review.timestamp_updated < state.watermark - this.config.overlapSeconds) { crossed = true; continue; }
           next.scanHigh = Math.max(next.scanHigh, review.timestamp_updated);
           const previous = next.tracked[review.recommendationid];
-          // Compare exact fields within this review ID; changing votes/playtime alone is not a content revision.
-          const revision = hash({ id: review.recommendationid, text: review.review, language: review.language, voted_up: review.voted_up,
+          // Archive-all mode preserves native metadata changes even without timestamp_updated changes.
+          const revision = this.config.reviewScope === 'all' ? hash(review) : hash({ id: review.recommendationid, text: review.review, language: review.language, voted_up: review.voted_up,
             created: review.timestamp_created, updated: review.timestamp_updated, author: review.author.steamid });
-          if ((review.voted_up === false || previous !== undefined) && previous !== revision) {
-            events.push(normalizeSteamReview(review, this.config, host, previous ? 'updated' : undefined));
+          if ((this.config.reviewScope === 'all' || review.voted_up === false || previous !== undefined) && previous !== revision) {
+            const event = normalizeSteamReview(review, this.config, host, previous ? 'updated' : undefined);
+            if (this.config.reviewScope === 'all') {
+              const sequence = (next.sequences?.[review.recommendationid] ?? (previous ? 1 : 0)) + 1;
+              (next.sequences ??= {})[review.recommendationid] = sequence;
+              // Observation order distinguishes A→B→A snapshots with identical native timestamps.
+              event.id += ':observation:' + sequence;
+              event.data.object.revision += ':observation:' + sequence;
+              // Core orders projections by event.time, but Steam metadata may change
+              // without advancing its native timestamp_updated. Persist a strictly
+              // increasing observation time, including across restarts.
+              const nativeTime = review.timestamp_updated * 1000;
+              const priorTime = next.observationTimes?.[review.recommendationid] ?? nativeTime;
+              const observationTime = previous ? Math.max(Date.now(), nativeTime + 1, priorTime + 1) : nativeTime;
+              (next.observationTimes ??= {})[review.recommendationid] = observationTime;
+              event.time = new Date(observationTime).toISOString();
+            }
+            events.push(event);
             next.tracked[review.recommendationid] = revision;
           }
         }

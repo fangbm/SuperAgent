@@ -27,14 +27,28 @@ export function validateBatchingPolicy(input: BatchingPolicyV1): Readonly<Batchi
   return Object.freeze(policy);
 }
 
+/** A low-cost lexical check, applied to body and thread title independently. */
+function isTrivialText(value: string): boolean {
+  const text = value.trim();
+  return !text || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(text)
+    || /^[\p{P}\p{S}\s]+$/u.test(text);
+}
+/** Title is signed source evidence, not inferred from a snippet of the body. */
+function threadTitle(event: Exclude<NormalizedEventV1,{type:'com.superagent.source.coverage.changed.v1'}>): string {
+  return event.data.object.kind === 'thread' && typeof event.data.attributes?.title === 'string'
+    ? event.data.attributes.title.trim() : '';
+}
+
 /** Conservative, reversible rules. Unknown substantive text remains a candidate. */
 export function classifyAdmission(event: NormalizedEventV1, eventId: InternalEventId, policy: BatchingPolicyV1): { decision: AdmissionKindV1; rationale: string } {
   if (event.type === 'com.superagent.source.coverage.changed.v1') return { decision: 'archive_only', rationale: 'SOURCE_HEALTH_EVENT' };
   if (event.type.includes('.deleted.') || event.type.includes('.updated.')) return { decision: 'candidate', rationale: 'SOURCE_REVISION_REPROCESS' };
-  const text = event.data.content?.text?.trim() ?? '';
+  const body = event.data.content?.text?.trim() ?? '';
+  const title = threadTitle(event);
+  const text = [title, body].filter(Boolean).join('\n');
   if (/(?:存档|save).*(?:损坏|丢失|corrupt|lost)|(?:账号|account).*(?:被盗|泄露|exploit)/iu.test(text)) return { decision: 'urgent_candidate', rationale: 'URGENT_REQUIRES_VERIFICATION' };
   if (event.data.content?.attachments?.length) return { decision: 'candidate', rationale: 'ATTACHMENT_REQUIRES_REVIEW' };
-  const trivial = !text || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(text) || /^[\p{P}\p{S}\s]+$/u.test(text);
+  const trivial = isTrivialText(body) && isTrivialText(title);
   if (trivial) {
     const sample = createHash('sha256').update(JSON.stringify([eventId, policy.policyVersion])).digest().readUInt32BE(0) / 0x1_0000_0000;
     return sample < policy.auditSampleRate ? { decision: 'audit_sample', rationale: 'ARCHIVE_AUDIT_SAMPLE' } : { decision: 'archive_only', rationale: 'EXPLICIT_NON_ACTIONABLE' };
@@ -65,7 +79,33 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       if (!stored) throw new Error('EVENT_NOT_FOUND');
       const event = JSON.parse(stored.payload_json) as NormalizedEventV1;
       const now = timestamp(this.clock());
-      const result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
+      let result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
+      // A queued later edit must never be mistaken for an already-admitted
+      // predecessor. Skip only when the immediately preceding *earlier* event
+      // was itself safely archived as trivial. Pending/relevant predecessors,
+      // attachments and material thread titles all retain reanalysis.
+      if (!forced && event.type !== 'com.superagent.source.coverage.changed.v1'
+        && event.type.includes('.updated.') && typeof event.data.content?.text === 'string'
+        && !event.data.content.attachments?.length
+        && isTrivialText(event.data.content.text) && isTrivialText(threadTitle(event))) {
+        const previous = this.store.get<{ payload_json: string; decision: string | null; rationale_code: string | null }>(`
+          SELECT prior.payload_json, admission.decision, admission.rationale_code
+          FROM source_events prior
+          LEFT JOIN admission_decisions admission
+            ON admission.event_id=prior.event_id AND admission.policy_version=?
+          WHERE prior.source_id=? AND prior.rowid<(SELECT rowid FROM source_events WHERE event_id=?)
+            AND json_extract(prior.payload_json,'$.data.object.externalId')=?
+          ORDER BY prior.rowid DESC LIMIT 1`,
+          policy.policyVersion, stored.source_id, eventId, event.data.object.externalId);
+        if (previous?.decision === 'archive_only'
+          && (previous.rationale_code === 'EXPLICIT_NON_ACTIONABLE' || previous.rationale_code === 'TRIVIAL_REVISION')) {
+          const old = JSON.parse(previous.payload_json) as NormalizedEventV1;
+          if (old.type !== 'com.superagent.source.coverage.changed.v1'
+            && isTrivialText(old.data.content?.text ?? '') && isTrivialText(threadTitle(old))
+            && !old.data.content?.attachments?.length)
+            result = { decision: 'archive_only', rationale: 'TRIVIAL_REVISION' };
+        }
+      }
       this.store.run('INSERT INTO admission_decisions VALUES(?,?,?,?,?)', eventId, policy.policyVersion, result.decision, result.rationale, now);
       const alreadyCandidate = this.store.get("SELECT 1 FROM segment_events WHERE event_id=? AND role='candidate' LIMIT 1", eventId);
       // Re-evaluating a policy never invents a second player feedback entity.
@@ -86,6 +126,25 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
           if (parentId) {
             const parent = this.store.get<{ event_id: string }>('SELECT event_id FROM source_objects WHERE source_id=? AND external_id=? AND deleted=0', stored.source_id, parentId);
             if (parent && parent.event_id !== eventId) this.addContext(segment.segment_id, parent.event_id, policy.maxContextMessages);
+          }
+          // Comments and original reviews live in separate Sources. Carry only
+          // exact same-project, same-app Steam review context into the M3 batch.
+          const attrs = event.data.attributes;
+          if (event.data.platform === 'steam-reviews' && event.data.object.kind === 'comment'
+            && attrs?.surface === 'review-comments' && typeof attrs.parentReviewSourceId === 'string'
+            && typeof attrs.appId === 'number' && typeof event.data.object.parentExternalId === 'string'
+            && attrs.parentRecommendationId === event.data.object.parentExternalId
+            && attrs.parentReviewSourceId !== stored.source_id) {
+            const review = this.store.get<{ event_id: string }>(`SELECT o.event_id FROM source_objects o
+              JOIN sources s ON s.source_id=o.source_id AND s.project_id=? AND s.platform='steam-reviews'
+              JOIN source_events e ON e.event_id=o.event_id AND e.project_id=? AND e.source_id=o.source_id
+              WHERE o.source_id=? AND o.external_id=? AND o.object_kind='review' AND o.deleted=0
+                AND json_extract(e.payload_json,'$.data.platform')='steam-reviews'
+                AND json_extract(e.payload_json,'$.data.attributes.appId')=?
+                AND json_extract(e.payload_json,'$.data.object.externalId')=?`,
+              stored.project_id, stored.project_id, attrs.parentReviewSourceId,
+              event.data.object.parentExternalId, attrs.appId, event.data.object.parentExternalId);
+            if (review && review.event_id !== eventId) this.addContext(segment.segment_id, review.event_id, policy.maxContextMessages);
           }
           this.store.run('UPDATE conversation_segments SET last_related_at=?,quiet_due_at=?,urgent_due_at=CASE WHEN ?=1 THEN coalesce(urgent_due_at,?) ELSE urgent_due_at END,replay=max(replay,?) WHERE segment_id=?',
             now, addMilliseconds(now, policy.quietWindowMs), result.decision === 'urgent_candidate' ? 1 : 0, addMilliseconds(now, policy.urgentMaxDelayMs), forced || event.type.includes('.updated.') || event.type.includes('.deleted.') ? 1 : 0, segment.segment_id);

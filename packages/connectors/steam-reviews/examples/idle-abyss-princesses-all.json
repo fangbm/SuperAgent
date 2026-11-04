@@ -1,0 +1,8 @@
+{
+  "sourceUri": "urn:superagent:source:steam:5335850:all-reviews",
+  "appId": 5335850,
+  "reviewScope": "all",
+  "pageSize": 100,
+  "maxPagesPerSync": 2,
+  "pollIntervalMs": 600000
+}

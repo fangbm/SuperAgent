@@ -101,7 +101,7 @@ export class QQOperatorService {
       let evidenceNav:Navigation;
       if(section==='steam_negative_reviews'){
         const member=report.steamNegativeReviews[offset]!;const e=this.control.domain.evidence(project,member.evidenceEventId);
-        original={originalText:e&&!e.deleted?e.text:'[原文已删除或不可见]',platform:'steam-reviews',createdAt:member.occurredAt};title='玩家差评';
+        original={originalText:e&&!e.deleted?e.originalText:'[原文已删除或不可见]',platform:'steam-reviews',createdAt:member.occurredAt};title='玩家差评';
         evidenceNav={...nav,route:'evidence',steamOrdinal:offset,charOffset:800};
       }else{
         const kind=section==='bugs'?'defect':'suggestion',id=(kind==='defect'?report.issueIds:report.suggestionIds)[offset]!;
@@ -142,7 +142,7 @@ export class QQOperatorService {
       if(!Number.isSafeInteger(itemOffset)||itemOffset<0||!Number.isSafeInteger(charOffset)||charOffset<0)throw new ControlError('INVALID_EVIDENCE_PAGE');
       let item:{originalText:string;platform:string;createdAt:string}|undefined;let total=1;
       if(nav.section==='steam_negative_reviews'){
-        const member=report.steamNegativeReviews[nav.steamOrdinal??0];if(!member)throw new ControlError('STEAM_MEMBER_NOT_FOUND');const e=this.control.domain.evidence(project,member.evidenceEventId);item={originalText:e&&!e.deleted?e.text:'[原文已删除或不可见]',platform:'steam-reviews',createdAt:member.occurredAt};
+        const member=report.steamNegativeReviews[nav.steamOrdinal??0];if(!member)throw new ControlError('STEAM_MEMBER_NOT_FOUND');const e=this.control.domain.evidence(project,member.evidenceEventId);item={originalText:e&&!e.deleted?e.originalText:'[原文已删除或不可见]',platform:'steam-reviews',createdAt:member.occurredAt};
       }else{
         const scope={projectId:project,kind:nav.kind!,id:nav.workId!,reportId:report.reportId,revision:report.revision,limit:1};
         const page=this.control.evidence(principal,project,nav.kind!,nav.workId!,{reportId:report.reportId,revision:report.revision,limit:1,...(itemOffset?{cursor:this.control.tokens.cursor(principal,scope,itemOffset)}:{})});total=page.total;item=page.items[0];

@@ -58,7 +58,11 @@ export async function createApplication(input,options={}) {
     const required=name=>{if(!name||!env[name])throw new Error('APPLICATION_SECRET_MISSING');return env[name];};
     const github=config.github.enabled?(options.github??new GitHubREST({repository:config.github.repository,token:required(config.github.tokenEnv),
       ...(config.github.baseURL?{baseURL:config.github.baseURL}:{}),allowLoopbackHTTP:config.github.allowLoopbackHTTP===true})):null;
-    const analysisConfig={...config.analysis,...(config.analysis.enabled&&config.analysis.apiKeyEnv?{apiKey:required(config.analysis.apiKeyEnv)}:{})};
+    // Resolve model settings at startup; no LLM provider or local runtime is mandatory.
+    const analysisConfig={...config.analysis,
+      ...(config.analysis.enabled&&config.analysis.baseURLEnv?{baseURL:required(config.analysis.baseURLEnv)}:{}),
+      ...(config.analysis.enabled&&config.analysis.modelEnv?{model:required(config.analysis.modelEnv)}:{}),
+      ...(config.analysis.enabled&&config.analysis.apiKeyEnv?{apiKey:required(config.analysis.apiKeyEnv)}:{})};
     const delivery=config.deliveries.find(e=>e.enabled);
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
     manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,

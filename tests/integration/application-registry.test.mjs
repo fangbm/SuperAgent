@@ -20,9 +20,9 @@ function extraFixture(t,{manifestId='example.source',permissionKeys=[]}={}) {
   return {...f,entry,registry,created:()=>created};
 }
 
-test('trusted registry resolves the four builtins and rejects unknown executable module names',t=>{
+test('trusted registry resolves the five builtins and rejects unknown executable module names',t=>{
   const f=appFixture(t);
-  for(const key of ['qq-official','discord','steam-reviews','steam-discussions'])assert.equal(typeof builtinSources.get(key).factory,'function');
+  for(const key of ['qq-official','discord','steam-reviews','steam-review-comments','steam-discussions'])assert.equal(typeof builtinSources.get(key).factory,'function');
   assert.throws(()=>builtinSources.get('file:///untrusted.mjs'),/UNKNOWN_SOURCE_PLUGIN/);
   assert.throws(()=>builtinSources.get('__proto__'),/UNKNOWN_SOURCE_PLUGIN/);
   f.config.sources[0].plugin='file:///untrusted.mjs';assert.throws(()=>parseApplicationConfig(f.config),/INVALID_APPLICATION_PLUGIN/);

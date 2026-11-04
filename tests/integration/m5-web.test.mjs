@@ -3,12 +3,22 @@ import test from 'node:test';
 import { once } from 'node:events';
 import { createConsoleServer } from '@superagent/web-console';
 import { m5Fixture, accessKey, readerKey } from './m5-helpers.mjs';
-import { binding } from './helpers.mjs';
+import { binding,event,scope } from './helpers.mjs';
 import { parseHTML } from 'linkedom';
 import { runInNewContext } from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 import { webcrypto } from 'node:crypto';
-async function serverFixture(t,original){const f=await m5Fixture(t);f.add('one',original);await f.worker.tick();const report=f.generate();const server=createConsoleServer(f.control,{now:f.clock});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));const base=`http://127.0.0.1:${server.address().port}`;
+async function serverFixture(t,original,threadTitle){
+  const f=await m5Fixture(t);
+  if(threadTitle){
+    const thread=event('one',{text:original??'如题'});
+    thread.type='com.superagent.feedback.thread.created.v1';
+    thread.data.object.kind='thread';thread.data.attributes={title:threadTitle};
+    f.runtime.ingress.commitBatch(scope,[thread]);f.runtime.tick();
+    for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+      f.runtime.buffer.flushSync(row.segment_id,'replay');
+  }else f.add('one',original);
+  await f.worker.tick();const report=f.generate();const server=createConsoleServer(f.control,{now:f.clock});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));const base=`http://127.0.0.1:${server.address().port}`;
   const login=async(key=accessKey)=>{const response=await fetch(base+'/api/session',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({accessKey:key})});assert.equal(response.status,200);const cookies=response.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');const csrf=response.headers.getSetCookie().find(c=>c.startsWith('sa_csrf=')).split(';')[0].slice(8);return{cookies,csrf};};
   const call=(path,session,body,extra={})=>fetch(base+path+(path.includes('?')?'&':'?')+'project='+encodeURIComponent(binding.projectId),{method:body?'POST':'GET',headers:{Origin:base,...(session?{Cookie:session.cookies,'X-CSRF-Token':session.csrf}:{}),...(body?{'Content-Type':'application/json'}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})});return{...f,report,base,login,call};}
 test('HTTP console serves local assets but requires session, project authorization and CSRF for data and writes',async t=>{
@@ -52,4 +62,18 @@ test('authenticated report content renders the frozen revision while original ev
   button('查看原文与当前进展').click();await waitFor(()=>document.querySelector('pre.original'));assert.equal(document.querySelector('pre.original').textContent,original);assert.equal(document.querySelector('pre.original script'),null);
   f.setTime('2026-11-02T10:06:00.000Z');f.reports.generate(f.report.window,{revise:true,expectedRevision:1});
   assert.deepEqual(await (await f.call(path,session)).json(),rendered);assert.deepEqual(await (await f.call(`/api/reports/${f.report.reportId}/1`,session)).json(),before);
+});
+
+
+test('Web original API returns the exact thread title and body used by model evidence',async t=>{
+  const title='Windows 联机加载90%时崩溃';
+  const f=await serverFixture(t,'如题',title);
+  const session=await f.login(readerKey);
+  const work=f.control.listWorks(f.principal,binding.projectId,'defect')[0];
+  assert.ok(work);
+  const response=await f.call(`/api/works/defect/${work.id}/evidence?reportId=${f.report.reportId}&revision=1`,session);
+  assert.equal(response.status,200);
+  const payload=await response.json();
+  assert.equal(payload.items[0].originalText,'标题：'+title+'\n正文：如题');
+  assert.equal(payload.items[0].visible,true);
 });

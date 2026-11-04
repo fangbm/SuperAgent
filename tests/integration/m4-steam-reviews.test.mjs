@@ -8,6 +8,36 @@ const review = (patch = {}) => ({ ...nativeFixture('steam-review'), ...patch });
 const page = (reviews = [], cursor = 'end') => Response.json({ response: { reviews, cursor } });
 const config = f => ({ sourceUri: f.binding.sourceUri, appId: 570 });
 
+test('opt-in all-review archiving retains positive reviews and metadata A/B/A/B revisions', async t => {
+  const f = connectorFixture(t, 'steam-reviews'); let votes = 3;
+  const connector = new SteamReviewsConnector({ ...config(f), reviewScope: 'all' }, { fetch: async url => {
+    const cursor = JSON.parse(url.searchParams.get('input_json')).cursor;
+    return cursor === '*' ? page([review({ voted_up: true, votes_up: votes })], 'next') : Response.json({ response: { cursor: 'end', query_summary: { num_reviews: 0 } } });
+  } });
+  for (const next of [3, 4, 3, 4]) {
+    votes = next; await connector.sync(f.host, signal());
+    // Same native updated timestamp: still advance the latest object projection.
+    const projected = f.runtime.store.get(`SELECT e.payload_json FROM source_objects o
+      JOIN source_events e ON e.event_id=o.event_id
+      WHERE o.source_id=? AND o.external_id=?`, f.scope.sourceId, review().recommendationid);
+    assert.equal(JSON.parse(projected.payload_json).data.attributes.native.votes_up, next);
+  }
+  const events = f.events(f.runtime);
+  assert.ok(events.slice(1).every((event, index) => Date.parse(event.time) > Date.parse(events[index].time)));
+  assert.equal(f.runtime.store.get('SELECT count(*) n FROM source_reconciliations').n, 0); assert.equal(events.length, 4);
+  assert.deepEqual(events.map(event => event.data.attributes.native.votes_up), [3, 4, 3, 4]);
+  assert.equal(new Set(events.map(event => event.id)).size, 4);
+  assert.equal(new Set(events.map(event => event.data.object.externalId)).size, 1);
+  const result = await f.host.commitBatch([events.at(-1)]); assert.equal(result.duplicates, 1);
+  await assert.rejects(new SteamReviewsConnector(config(f)).sync(f.host, signal()), /INVALID_CHECKPOINT/);
+});
+
+test('official review diagnostic probes serialize with sync requests under application supervision',async t=>{
+  const f=connectorFixture(t,'steam-reviews');let active=0,peak=0;
+  const connector=new SteamReviewsConnector(config(f),{fetch:async()=>{active++;peak=Math.max(peak,active);await new Promise(setImmediate);active--;return page();}});
+  await Promise.all([connector.sync(f.host,signal()),connector.probe()]);assert.equal(peak,1);
+});
+
 test('Steam live polling probe exposes a recovered network interruption without counting probe success as a scan', async t => {
   const f=connectorFixture(t,'steam-reviews'),health=[],controller=new AbortController();let polling=false,failNext=false;
   const connector=new SteamReviewsConnector({...config(f),pollIntervalMs:60000},{fetch:async()=>{if(failNext){failNext=false;throw new TypeError('network');}return page();},sleep:async(ms,signal)=>{

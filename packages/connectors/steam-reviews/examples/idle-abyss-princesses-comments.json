@@ -1,0 +1,10 @@
+{
+  "sourceUri": "urn:superagent:source:steam:5335850:review-comments-observed",
+  "appId": 5335850,
+  "parentReviewSourceId": "steam-5335850-reviews-all",
+  "pollIntervalMs": 600000,
+  "requestIntervalMs": 2000,
+  "maxRequestsPerSync": 25,
+  "rescanIntervalMs": 86400000,
+  "pageSize": 100
+}
