@@ -45,4 +45,34 @@ PR B 本地验证：完整 pnpm check 的 376 项 Node 与 6 组参考验证通�
 
 删除的补充边界：即便 close/delete 连续收到，也先通过 overwrite 阻止请求者继续发送，并在下一次 GET 读回确认后才做最终分页归档与 DELETE。HTTP 成功而权限尚未读回时不会删除。Staff/Administrator 的并发写入仍是远端限制，须按 ADR 0018 验收。
 
+## PR C：Voice 与完整组合
+
+统一实例增加 voice.enabled、allowWrites（均默认 false）、目标 categoryId 和 creatorChannelIds（1–16 个）。示例 examples/discord-community/superagent.json 配置四个既有创建入口，所有模块及写入关闭。独立开 Voice 时，开启顶层实例、voice.enabled/allowWrites，保留 sourceEnabled:false、tickets.enabled:false；不需要运行其他 worker、创建第二个配置器或 Bot。
+
+进入创建入口后，保存 room/索引并在目标 category 创建带标记语音房，再移动创建者。配置 defaultLimit 默认 4（1–99）、emptyRoomMs 默认 60000（1000–86400000 毫秒）、cleanupEmptyRooms 默认 true。命令 `/sa-voice` 支持 action=limit/lock/unlock/transfer，默认针对当前托管房间；可选 room 编号，limit 传人数，transfer 传 target。仅现场权限通过的当前房主可操作；房主退出/失权会安全转让，空房才进入回收。命令仅注册本应用的名字，不覆盖无关命令。
+
+Voice 需要 GUILDS/GUILD_VOICE_STATES、View Channel/Connect、Manage Channels/Move Members，以及修改频道 overwrite 所需的 Manage Roles；后者用于频道权限，不执行 guild role 编辑。Bot 只授必要权限，无 Administrator。四个创建入口需由操作员预先配置有效 ID；本程序不擅自创建或改造服务器入口结构。
+
+本 guild 的最小占用（user/channel ID）保存到同库 Voice 命名空间，包含当前尚待本地核对的新房占用，以避免响应丢失后误删有人房。不会录音、连接音频网关、保存语音 session/token、识别、生成反馈、调用模型或推进公开 Source 的策略。当前需要授权整个 Bot 所属 guild 的占用元数据，不能声称只接收到已知房间的事件。
+
+重启后等待新完整占用快照，或同 session 的持久快照/按序收件箱与 RESUMED 连续性证明。断线、占用事件失败、不同 session 或 unavailable 不会被心跳冒充健康；占用未知时不创建、移动或清理。未知创建/删除/移动不盲重试，核对不出结果时保留 blocked/unknown 等待人工处理。语音设置用 GET 读回，空房清理先阻止连接并复核；管理员绕过 overwrite 与最终检查/DELETE 间的远端竞态仍是平台限制，详见 [ADR 0019](ADR/0019-discord-voice-recovery.md)。
+
+同一 Bot Token 的多个启用 Discord 实例会以 DISCORD_DUPLICATE_GATEWAY_CREDENTIAL 拒绝，既检查同名环境引用，也检查不同引用的同值凭据；不打印密钥。一个 Bot 多 guild 独立实例的聚合未实现，不通过多连接绕过限制。
+
+模块分别展示 state/lastError/retryAt；Voice 另展示 occupancy/gatewayConnected/commandSetup。正常生命周期五秒一轮，明确暂时错误三十秒后重查，永久配置/授权错误阻塞本模块。旧/不明 Interaction 发送不补发，失去权限的交互不自动等待未来获权后执行。新增交互失败有不含私密正文的 ephemeral 提示。
+
 协议核对依据：[官方 Thread API](https://github.com/discord/discord-api-docs/blob/main/developers/resources/channel.mdx)、[Gateway 事件](https://github.com/discord/discord-api-docs/blob/main/developers/events/gateway-events.mdx)、[权限](https://github.com/discord/discord-api-docs/blob/main/developers/topics/permissions.mdx)、[Interaction 响应](https://github.com/discord/discord-api-docs/blob/main/developers/interactions/receiving-and-responding.mdx)。
+
+## 分支验收记录
+
+| 模块 | Draft PR / 依赖 | Head 与本地检查 | 远端 CI |
+| --- | --- | --- | --- |
+| Source | [#11](https://github.com/fangbm/SuperAgent/pull/11)，base main | `19df03130403d617447cf0835bea8266a63a2abe`；362 项 Node、6 组参考验证 | [41832408658](https://github.com/fangbm/SuperAgent/actions/runs/41832408658)，Windows/Ubuntu 均成功 |
+| Ticket | [#12](https://github.com/fangbm/SuperAgent/pull/12)，base #11 | `10218c08e65130bd9e12ba8c2b47a0179fbba2a1`；376 项 Node、6 组参考验证 | [41852308991](https://github.com/fangbm/SuperAgent/actions/runs/41852308991)，Windows/Ubuntu 均成功 |
+| Voice | base #12，Head 和 CI 以对应 Draft PR 为准 | 407 项 Node、6 组参考验证；M6 专项 76 项 | 创建 PR 后分别检查 Windows/Ubuntu |
+
+每个分支均执行锁文件安装与完整 `pnpm check`；最终组合包含构建、类型、包边界、45 个 M0 冻结文件和全部既有回归。三个关闭状态的示例均通过统一入口 `--check-config`。没有修改冻结契约、既有主 Migration、全局 Source Policy 或运行第二套 Core。
+
+新增 Voice/组合回归覆盖八种启停组合、同凭据拒绝、单 Gateway、模块权限失败隔离、四入口、幂等、未知创建/移动/删除、占用恢复、房主权限/转让、人数/锁定、空房清理/到人取消、失败占用持久失效和移除入口。Voice 的请求前崩溃采用持久状态注入模拟，实际子进程 SIGKILL 验证属于 Ticket 事务恢复；不混称真实平台或 Voice 进程崩溃验收。M1/M3/M5 集成使用本机 HTTP 模型替身，没有付费模型调用。
+
+真实服务器待验收：特权 Intent、Thread 可见性及分页边界、Staff/请求者频道权限、命令响应时限、创建/移动/修改 overwrite/删除，以及长期断线/限流和压力。权限配置变更应停机后人工复核已有远端频道，不提供静默迁移已有 ACL 的能力。结果不明且远端核对不足的操作保持阻塞，需人工处理；不能靠重发来“恢复成功”。旧 #4 数据库拒绝自动升级，应保留原库并在隔离环境导出、核对后另行制定迁移方案，不重写历史账本。

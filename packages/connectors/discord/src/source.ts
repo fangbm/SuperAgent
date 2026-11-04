@@ -81,7 +81,7 @@ interface Gateway { sessionId: string; resumeUrl: string; sequence: number }
 interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean; observedMessages?: Record<string, Record<string, string>>;
   scope?:{guildId:string;sourceUri:string;channelIds:string[];threadIds:string[]};knownThreads?:Record<string,string>;archives?:Record<string,{before:string|null;complete:boolean}>;gaps?:Record<string,string>;historyCursor?:string;archiveCursor?:number;pendingDispatch?:{sessionId:string;sequence:number;receivedAt:string} }
 export interface DiscordOptions { fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-  api?:DiscordAPI;additionalIntents?:number;onDispatch?:(packet:DiscordDispatch,signal:AbortSignal)=>Promise<void>;onImmediate?:(packet:DiscordDispatch)=>Promise<void>;excludeChannel?:(id:string,parentId?:string)=>Promise<boolean> }
+  api?:DiscordAPI;additionalIntents?:number;onDispatch?:(packet:DiscordDispatch,signal:AbortSignal)=>Promise<void>;onImmediate?:(packet:DiscordDispatch)=>Promise<void>;excludeChannel?:(id:string,parentId?:string)=>Promise<boolean>;onConnection?:(connected:boolean)=>void }
 export class DiscordConnector implements SourcePluginV1 {
   readonly manifest: PluginManifestV1;
   private readonly ids: string[];
@@ -341,6 +341,7 @@ export class DiscordConnector implements SourcePluginV1 {
       healthPending = true;
       void this.serial(async () => {
         if (connected && socket.readyState === 1 && !signal.aborted) await host.reportHealth({coverage:'partial',reason:'DISCORD_GATEWAY_HEARTBEAT_ACK',checkedAt:new Date().toISOString()});
+        if(connected&&socket.readyState===1&&!signal.aborted)this.options.onConnection?.(true);
       }).catch(error => { failure ??= error; socket.close(4000, 'Host health failed'); }).finally(() => { healthPending = false; });
     };
     const beat = (interval: number) => {
@@ -417,6 +418,7 @@ export class DiscordConnector implements SourcePluginV1 {
                 await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
                 if ((type === 'READY' || type === 'RESUMED') && socket.readyState === 1 && !signal.aborted) {
                   connected = true;
+                  this.options.onConnection?.(true);
                   await host.reportHealth({coverage:'partial',reason:'DISCORD_GATEWAY_CONNECTED',checkedAt:new Date().toISOString()});
                 }
               }).catch(error => { failure ??= error; socket.close(4000, 'Host commit failed'); }).finally(() => { pending--; });
@@ -425,6 +427,7 @@ export class DiscordConnector implements SourcePluginV1 {
         });
         socket.addEventListener('close', event => {
           connected = false;
+          this.options.onConnection?.(false);
           if ([4004, 4010, 4011, 4012, 4013, 4014].includes(event.code)) { failure = new Error('PERMISSION_DENIED: Gateway close ' + event.code); }
           if ([4007, 4009].includes(event.code)) next = 'identify';
           resolve();

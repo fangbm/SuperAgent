@@ -16,4 +16,4 @@ export const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v=
 export const snowflake=(v:unknown):v is string=>typeof v==='string'&&/^\d{1,22}$/.test(v);
 export const asJSON=(v:unknown)=>v as JSONValue;
 export const safeCode=(error:unknown)=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'DISCORD_MODULE_FAILED';
-export interface DiscordBusinessModule { owns(packet:DiscordDispatch):Promise<boolean>;acknowledge(packet:DiscordDispatch):Promise<void>;handle(packet:DiscordDispatch,signal:AbortSignal):Promise<void>;tick(signal:AbortSignal):Promise<void>;stop():void }
+export interface DiscordBusinessModule { owns(packet:DiscordDispatch):Promise<boolean>;acknowledge(packet:DiscordDispatch):Promise<void>;handle(packet:DiscordDispatch,signal:AbortSignal):Promise<void>;tick(signal:AbortSignal):Promise<void>;stop():void;sanitize?(packet:DiscordDispatch):Promise<DiscordDispatch>;disconnect?():void;heartbeat?():void;diagnostics?():Record<string,unknown>;reject?(packet:DiscordDispatch,code:string):Promise<void> }

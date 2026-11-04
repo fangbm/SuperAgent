@@ -9,4 +9,4 @@ Node 24 官方 Gateway/REST 适配器，导出 DiscordConnector、discordConfigS
 验证及未完成权限验收见 [验收记录](../../../docs/M4-ACCEPTANCE.md)。
 ## 模块化扩展
 
-当前统一入口可选 `discoverThreads:true`，仅发现 channelIds 下的公共活跃/归档 Thread；默认关闭，不遍历整服频道。配置示例和 checkpoint/权限/历史兼容说明见 [模块化集成](../../../docs/DISCORD-MODULAR-INTEGRATION.md)。后续 Ticket、Voice 复用同一 Transport，不另开核心运行时。
+当前统一入口可选 `discoverThreads:true`，仅发现 channelIds 下的公共活跃/归档 Thread；默认关闭，不遍历整服频道。DiscordPlatform 将 Source、Ticket、Voice 分别配置并复用同一 Transport，不另开核心运行时。私人工单和语音房默认关闭，启用、权限、命令、恢复与迁移说明见 [模块化集成](../../../docs/DISCORD-MODULAR-INTEGRATION.md)。

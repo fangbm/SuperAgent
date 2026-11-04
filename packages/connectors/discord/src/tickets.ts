@@ -34,6 +34,7 @@ export class DiscordTickets implements DiscordBusinessModule {
     const id=String(p.data.id),r=this.replies.get(id);if(!r||r.expires<Date.now())return;
     try{await r.ack;await this.api.request('PATCH',`/webhooks/${r.app}/${encodeURIComponent(r.token)}/messages/@original`,{content:content.slice(0,1900),allowed_mentions:{parse:[]}},this.controller.signal);}finally{this.replies.delete(id);}
   }
+  async reject(p:DiscordDispatch,code:string){await this.reply(p,`请求暂未确认（${code}）。请核对工单状态后再操作。`);}
   private async staff(user:string,signal:AbortSignal):Promise<boolean>{
     const member=await this.api.request('GET',`/guilds/${this.guildId}/members/${user}`,undefined,signal);
     if(!object(member)||!object(member.user)||member.user.id!==user||!Array.isArray(member.roles))throw new Error('PERMISSION_DENIED');
@@ -96,7 +97,7 @@ export class DiscordTickets implements DiscordBusinessModule {
     const member=await this.api.request('GET',`/guilds/${this.guildId}/members/${user.id}`,undefined,signal),roles=await this.api.request('GET',`/guilds/${this.guildId}/roles`,undefined,signal),app=await this.api.request('GET','/oauth2/applications/@me',undefined,signal);
     if(!object(member)||!Array.isArray(member.roles)||!Array.isArray(roles)||!object(app)||!snowflake(app.id)||typeof app.flags!=='number'||(app.flags&((1<<18)|(1<<19)))===0)throw new Error('PERMISSION_DENIED');
     const bits=discordPermissions(this.guildId,user.id,member.roles as string[],roles as Parameters<typeof discordPermissions>[3],category.permission_overwrites as Parameters<typeof discordPermissions>[4]);
-    const required=1024n|16n|(1n<<28n);if((bits&required)!==required)throw new Error('PERMISSION_DENIED');
+    const required=1024n|2048n|65536n|16n|(1n<<28n);if((bits&required)!==required)throw new Error('PERMISSION_DENIED');
     this.botId=user.id;this.appId=app.id;this.checked=true;
   }
   private overwrites(user:string){return [{id:this.guildId,type:0,deny:String(1024n|(1n<<35n)|(1n<<36n)),allow:'0'},{id:user,type:1,allow:String(1024n|2048n|65536n),deny:String((1n<<35n)|(1n<<36n))},{id:this.botId,type:1,allow:String(1024n|2048n|65536n|16n|(1n<<28n)),deny:'0'},...this.config.staffRoleIds!.map(id=>({id,type:0,allow:String(1024n|2048n|65536n),deny:'0'}))];}

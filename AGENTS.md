@@ -14,3 +14,4 @@
 - Steam 后续采集通过 `examples/steam-public/superagent.json` 接入同一主程序：官方评价可选 all、评价评论为独立 Source、Discussions 可选 public（默认仍 unavailable，snapshot 保留）。站点原生接口只报告 partial；真实有界读取、合成回归和旧19条评论回放分别记录在 docs/STEAM-PUBLIC-FEEDBACK.md。原始库不得因测试改写，不恢复 #6 已回滚的社区/工单/语音/部署实现。
 - 修改后运行适合变更范围的检查；完整入口为 `pnpm check`。验证后创建仅包含本次改动的本地 Git 提交，保留无关改动。
 - 验收说明应区分类型检查、内存 SQLite、模拟测试、真实平台联调和实际送达。
+- Discord 模块化系列从 main d9937a9 开始，Source/Ticket/Voice 为三个叠加 Draft PR，均不自动合并。Source 仅在配置父频道发现公共 Thread；私人工单通过同库 Host 原子归档到独立 staff-only Project，不进入公开 M3/报告；Voice 仅使用占用元数据，不录音、不提交反馈。所有新模块和写入默认关闭，同 Bot 凭据不建立重复 Gateway。迁移使用同库命名特性账本，未改既有主迁移或 M0。当前只做受控 Gateway/REST、真实本机 SQLite 和进程崩溃测试；真实 Discord 权限与副作用尚未验收，见 docs/DISCORD-MODULAR-INTEGRATION.md。

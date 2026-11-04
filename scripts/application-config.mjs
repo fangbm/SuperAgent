@@ -68,6 +68,11 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   }
   // Existing M5 supports one approved developer C2C binding per application project.
   if(c.deliveries.filter(e=>e.enabled).length>1)throw new Error('MULTIPLE_DELIVERY_BINDINGS_NOT_SUPPORTED');
+  const discordCredentials=new Set();
+  for(const entry of c.sources.filter(e=>e.enabled&&e.plugin==='discord')){
+    const name=entry.secrets?.[entry.config.tokenSecret??'DISCORD_BOT_TOKEN'];
+    if(name&&discordCredentials.has(name))throw new Error('DISCORD_DUPLICATE_GATEWAY_CREDENTIAL');if(name)discordCredentials.add(name);
+  }
   if(c.web.accessConfig)c.web.accessConfig=path.resolve(directory,c.web.accessConfig);
   return c;
 }

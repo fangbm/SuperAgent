@@ -1,5 +1,7 @@
 # SuperAgent
 
+Discord 的公开采集、私人工单与临时语音房已按三个 Draft PR 模块化集成，复用统一入口和共享 Gateway；所有新增模块与写入默认关闭。配置、命令、隔离、迁移及尚待真实平台验收的边界见 [Discord 模块化说明](docs/DISCORD-MODULAR-INTEGRATION.md)。
+
 跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 包含 Discord、Steam Reviews、评价评论和可选的公开 Discussions 采集；平台原文先通过主程序 Host 留档，再由既有管道处理，真实覆盖边界见下文。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
