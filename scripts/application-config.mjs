@@ -1,0 +1,72 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const text = v => typeof v === 'string' && !!v.trim();
+const exact = (v, keys) => object(v) && Object.keys(v).every(k => keys.includes(k));
+const integer = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
+const plugins = ['qq-official', 'discord', 'steam-reviews', 'steam-discussions'];
+export const readJSON = filename => JSON.parse(readFileSync(filename, 'utf8').replace(/^\uFEFF/, ''));
+
+/** One application config; all file paths resolve against its directory, not process cwd. */
+export function parseApplicationConfig(input, directory = process.cwd()) {
+  if (!exact(input, ['schemaVersion','database','projectId','sources','deliveries','analysis','github','reports','web','runtime','notifications'])
+    || input.schemaVersion !== 1 || !text(input.database) || !text(input.projectId)
+    || !Array.isArray(input.sources) || !Array.isArray(input.deliveries)) throw new Error('INVALID_APPLICATION_CONFIG');
+  const c = structuredClone(input);
+  c.database = path.resolve(directory, c.database);
+  c.analysis ??= { enabled:false, allowExternalCalls:false };
+  c.github ??= { enabled:false, allowWrites:false };
+  c.reports ??= { enabled:true }; c.web ??= { enabled:false };
+  c.notifications ??= { p0Enabled:false };
+  c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000, ...c.runtime };
+  if (!exact(c.analysis, ['enabled','allowExternalCalls','baseURL','model','apiKeyEnv','allowLoopbackHTTP','timeoutMs','maxCalls','maxInputCharacters'])
+    || typeof c.analysis.enabled !== 'boolean' || typeof c.analysis.allowExternalCalls !== 'boolean'
+    || c.analysis.enabled && (!c.analysis.allowExternalCalls || !text(c.analysis.baseURL) || !text(c.analysis.model))
+    || !exact(c.github, ['enabled','allowWrites','repository','tokenEnv','baseURL','allowLoopbackHTTP'])
+    || typeof c.github.enabled !== 'boolean' || typeof c.github.allowWrites !== 'boolean'
+    || c.github.allowWrites && !c.github.enabled
+    || c.github.enabled && (!/^[\w.-]+\/[\w.-]+$/.test(c.github.repository??'') || !text(c.github.tokenEnv))
+    || !exact(c.reports,['enabled']) || typeof c.reports.enabled !== 'boolean'
+    || !exact(c.web,['enabled','port','accessConfig','accessKeyEnv','signingKeyEnv']) || typeof c.web.enabled !== 'boolean'
+    || c.web.port !== undefined && !integer(c.web.port,0,65535)
+    || !exact(c.notifications,['p0Enabled']) || typeof c.notifications.p0Enabled !== 'boolean') throw new Error('INVALID_APPLICATION_SERVICES');
+  if (c.notifications.p0Enabled) throw new Error('P0_SCHEDULER_NOT_IMPLEMENTED');
+  const limits = {pollMs:[10,60000],probeIntervalMs:[10,3600000],healthGraceMs:[0,3600000],maxRestarts:[0,20],backoffMs:[1,60000],maxBackoffMs:[1,3600000],stopTimeoutMs:[10,120000]};
+  if (!exact(c.runtime,Object.keys(limits)) || Object.entries(limits).some(([k,[a,b]])=>!integer(c.runtime[k],a,b))
+    || c.runtime.maxBackoffMs<c.runtime.backoffMs) throw new Error('INVALID_APPLICATION_RUNTIME');
+  for (const [key,a,b] of [['timeoutMs',1,300000],['maxCalls',1,100],['maxInputCharacters',100,1000000]]) {
+    if(c.analysis[key]!==undefined&&!integer(c.analysis[key],a,b))throw new Error('INVALID_ANALYSIS_PARAMETERS');
+  }
+  const ids = new Set(), uris = new Set();
+  for (const entry of [...c.sources,...c.deliveries]) {
+    const source = c.sources.includes(entry);
+    if (!exact(entry,['id','plugin','enabled','config','permissions','secrets','protectedConfig','port','allowWrites'])
+      || !text(entry.id) || ids.has(entry.id) || typeof entry.enabled !== 'boolean'
+      || !(source?plugins:['qq-c2c']).includes(entry.plugin)
+      || !(text(entry.config)||object(entry.config))
+      || !exact(entry.permissions,['networkHosts','secretKeys'])
+      || !['networkHosts','secretKeys'].every(k=>Array.isArray(entry.permissions[k])&&entry.permissions[k].every(text)&&new Set(entry.permissions[k]).size===entry.permissions[k].length)
+      || !object(entry.secrets??{}) || Object.entries(entry.secrets??{}).some(([k,v])=>!entry.permissions.secretKeys.includes(k)||!text(v)||!/^\w+$/.test(v))
+      || entry.protectedConfig!==undefined&&!text(entry.protectedConfig)
+      || entry.port!==undefined&&!integer(entry.port,0,65535)
+      || source&&entry.allowWrites!==undefined || !source&&typeof entry.allowWrites!=='boolean') throw new Error('INVALID_APPLICATION_PLUGIN');
+    ids.add(entry.id);
+    if (entry.protectedConfig) entry.protectedConfig=path.resolve(directory,entry.protectedConfig);
+    const configFile=typeof entry.config==='string'?path.resolve(directory,entry.config):null;
+    const platform=configFile?readJSON(configFile):entry.config;
+    if(!object(platform))throw new Error('INVALID_PLATFORM_CONFIG');
+    if(source){
+      if(!text(platform.sourceUri)||!URL.canParse(platform.sourceUri)||uris.has(platform.sourceUri))throw new Error('INVALID_SOURCE_URI');
+      uris.add(platform.sourceUri);
+      if(entry.plugin==='qq-official'&&(platform.transport??'webhook')==='webhook'&&entry.enabled&&entry.port===undefined)throw new Error('QQ_WEBHOOK_PORT_REQUIRED');
+      if(entry.plugin==='steam-discussions'&&platform.snapshotPath)platform.snapshotPath=path.resolve(configFile?path.dirname(configFile):directory,platform.snapshotPath);
+    }else if(platform.projectId!==c.projectId||platform.recipientRef!=='qq-developer')throw new Error('DELIVERY_BINDING_MISMATCH');
+    entry.config=platform;
+  }
+  // Existing M5 supports one approved developer C2C binding per application project.
+  if(c.deliveries.filter(e=>e.enabled).length>1)throw new Error('MULTIPLE_DELIVERY_BINDINGS_NOT_SUPPORTED');
+  if(c.web.accessConfig)c.web.accessConfig=path.resolve(directory,c.web.accessConfig);
+  return c;
+}
+export function loadApplicationConfig(filename) { return parseApplicationConfig(readJSON(filename),path.dirname(path.resolve(filename))); }

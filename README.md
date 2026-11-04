@@ -24,6 +24,16 @@ pnpm test
 pnpm test:reference
 ```
 
+## 正式运行
+
+```powershell
+pnpm start --config config/superagent.json
+```
+
+统一入口负责 M1、M3、M5、Web、Source 与 Delivery 的组装和生命周期；无需另开 Worker。配置内启用的 QQ、Discord、Steam Reviews 和 Steam Discussions（仅本地快照模式）自动加载、探测、运行和停止。默认关闭所有平台实例、模型调用、GitHub 与 QQ 写入；启用模型必须同时显式授权外部调用。仅设置环境变量不会启用服务。
+
+连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。P0 即时调度未交付，不能启用。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
+
 ## 工程结构
 
 | 目录 | 用途 |

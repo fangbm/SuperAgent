@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-04",
+  "scope": "local integration and fault tests; external APIs simulated",
+  "baseline": {
+    "remoteMain": "66eecc53559ff48f5fcb7f158b7cf154dc3f6f28",
+    "originalCheckout": "04392e6f5f4d35f398714addd80bf1aab40ba6a6",
+    "revertCommit": "00b8c87793527c67ea6451d03f7ac1e4ff8286d3",
+    "pr5Head": "8f29b2949f089d012f42a8cb7689a3d8865eb304",
+    "pr5Merged": false
+  },
+  "revert": {
+    "pullRequest": 6,
+    "draft": true,
+    "nodeTests": 244,
+    "referenceSuites": 6,
+    "exactRevertTreeVerified": true
+  },
+  "unified": {
+    "branch": "codex/unified-application",
+    "base": "codex/revert-pr4",
+    "draftRequired": true,
+    "lockedInstall": true,
+    "check": true,
+    "nodeTests": 261,
+    "referenceSuites": 6,
+    "build": true,
+    "typecheck": true,
+    "boundaries": true,
+    "frozenFiles": 45,
+    "frozenFileHashesUnchanged": true,
+    "freezeManifestApplicationPathsExplicit": true,
+    "sourcePluginApiChanged": false,
+    "sharedExistingRuntime": true,
+    "sourcePluginsActuallyStarted": [
+      "qq-official",
+      "discord",
+      "steam-reviews",
+      "steam-discussions:snapshot"
+    ],
+    "sourceFeedbackEvents": 3,
+    "clusteredBugs": 1,
+    "bugFeedbackCount": 3,
+    "githubIssueCreates": 1,
+    "scheduledReportBugs": 1,
+    "scheduledReportSourceEvents": 3,
+    "scheduledReportSteamReviews": 1,
+    "qqSignedLocalHTTPIngress": true,
+    "modelLocalHTTPFixture": true,
+    "webHTTPRenderedReport": true,
+    "independentM1M3M5Loops": true,
+    "modelDoesNotBlockReports": true,
+    "actualSigkillRecovery": true,
+    "backlogUniqueEvents": 201,
+    "backlogModelCalls": 0,
+    "originalMessageArchiveOnlyPreserved": true,
+    "steam429Backoff": true,
+    "githubUnknownReconciledWithoutReplay": true,
+    "qqUnknownNotResent": true,
+    "checkpointIsolation": true,
+    "sourceSecretIsolation": true,
+    "duplicateMainRejected": true,
+    "shutdownHostFenced": true
+  },
+  "formalCliSmoke": {
+    "command": "pnpm start --config config/superagent.json --run-for-ms 300",
+    "offlineCheck": true,
+    "started": true,
+    "exitedNormally": true,
+    "ownerReleased": true,
+    "externalOperations": 0,
+    "sqliteQuickCheck": "ok"
+  },
+  "liveExternalOperations": {
+    "modelCalls": 0,
+    "githubIssueWrites": 0,
+    "qqMessages": 0,
+    "discordResourceOperations": 0,
+    "deployments": 0
+  },
+  "notDelivered": [
+    "P0 real-time scheduler",
+    "remote Steam Discussions",
+    "PR #4 community features and Steam extensions",
+    "private-ticket disclosure ACL",
+    "long-term load validation",
+    "production deployment"
+  ],
+  "limitations": [
+    "one project and one approved developer C2C delivery binding per application",
+    "trusted in-process plugins are not a JavaScript or network sandbox",
+    "legacy debug entrypoints must not share a database with the formal main",
+    "uncooperative plugin-owned resources cannot be force-reclaimed by the SDK"
+  ]
+}

@@ -27,6 +27,13 @@ test('boundary checker blocks Core dynamic platform imports', t => {
   const root = workspace(t, [['agent-core', { name: '@superagent/agent-core' }, "const platform = import('@superagent/connectors-qq');"]]);
   assert.ok(checkBoundaries(root).some(e => e.includes('forbidden import')));
 });
+
+test('Ingress and other platform-independent services cannot import platform implementations', t => {
+  for(const name of ['ingress','feedback-buffer','memory','agent-workers','job-queue','reporting','control-plane','persistence','llm']){
+    const root=workspace(t,[[name,{name:`@superagent/${name}`,dependencies:{'@superagent/connector-discord':'workspace:*'}},"import('@superagent/connector-discord'); import(moduleName);"]]);
+    const errors=checkBoundaries(root);assert.ok(errors.some(e=>e.includes('forbidden dependency')));assert.ok(errors.some(e=>e.includes('computed module import')));
+  }
+});
 test('boundary checker checks inline import types and computed Core imports', t => {
   const root = workspace(t, [['agent-core', { name: '@superagent/agent-core' }, "type Platform = import('@superagent/connectors-qq').Client; const platform = import(moduleName);"]]);
   const errors = checkBoundaries(root);
