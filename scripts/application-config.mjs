@@ -19,7 +19,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   c.github ??= { enabled:false, allowWrites:false };
   c.reports ??= { enabled:true }; c.web ??= { enabled:false };
   c.notifications ??= { p0Enabled:false };
-  c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000,recoveryIntervalMs:900000,recoveryJitterRatio:0.2, ...c.runtime };
+  c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000,recoveryIntervalMs:900000,recoveryJitterRatio:0.2,stableResetMs:3600000, ...c.runtime };
   if (!exact(c.analysis, ['enabled','allowExternalCalls','baseURL','model','apiKeyEnv','allowLoopbackHTTP','timeoutMs','maxCalls','maxInputCharacters'])
     || typeof c.analysis.enabled !== 'boolean' || typeof c.analysis.allowExternalCalls !== 'boolean'
     || c.analysis.enabled && (!c.analysis.allowExternalCalls || !text(c.analysis.baseURL) || !text(c.analysis.model))
@@ -32,7 +32,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
     || c.web.port !== undefined && !integer(c.web.port,0,65535)
     || !exact(c.notifications,['p0Enabled']) || typeof c.notifications.p0Enabled !== 'boolean') throw new Error('INVALID_APPLICATION_SERVICES');
   if (c.notifications.p0Enabled) throw new Error('P0_SCHEDULER_NOT_IMPLEMENTED');
-  const limits = {pollMs:[10,60000],probeIntervalMs:[10,3600000],healthGraceMs:[0,3600000],maxRestarts:[0,20],backoffMs:[1,60000],maxBackoffMs:[1,3600000],stopTimeoutMs:[10,120000],recoveryIntervalMs:[300000,86400000]};
+  const limits = {pollMs:[10,60000],probeIntervalMs:[10,3600000],healthGraceMs:[0,3600000],maxRestarts:[0,20],backoffMs:[1,60000],maxBackoffMs:[1,3600000],stopTimeoutMs:[10,120000],recoveryIntervalMs:[300000,86400000],stableResetMs:[60000,86400000]};
   if (!exact(c.runtime,[...Object.keys(limits),'recoveryJitterRatio']) || Object.entries(limits).some(([k,[a,b]])=>!integer(c.runtime[k],a,b))
     ||typeof c.runtime.recoveryJitterRatio!=='number'||!Number.isFinite(c.runtime.recoveryJitterRatio)||c.runtime.recoveryJitterRatio<0.1||c.runtime.recoveryJitterRatio>0.5
     || c.runtime.maxBackoffMs<c.runtime.backoffMs) throw new Error('INVALID_APPLICATION_RUNTIME');

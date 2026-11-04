@@ -8,7 +8,7 @@
 
 ## 决策
 
-在同一 Supervisor 中保留原短期有限指数退避；预算用完后，可恢复故障进入 recovery_wait。默认 recoveryIntervalMs=900000，最小 300000，最大 86400000；recoveryJitterRatio 默认 0.2，可选 0.1–0.5。等待为 interval×(1+random×jitter)，不会短于基础间隔。长期阶段每次冷却只新建一个实例，不重新发放短期突发预算，因此恢复尝试间隔至少五分钟。成功采集/同步清零连续失败次数，但不重置本进程已用的短期预算。
+在同一 Supervisor 中保留原短期有限指数退避；预算用完后，可恢复故障进入 recovery_wait。默认 recoveryIntervalMs=900000，最小 300000，最大 86400000；recoveryJitterRatio 默认 0.2，可选 0.1–0.5。等待为 interval×(1+random×jitter)，不会短于基础间隔。长期阶段每次冷却只新建一个实例，不因单次成功重新发放短期突发预算，因此未达到稳定恢复条件时，长期恢复尝试间隔至少五分钟。后续 [ADR 0016](0016-stable-retry-budget-reset.md) 增加连续确认健康 60 分钟后一次性恢复全部短期预算；成功采集/同步清零连续失败次数与预算恢复分别判断。
 
 启动前的配置、Manifest/Schema 错误直接拒绝启动；运行时明确的配置、认证、权限、身份/Checkpoint 不匹配及不支持的能力进入 failed，需操作员修复后重启，不无限重试。网络、限流、超时及 QQ_GATEWAY_RECONNECT_BUDGET 可长期恢复。QQ 的认证 probe/后台错误保留 PLATFORM_BLOCKED:原始错误码；网络重连预算虽由 QQ SDK 标为 blocked，仍归为可恢复。错误记录只保留规范化代码，不记录任意异常正文或凭据。
 

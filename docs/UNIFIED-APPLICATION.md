@@ -56,7 +56,13 @@ Source 状态区分 configured/probing/starting/running/unavailable/retry_wait/r
 
 Discord、Steam Reviews、Steam Discussions snapshot 的 start 已包含自身 sync/轮询，supervisor 监督其长期 Promise，不再并发调用 sync。QQ start 创建后台网关并返回，随后才周期串行 sync/probe。Host 健康异常超出 healthGraceMs 或任务异常结束时停止旧实例，按 maxRestarts、backoffMs 与 maxBackoffMs 有界重建；任何一次都读取 Host 已提交 checkpoint，不使用内存猜测进度。QQ 后台失败经健康上报监督，不能被下一次 sync 擦除。
 
-短期预算耗尽后，可恢复故障进入长期低频恢复，默认每次等待 15–18 分钟后只重建一个实例。runtime.recoveryIntervalMs 默认 900000，允许 300000–86400000；recoveryJitterRatio 默认 0.2，允许 0.1–0.5。每次间隔至少五分钟，不重新发放短期突发额度。明确配置、认证、权限、身份/Checkpoint 和不支持的能力进入 failed，操作员修复后重启。关闭取消全部恢复任务。
+短期预算耗尽后，可恢复故障进入长期低频恢复，默认每次等待 15–18 分钟后只重建一个实例。runtime.recoveryIntervalMs 默认 900000，允许 300000–86400000；recoveryJitterRatio 默认 0.2，允许 0.1–0.5。未达到稳定恢复条件时，每次长期恢复间隔至少五分钟。明确配置、认证、权限、身份/Checkpoint 和不支持的能力进入 failed，操作员修复后重启。关闭取消全部恢复任务。
+
+`runtime.stableResetMs` 默认 `3600000`，允许 60000–86400000 毫秒。连续确认健康达到该时长后，将已使用的短期预算归零，一次性恢复全部 `maxRestarts`（默认 3 次）；同一稳定周期只执行一次。一次 probe 成功、unknown 能力、成功归档一条消息均不能单独启动计时。任何故障、停机或健康信号失联会重新计时，不能把恢复前后的健康时间拼接。预算仅存在于当前 Supervisor 内存，不另建服务或数据库记录。
+
+QQ WebSocket / Discord 必须完成 READY/RESUMED 的持久提交，并持续有有效的心跳 ACK；不要求玩家发消息。QQ 的连接确认与消息权限 coverage 分开：连接可持续健康，尚无消息证明时 coverage 仍为 unknown；仅有 unknown probe 不会计时。QQ webhook 没有持续连接信号，本轮保守地不为其刷新预算。Steam Reviews 按成功提交的轮询页确认健康，网络、限流、服务器错误及 Checkpoint 异常会中断，即使内部重试随后成功也重新计时。Discussions 仅有效 snapshot 模式的成功提交计时。Gateway 信号间隔超过 5 分钟、Steam 提交间隔超过 max(60 秒, 3×pollIntervalMs) 时，稳定窗口失效；判断至少需要两次合格信号。正式运行使用单调时钟累计时长，墙上时间仅用于展示。
+
+健康状态增加 stableSince、stableResetDone、shortRetriesUsed、budgetResets、lastBudgetResetAt；原 coverage、错误、连续失败、lastSuccessAt 及累计重建次数保留。见 [ADR 0016](ADR/0016-stable-retry-budget-reset.md)。
 
 可信内置定义集中于 scripts/source-registry.mjs，配置解析与 Supervisor 共享注册信息。构造、公共 Manifest 校验、Host 授权/撤权分别独立；新增可信 Source 只需注册和配置。正式 JSON 不接受任意模块路径。QQ Delivery 构造保留独立产品模块，未引入通用 Delivery 系统。详见 [ADR 0015](ADR/0015-source-registry-and-recovery.md)。
 

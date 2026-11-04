@@ -1,11 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { SteamReviewsConnector, normalizeSteamReview } from '@superagent/connector-steam-reviews';
 import { validateContract } from '@superagent/contract-validation';
 import { connectorFixture, nativeFixture, signal } from './m4-helpers.mjs';
 const review = (patch = {}) => ({ ...nativeFixture('steam-review'), ...patch });
 const page = (reviews = [], cursor = 'end') => Response.json({ response: { reviews, cursor } });
 const config = f => ({ sourceUri: f.binding.sourceUri, appId: 570 });
+
+test('Steam live polling probe exposes a recovered network interruption without counting probe success as a scan', async t => {
+  const f=connectorFixture(t,'steam-reviews'),health=[],controller=new AbortController();let polling=false,failNext=false;
+  const connector=new SteamReviewsConnector({...config(f),pollIntervalMs:60000},{fetch:async()=>{if(failNext){failNext=false;throw new TypeError('network');}return page();},sleep:async(ms,signal)=>{
+    if(ms===60000){polling=true;await delay(ms,undefined,{signal});}
+  }});
+  const run=connector.start({...f.host,reportHealth:async info=>{await f.host.reportHealth(info);health.push(info);}},controller.signal);
+  try {
+    for(let n=0;!polling&&n<200;n++)await delay(5);
+    assert.ok(polling);const old=await f.host.getCheckpoint();health.length=0;failNext=true;
+    assert.equal((await connector.probe()).coverage,'partial');
+    assert.deepEqual(health.map(h=>h.reason),['STEAM_REVIEWS_POLL_INTERRUPTED:TRANSIENT_NETWORK']);
+    assert.deepEqual(await f.host.getCheckpoint(),old);
+  } finally {controller.abort();await run;await connector.stop();}
+});
 
 test('Steam native fixtures retain IDs, text, author, language and metadata; equal text by different players survives', async t => {
   const f = connectorFixture(t, 'steam-reviews');
@@ -104,8 +120,11 @@ test('Steam 429 honors Retry-After, retries network outages, and permission erro
     calls++; if (calls === 1) return new Response('', { status: 429, headers: { 'Retry-After': '7' } });
     if (calls === 2) throw new TypeError('network'); return page();
   } });
-  await connector.sync(f.host, signal());
+  const health=[];
+  await connector.sync({...f.host,reportHealth:async info=>{await f.host.reportHealth(info);health.push(info);}}, signal());
   assert.deepEqual(waits, [7000, 2000]);
+  assert.deepEqual(health.slice(0,2).map(h=>h.reason),['STEAM_REVIEWS_POLL_INTERRUPTED:RATE_LIMITED','STEAM_REVIEWS_POLL_INTERRUPTED:TRANSIENT_NETWORK']);
+  assert.ok(health.at(-1).reason.startsWith('Review scan completed'));
   const old = await f.host.getCheckpoint();
   for (const status of [403, 429, 503]) {
     const broken = new SteamReviewsConnector(config(f), { sleep: async () => {}, fetch: async () => new Response('', { status }) });

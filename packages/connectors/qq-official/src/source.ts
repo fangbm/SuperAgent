@@ -78,6 +78,11 @@ export class QQSource implements SourcePluginV1 {
           },
           health: async reason => {
             if (reason.startsWith('QQ_GATEWAY_DISCONNECTED_COVERAGE_GAP')) await host.reportHealth({ coverage: 'unavailable', reason, checkedAt: new Date(this.now()).toISOString() });
+            else if (reason.startsWith('QQ_GATEWAY_CONNECTED') || reason === 'QQ_GATEWAY_HEARTBEAT_ACK') {
+              const cp = await host.getCheckpoint();
+              const observed = cp && typeof cp === 'object' && !Array.isArray(cp) && cp.observed === true;
+              await host.reportHealth({ coverage: observed ? 'partial' : 'unknown', reason, checkedAt: new Date(this.now()).toISOString() });
+            }
           },
         });
         this.gatewayTask = gateway.run(activeSignal).catch(async error => {

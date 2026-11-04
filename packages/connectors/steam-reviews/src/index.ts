@@ -77,6 +77,7 @@ export class SteamReviewsConnector implements SourcePluginV1 {
   private readonly pause: (ms: number, signal: AbortSignal) => Promise<void>;
   private controller = new AbortController();
   private tail: Promise<void> = Promise.resolve();
+  private healthHost: SourcePluginHostV1 | undefined;
   private capability: ConnectorCapabilityV1 = { connection: 'poll', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'Not probed against Steam yet' };
   constructor(config: SteamReviewsConfig, options: { fetch?: typeof fetch; sleep?: (ms: number, signal: AbortSignal) => Promise<void> } = {}) {
     new URL(config.sourceUri);
@@ -92,7 +93,7 @@ export class SteamReviewsConnector implements SourcePluginV1 {
     this.manifest = { apiVersion: 'superagent.io/plugin/v1', id: 'superagent.steam-reviews', version: '0.1.0', displayName: 'Steam Reviews', kind: 'source', engine: { sdk: '^0.1.0' },
       permissions: { networkHosts: ['api.steampowered.com'], secretKeys: config.publisherKeySecret ? [config.publisherKeySecret] : [], eventPublish: true }, configSchema: steamReviewsConfigSchema };
   }
-  private async page(cursor: string, signal: AbortSignal, key?: string): Promise<{ reviews: Review[]; cursor: string }> {
+  private async page(cursor: string, signal: AbortSignal, key?: string, host?: SourcePluginHostV1): Promise<{ reviews: Review[]; cursor: string }> {
     const url = new URL('https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/');
     url.searchParams.set('input_json', JSON.stringify({ appid: this.config.appId, filter: 2, languages: ['all'], review_type: 0,
       purchase_type: 1, num_per_page: this.config.pageSize, filter_offtopic_activity: false, cursor }));
@@ -104,9 +105,11 @@ export class SteamReviewsConnector implements SourcePluginV1 {
       catch {
         signal.throwIfAborted();
         if (attempt === 3) throw new Error('TRANSIENT_NETWORK');
+        await host?.reportHealth({coverage:'partial',reason:'STEAM_REVIEWS_POLL_INTERRUPTED:TRANSIENT_NETWORK',checkedAt:new Date().toISOString()});
         await this.pause(1000 * 2 ** attempt, signal); continue;
       }
       if (response.status === 429 || response.status >= 500) {
+        await host?.reportHealth({coverage:'partial',reason:response.status===429?'STEAM_REVIEWS_POLL_INTERRUPTED:RATE_LIMITED':'STEAM_REVIEWS_POLL_INTERRUPTED:PLATFORM_UNAVAILABLE',checkedAt:new Date().toISOString()});
         await response.body?.cancel();
         if (attempt === 3) throw new Error(response.status === 429 ? 'RATE_LIMITED' : 'PLATFORM_UNAVAILABLE');
         const header = response.headers.get('retry-after');
@@ -124,7 +127,7 @@ export class SteamReviewsConnector implements SourcePluginV1 {
   }
   async probe(): Promise<ConnectorCapabilityV1> {
     try {
-      await this.page('*', AbortSignal.timeout(30000));
+      await this.page('*', AbortSignal.timeout(30000), undefined, this.healthHost);
       this.capability = { connection: 'poll', coverage: 'partial', readMessages: true, readHistory: true, readEdits: true, readAttachments: false,
         reason: 'Public current review snapshots only; deleted reviews and intermediate revisions between polls are unavailable; scan completion is reported by sync' };
     } catch (error) {
@@ -143,7 +146,7 @@ export class SteamReviewsConnector implements SourcePluginV1 {
       const key = this.config.publisherKeySecret ? await host.getSecret(this.config.publisherKeySecret) : undefined;
       for (let page = 0; page < this.config.maxPagesPerSync; page++) {
         signal.throwIfAborted();
-        const result = await this.page(state.cursor, signal, key);
+        const result = await this.page(state.cursor, signal, key, host);
         const next = structuredClone(state);
         const events: FeedbackEventV1[] = [];
         let crossed = false;
@@ -176,9 +179,10 @@ export class SteamReviewsConnector implements SourcePluginV1 {
     }
   }
   async start(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {
+    this.healthHost = host;
     const combined = AbortSignal.any([signal, this.controller.signal]);
     try { while (!combined.aborted) { await this.sync(host, combined); await this.pause(this.config.pollIntervalMs, combined); } }
     catch (error) { if (!combined.aborted) throw error; }
   }
-  async stop(): Promise<void> { this.controller.abort(); await this.tail; }
+  async stop(): Promise<void> { this.controller.abort(); await this.tail; this.healthHost = undefined; }
 }

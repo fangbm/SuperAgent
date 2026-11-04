@@ -12,7 +12,7 @@
 
 修复位于 scripts/application-plugins.mjs、scripts/application-config.mjs 与 QQ Source 的故障原因上报：
 
-- 原短期退避保留；耗尽后 recovery_wait 每次冷却重建一个实例，默认 15–18 分钟。配置最低基础间隔 5 分钟、抖动至少 10%，不重新发放短期突发重试额度。
+- 原短期退避保留；耗尽后 recovery_wait 每次冷却重建一个实例，默认 15–18 分钟。配置最低基础间隔 5 分钟、抖动至少 10%，不因单次成功重新发放短期突发重试额度；后续稳定预算恢复规则见 [ADR 0016](ADR/0016-stable-retry-budget-reset.md)。
 - 规范化错误分类；明确配置、认证、权限、身份/Checkpoint 和能力错误停止重试。QQ 的永久平台拒绝和短暂认证网络不可用区分，重连预算耗尽仍可恢复。
 - 状态包含连续失败数、最近成功/失败时间、错误码与原因、重建数和下一次恢复时间；失败不会将其他 Source 或 M1/M3/M5 关闭。
 - stop 后撤销旧 Host，重建使用新实例及已提交 Checkpoint。关闭取消全部短期/长期等待。

@@ -45,6 +45,12 @@ PR B：`pnpm install --frozen-lockfile` 与完整 `pnpm check` 通过：**261 �
 - 同库第二个主程序拒绝，正常关闭后可重新打开；不合作插件的 Host 在有界停止后失效。
 - 原有 45 个冻结文件及哈希仍被检查，连接配置可编辑不使三份默认策略失去保护；Ingress 等平台无关包禁止导入具体平台实现。
 
-## 限制
+## PR #7 连续健康预算恢复复验（2026-11-04）
+
+在 2446d7f 上增量加入 runtime.stableResetMs，默认 60 分钟。`pnpm install --frozen-lockfile` 与完整 `pnpm check` 通过：**291 项 Node 测试、6 组 Python 参考验证**，build/typecheck、边界和 45 个 M0 冻结文件通过。单独重跑 application-*.test.mjs：**40 项通过**，包含统一入口 E2E、生命周期、实际子进程崩溃恢复和 11 项新稳定预算测试（计入子测试）。正式入口 check-config 与 300ms 有界启动/退出均成功。
+
+连接器类的受控 WebSocket/HTTP 测试证明：空闲 QQ/Discord 可上报已提交连接与心跳、非认证/非待确认 ACK 不作为稳定证据，心跳不前移数据游标；Steam/Discord 内部网络或限流重试会中断稳定计时。60 分钟边界、两小时不重复发放、故障重新计时及恢复全部三次预算使用测试时钟验证，**不是一小时真实平台在线实测**。无真实外部消息、模型调用或 GitHub Issue 写入。配置和判据见 [ADR 0016](ADR/0016-stable-retry-budget-reset.md)，摘要见 [机器证据](evidence/pr7-stable-budget-reset-2026-11-04.json)。
+
+## 限制（继续适用）
 
 未新增真实平台联调、远端 Discussions、P0 调度、私有工单 ACL、长期压力测试或生产部署。默认配置仍须操作员填入实际平台 ID、凭据并显式授权模型/外部写入。#4 的 Discord 社区和 Steam 扩展未恢复。一个应用配置管理一个项目与一个现有开发者 Delivery 绑定；插件是受信任进程内代码，不是任意恶意代码沙箱。

@@ -21,10 +21,11 @@ export class ApplicationPlugins {
   constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{},registry=builtinSources,timing={}}={}) {
     Object.assign(this,{runtime,config,owner,env,factories,operator,log,registry});
     this.timing={now:()=>Date.now(),random:Math.random,wait:(ms,signal)=>delay(ms,undefined,{signal}),...timing};
+    this.elapsed=timing.monotonicNow??timing.now??(()=>performance.now());
     this.controller=new AbortController();this.tasks=[];this.instances=new Map();this.states=new Map();this.prepared=new Map();this.closed=false;
     for(const entry of config.sources.filter(e=>e.enabled)) {
       this.prepared.set(entry.id,this.make(entry));
-      this.states.set(entry.id,{state:'configured',restarts:0,recoveries:0,coverage:'unknown',consecutiveFailures:0,lastSuccessAt:null,lastFailureAt:null,error:null,nextRetryAt:null});
+      this.states.set(entry.id,{state:'configured',restarts:0,recoveries:0,coverage:'unknown',consecutiveFailures:0,lastSuccessAt:null,lastFailureAt:null,error:null,nextRetryAt:null,stableSince:null,stableResetDone:false,shortRetriesUsed:0,budgetResets:0,lastBudgetResetAt:null});
     }
   }
   make(entry) {
@@ -45,23 +46,50 @@ export class ApplicationPlugins {
   }
   async supervise(entry,binding) {
     const p=this.config.runtime,definition=this.registry.get(entry.plugin);
-    let attempt=0,shortRetries=0,recoveries=0;
+    let attempt=0,shortRetries=0,recoveries=0,budgetResets=0;
     while(!this.controller.signal.aborted) {
       const controller=new AbortController(),signal=AbortSignal.any([this.controller.signal,controller.signal]);
       let plugin,capabilityHost,run,settled=false,startFailure,stopping=false,failure,unavailable=null;
+      let stableStart=null,lastStableSignal=null,stableSignals=0,stableGap=0,stableResetDone=false;
       const now=()=>new Date(this.timing.now()).toISOString();
+      const clearStable=()=>{
+        stableStart=null;lastStableSignal=null;stableSignals=0;stableResetDone=false;
+        if(this.states.get(entry.id).stableSince!==null||this.states.get(entry.id).stableResetDone)this.update(entry,{stableSince:null,stableResetDone:false});
+      };
+      const checkStable=()=>{
+        if(stableStart===null)return;
+        const elapsed=this.elapsed();
+        if(elapsed<lastStableSignal||elapsed-lastStableSignal>stableGap){clearStable();return;}
+        if(!stableResetDone&&stableSignals>=2&&elapsed-stableStart>=p.stableResetMs){
+          stableResetDone=true;
+          const restored=shortRetries>0;shortRetries=0;if(restored)budgetResets++;
+          this.update(entry,{stableResetDone:true,shortRetriesUsed:0,budgetResets,...(restored?{lastBudgetResetAt:now()}:{})});
+        }
+      };
+      const stableHealth=health=>{
+        const rule=definition.stability?.(entry.config,health);
+        if(health.coverage==='unavailable'||rule?.interrupted){clearStable();return false;}
+        if(rule?.confirmed){
+          checkStable();
+          if(stableStart===null){stableStart=this.elapsed();this.update(entry,{stableSince:now(),stableResetDone:false});}
+          stableGap=rule.maxGapMs;lastStableSignal=this.elapsed();stableSignals++;
+          checkStable();
+        }
+        return true;
+      };
       const success=()=>{if(!stopping&&!this.controller.signal.aborted)this.update(entry,{lastSuccessAt:now(),consecutiveFailures:0,error:null});};
       const observedHealth=health=>{
         if(stopping||this.controller.signal.aborted)return;
+        const continuous=stableHealth(health);
         unavailable=health.coverage==='unavailable'?{since:unavailable?.since??this.timing.now(),failure:sourceFailure(health.reason,'PLUGIN_HEALTH_UNAVAILABLE'),origin:'host'}:null;
-        if(healthy(health.coverage))success();
+        if(continuous&&healthy(health.coverage))success();
         this.update(entry,{coverage:health.coverage,state:health.coverage==='unavailable'?'unavailable':'running',healthReason:health.reason??null});
       };
       try {
         plugin=attempt===0?this.prepared.get(entry.id):this.make(entry);
         capabilityHost=scopedSourceHost(this.runtime,binding,entry,this.owner,{env:this.env,onHealth:observedHealth,onCommit:result=>{if(result.accepted>0)success();}});
         const host=capabilityHost.host;
-        this.instances.set(entry.id,{plugin,host,signal});this.update(entry,{state:'probing',restarts:attempt,recoveries,nextRetryAt:null});
+        this.instances.set(entry.id,{plugin,host,signal});this.update(entry,{state:'probing',restarts:attempt,recoveries,nextRetryAt:null,shortRetriesUsed:shortRetries});
         const initial=await bounded(plugin.probe(),p.stopTimeoutMs);signal.throwIfAborted();
         this.update(entry,{coverage:initial.coverage,capability:initial});
         const probeFailure=cap=>sourceFailure(definition.unavailableCode?.(entry.config)??cap.reason,'PLUGIN_CAPABILITY_UNAVAILABLE');
@@ -79,6 +107,7 @@ export class ApplicationPlugins {
           this.update(entry,{capability:cap});
           if(startFailure)throw startFailure;
           if(cap.coverage==='unavailable'){
+            clearStable();
             const problem=probeFailure(cap);
             unavailable??={since:this.timing.now(),failure:problem,origin:'probe'};
             if(!problem.retryable)throw problem;
@@ -88,11 +117,12 @@ export class ApplicationPlugins {
           }
           if(settled&&!unavailable&&healthy(cap.coverage)&&cap.readMessages)success();
           if(unavailable&&this.timing.now()-unavailable.since>=p.healthGraceMs)throw unavailable.failure;
+          checkStable();
           await this.timing.wait(p.probeIntervalMs,signal);
         }
-      }catch(error){if(!this.controller.signal.aborted)failure=sourceFailure(error);}
+      }catch(error){clearStable();if(!this.controller.signal.aborted)failure=sourceFailure(error);}
       finally {
-        stopping=true;controller.abort();
+        stopping=true;clearStable();controller.abort();
         if(plugin)try{await bounded(Promise.resolve().then(()=>plugin.stop()),p.stopTimeoutMs,'PLUGIN_STOP_TIMEOUT');}catch(error){this.update(entry,{stopError:sourceFailure(error).code});}
         capabilityHost?.revoke();
         if(run)await bounded(run,p.stopTimeoutMs).catch(()=>{});

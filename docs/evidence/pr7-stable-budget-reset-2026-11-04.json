@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-04",
+  "pullRequest": 7,
+  "branch": "codex/unified-application",
+  "base": "codex/revert-pr4",
+  "startingCommit": "2446d7f3d9c2e38f4e5a0b2a76a053d5e68ef513",
+  "scope": "restore configured short retry budget after continuously confirmed healthy operation",
+  "configuration": {
+    "stableResetMs": 3600000,
+    "minStableResetMs": 60000,
+    "maxStableResetMs": 86400000,
+    "defaultMaxRestarts": 3,
+    "defaultLongRecoveryIntervalMs": 900000,
+    "defaultLongRecoveryJitterRatio": 0.2
+  },
+  "validation": {
+    "lockedInstall": true,
+    "fullCheck": true,
+    "nodeTests": 291,
+    "referenceSuites": 6,
+    "unifiedApplicationTests": 40,
+    "newStabilityTestsIncludingSubtests": 11,
+    "newAdapterTests": 4,
+    "build": true,
+    "typecheck": true,
+    "boundaries": true,
+    "frozenFiles": 45,
+    "formalEntrypointConfigCheck": true,
+    "formalEntrypointBoundedStartStopMs": 300,
+    "realSQLite": true,
+    "controlledPlatformFixtures": true,
+    "virtualClockHourBoundary": true,
+    "realPlatformOneHourSoak": false
+  },
+  "verifiedBehavior": [
+    "no reset at 59:59.999; full configured budget restored at 60:00",
+    "no repeated reset in the same two-hour stable period",
+    "three restored short retries available after next fault",
+    "idle QQ and Discord use confirmed connection and heartbeat without player messages",
+    "unknown or successful capability probe alone cannot start stable time",
+    "pre-authentication and unsolicited QQ ACKs do not assert health",
+    "missing heartbeat evidence expires the stable window",
+    "Discord partial-coverage disconnect restarts the healthy hour",
+    "Steam network, rate-limit and checkpoint interruptions restart the healthy hour",
+    "a recovered Steam probe retry reports interruption but not committed-scan success",
+    "Discussions only valid snapshot-mode commits count",
+    "heartbeats do not archive player events or advance checkpoints",
+    "existing E2E, lifecycle, checkpoint idempotence, shutdown and crash recovery pass"
+  ],
+  "unchanged": {
+    "m0FrozenFilesAndFreezeManifest": true,
+    "pluginAPIAndHostAPI": true,
+    "qqOperatorInjection": true,
+    "coreAndQueues": true,
+    "longRecoveryBounds": true,
+    "permanentFailureClassification": true,
+    "retryBudgetPersistence": "none",
+    "pr6Commit": "00b8c87793527c67ea6451d03f7ac1e4ff8286d3"
+  },
+  "externalEffects": {
+    "paidModelCalls": 0,
+    "realPlatformMessages": 0,
+    "githubIssueWrites": 0,
+    "deployment": false
+  }
+}
