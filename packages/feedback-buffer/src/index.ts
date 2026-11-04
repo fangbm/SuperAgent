@@ -27,14 +27,28 @@ export function validateBatchingPolicy(input: BatchingPolicyV1): Readonly<Batchi
   return Object.freeze(policy);
 }
 
+/** A low-cost lexical check, applied to body and thread title independently. */
+function isTrivialText(value: string): boolean {
+  const text = value.trim();
+  return !text || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(text)
+    || /^[\p{P}\p{S}\s]+$/u.test(text);
+}
+/** Title is signed source evidence, not inferred from a snippet of the body. */
+function threadTitle(event: Exclude<NormalizedEventV1,{type:'com.superagent.source.coverage.changed.v1'}>): string {
+  return event.data.object.kind === 'thread' && typeof event.data.attributes?.title === 'string'
+    ? event.data.attributes.title.trim() : '';
+}
+
 /** Conservative, reversible rules. Unknown substantive text remains a candidate. */
 export function classifyAdmission(event: NormalizedEventV1, eventId: InternalEventId, policy: BatchingPolicyV1): { decision: AdmissionKindV1; rationale: string } {
   if (event.type === 'com.superagent.source.coverage.changed.v1') return { decision: 'archive_only', rationale: 'SOURCE_HEALTH_EVENT' };
   if (event.type.includes('.deleted.') || event.type.includes('.updated.')) return { decision: 'candidate', rationale: 'SOURCE_REVISION_REPROCESS' };
-  const text = event.data.content?.text?.trim() ?? '';
+  const body = event.data.content?.text?.trim() ?? '';
+  const title = threadTitle(event);
+  const text = [title, body].filter(Boolean).join('\n');
   if (/(?:存档|save).*(?:损坏|丢失|corrupt|lost)|(?:账号|account).*(?:被盗|泄露|exploit)/iu.test(text)) return { decision: 'urgent_candidate', rationale: 'URGENT_REQUIRES_VERIFICATION' };
   if (event.data.content?.attachments?.length) return { decision: 'candidate', rationale: 'ATTACHMENT_REQUIRES_REVIEW' };
-  const trivial = !text || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(text) || /^[\p{P}\p{S}\s]+$/u.test(text);
+  const trivial = isTrivialText(body) && isTrivialText(title);
   if (trivial) {
     const sample = createHash('sha256').update(JSON.stringify([eventId, policy.policyVersion])).digest().readUInt32BE(0) / 0x1_0000_0000;
     return sample < policy.auditSampleRate ? { decision: 'audit_sample', rationale: 'ARCHIVE_AUDIT_SAMPLE' } : { decision: 'archive_only', rationale: 'EXPLICIT_NON_ACTIONABLE' };
@@ -66,18 +80,32 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       const event = JSON.parse(stored.payload_json) as NormalizedEventV1;
       const now = timestamp(this.clock());
       let result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
-    // Preserve substantive-to-trivial edits for reanalysis: the earlier bug
-    // report may have been withdrawn. Only trivial-to-trivial edits are skipped.
-    if (!forced && event.type !== 'com.superagent.source.coverage.changed.v1' && event.type.includes('.updated.') && typeof event.data.content?.text === 'string') {
-      const trivial = (value: string) => !value.trim() || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(value.trim()) || /^[\p{P}\p{S}\s]+$/u.test(value.trim());
-      if (trivial(event.data.content.text)) {
-        const previous = this.store.get<{ text: string | null }>(`SELECT json_extract(payload_json,'$.data.content.text') AS text FROM source_events
-          WHERE source_id=? AND event_id<>? AND json_extract(payload_json,'$.data.object.externalId')=?
-          ORDER BY rowid DESC LIMIT 1`, stored.source_id, eventId, event.data.object.externalId);
-        if (previous && typeof previous.text === 'string' && trivial(previous.text))
-          result = { decision: 'archive_only', rationale: 'TRIVIAL_REVISION' };
+      // A queued later edit must never be mistaken for an already-admitted
+      // predecessor. Skip only when the immediately preceding *earlier* event
+      // was itself safely archived as trivial. Pending/relevant predecessors,
+      // attachments and material thread titles all retain reanalysis.
+      if (!forced && event.type !== 'com.superagent.source.coverage.changed.v1'
+        && event.type.includes('.updated.') && typeof event.data.content?.text === 'string'
+        && !event.data.content.attachments?.length
+        && isTrivialText(event.data.content.text) && isTrivialText(threadTitle(event))) {
+        const previous = this.store.get<{ payload_json: string; decision: string | null; rationale_code: string | null }>(`
+          SELECT prior.payload_json, admission.decision, admission.rationale_code
+          FROM source_events prior
+          LEFT JOIN admission_decisions admission
+            ON admission.event_id=prior.event_id AND admission.policy_version=?
+          WHERE prior.source_id=? AND prior.rowid<(SELECT rowid FROM source_events WHERE event_id=?)
+            AND json_extract(prior.payload_json,'$.data.object.externalId')=?
+          ORDER BY prior.rowid DESC LIMIT 1`,
+          policy.policyVersion, stored.source_id, eventId, event.data.object.externalId);
+        if (previous?.decision === 'archive_only'
+          && (previous.rationale_code === 'EXPLICIT_NON_ACTIONABLE' || previous.rationale_code === 'TRIVIAL_REVISION')) {
+          const old = JSON.parse(previous.payload_json) as NormalizedEventV1;
+          if (old.type !== 'com.superagent.source.coverage.changed.v1'
+            && isTrivialText(old.data.content?.text ?? '') && isTrivialText(threadTitle(old))
+            && !old.data.content?.attachments?.length)
+            result = { decision: 'archive_only', rationale: 'TRIVIAL_REVISION' };
+        }
       }
-    }
       this.store.run('INSERT INTO admission_decisions VALUES(?,?,?,?,?)', eventId, policy.policyVersion, result.decision, result.rationale, now);
       const alreadyCandidate = this.store.get("SELECT 1 FROM segment_events WHERE event_id=? AND role='candidate' LIMIT 1", eventId);
       // Re-evaluating a policy never invents a second player feedback entity.
