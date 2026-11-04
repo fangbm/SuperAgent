@@ -1,0 +1,10 @@
+{
+  "sourceUri": "urn:superagent:source:steam-discussions-public",
+  "appId": 5335850,
+  "mode": "public",
+  "forumIds": ["0"],
+  "pollIntervalMs": 600000,
+  "requestIntervalMs": 2000,
+  "maxRequestsPerSync": 25,
+  "rescanIntervalMs": 86400000
+}

@@ -1,15 +1,16 @@
 import path from 'node:path';
 import { DiscordConnector } from '@superagent/connector-discord';
-import { SteamReviewsConnector } from '@superagent/connector-steam-reviews';
+import { SteamReviewsConnector, SteamReviewCommentsConnector } from '@superagent/connector-steam-reviews';
 import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
 import { QQSource } from '@superagent/qq-official';
+import { initializeSteamReviewComments, initializePublicSteamDiscussions } from './steam-review-comments-state.mjs';
 
 /** Only trusted application code supplies registrations; JSON cannot name executable modules. */
 export function createSourceRegistry(definitions) {
   const entries=new Map(Object.entries(definitions).map(([key,value])=>{
     if(!/^[a-z][a-z0-9-]*$/.test(key)||!value||typeof value.factory!=='function'||typeof value.id!=='string'
       ||typeof value.platform!=='string'||!['background','blocking'].includes(value.mode)
-      ||['configure','normalize','unavailableCode','stability'].some(k=>value[k]!==undefined&&typeof value[k]!=='function'))throw new Error('INVALID_SOURCE_REGISTRATION');
+      ||['configure','normalize','initialize','unavailableCode','stability'].some(k=>value[k]!==undefined&&typeof value[k]!=='function'))throw new Error('INVALID_SOURCE_REGISTRATION');
     return [key,Object.freeze({...value})];
   }));
   return Object.freeze({
@@ -30,8 +31,13 @@ export const builtinSources=createSourceRegistry({
     stability:(config,health)=>({confirmed:health.coverage==='partial'&&/^Review scan (?:completed|incomplete)/.test(health.reason??''),interrupted:health.coverage==='unavailable'||/^STEAM_REVIEWS_POLL_INTERRUPTED/.test(health.reason??''),maxGapMs:Math.max(60000,3*(config.pollIntervalMs??60000))})},
   'steam-discussions':{
     factory:c=>new SteamDiscussionsConnector(c),id:'superagent.steam-discussions',platform:'steam-discussions',mode:'blocking',
+    initialize:initializePublicSteamDiscussions,
     normalize:(config,{directory})=>({...config,...(config.snapshotPath?{snapshotPath:path.resolve(directory,config.snapshotPath)}:{})}),
-    unavailableCode:config=>config.mode!=='snapshot'?'UNSUPPORTED_CAPABILITY':null,
+    unavailableCode:config=>!['snapshot','public'].includes(config.mode)?'UNSUPPORTED_CAPABILITY':null,
     stability:(config,health)=>({confirmed:config.mode==='snapshot'&&health.coverage==='partial'&&/^Operator snapshot committed/.test(health.reason??''),interrupted:health.coverage==='unavailable',maxGapMs:Math.max(60000,3*(config.pollIntervalMs??60000))}),
+  },
+  'steam-review-comments':{
+    factory:c=>new SteamReviewCommentsConnector(c),id:'superagent.steam-review-comments',platform:'steam-reviews',mode:'blocking',
+    initialize:initializeSteamReviewComments,
   },
 });

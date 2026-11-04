@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-11-04T06:07:27.487Z",
+  "base": "a2f1d9a",
+  "entry": "createApplication / Source Registry / ApplicationPlugins / scopedSourceHost",
+  "appId": 5335850,
+  "mode": "bounded-anonymous-public-reads",
+  "budgetPerNewConnector": 8,
+  "analysisExecuted": false,
+  "continuousCollection": false,
+  "sources": [
+    {
+      "kind": "steam-reviews",
+      "sourceId": "steam-5335850-reviews-all",
+      "accepted": 132,
+      "requests": 4,
+      "objects": [
+        {
+          "kind": "review",
+          "count": 132
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Review scan incomplete; committed pagination will resume; public snapshots only"
+      }
+    },
+    {
+      "kind": "steam-review-comments",
+      "sourceId": "steam-5335850-review-comments-observed",
+      "accepted": 5,
+      "requests": 10,
+      "objects": [
+        {
+          "kind": "comment",
+          "count": 5
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Review metadata sweep or known comment thread backlog remains; observations are bounded and incomplete"
+      }
+    },
+    {
+      "kind": "steam-discussions",
+      "sourceId": "steam-5335850-discussions-public",
+      "accepted": 5,
+      "requests": 10,
+      "objects": [
+        {
+          "kind": "comment",
+          "count": 2
+        },
+        {
+          "kind": "thread",
+          "count": 3
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Public scan continues; background offset and topic revisions retained phase=lists pendingTopics=28 queuedTopics=28 retryableGaps=0"
+      },
+      "progress": {
+        "discoveredTopics": 30,
+        "topicBodies": 3,
+        "completedTopics": 2,
+        "queuedTopics": 28,
+        "backgroundActive": true,
+        "backgroundStart": 30,
+        "phase": "lists"
+      }
+    }
+  ],
+  "totalArchived": 142,
+  "duplicateReplayMatchedInternalIds": true,
+  "canonicalAndPreparedArchivesUnchanged": true,
+  "legacyCompatibility": {
+    "transport": "recorded native HTML, no live API",
+    "existingComments": 19,
+    "afterReplay": 19,
+    "requests": 22,
+    "sourceEventBytesAndInternalIdsPreserved": true,
+    "checkpointVersion": 2,
+    "originalArchiveUnchanged": true,
+    "migration": "read-only SQLite backup; schema upgrade only on disposable copy"
+  }
+}

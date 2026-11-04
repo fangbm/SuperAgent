@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-11-03T18:26:38.920Z",
+  "appId": 5335850,
+  "mode": "bounded-anonymous-public-reads",
+  "budgetPerNewConnector": 8,
+  "analysisExecuted": false,
+  "continuousCollection": false,
+  "sources": [
+    {
+      "kind": "steam-reviews",
+      "sourceId": "steam-5335850-reviews-all",
+      "accepted": 131,
+      "objects": [
+        {
+          "kind": "review",
+          "count": 131
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Review scan completed; public snapshots only; deletions and intermediate revisions cannot be recovered"
+      }
+    },
+    {
+      "kind": "steam-review-comments",
+      "sourceId": "steam-5335850-review-comments-observed",
+      "accepted": 5,
+      "objects": [
+        {
+          "kind": "comment",
+          "count": 5
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Review metadata sweep or known comment thread backlog remains; observations are bounded and incomplete"
+      }
+    },
+    {
+      "kind": "steam-discussions",
+      "sourceId": "steam-5335850-discussions-public",
+      "accepted": 11,
+      "objects": [
+        {
+          "kind": "comment",
+          "count": 9
+        },
+        {
+          "kind": "thread",
+          "count": 2
+        }
+      ],
+      "health": {
+        "coverage": "partial",
+        "health_reason": "Anonymous public topic pages only; deleted topics and intermediate edits cannot be recovered"
+      }
+    }
+  ],
+  "replayMappingVerified": 147,
+  "canonicalArchiveUnchanged": true,
+  "failures": null,
+  "archiveKind": "disposable file-backed Core archive",
+  "admissionExecuted": false,
+  "fullHistoryVerified": false,
+  "discussionsProgress": {
+    "phase": "topics",
+    "discoveredTopics": 51,
+    "topicBodiesObserved": 2,
+    "topicsCompleted": 1,
+    "queuedTopics": 50
+  },
+  "legacyCompatibility": {
+    "transport": "recorded original capture; not a live API assertion",
+    "archiveKind": "disposable backup of the existing 148-event archive",
+    "existingComments": 19,
+    "afterFourBoundedReplays": 19,
+    "sourceEventIdsAndPayloadBytesPreserved": true,
+    "checkpointFrom": 1,
+    "checkpointTo": 2
+  },
+  "limitations": [
+    "Website endpoints are undocumented; coverage remains partial.",
+    "Unfinished topic/reply/comment pagination remains in Host checkpoints.",
+    "Deleted/private objects and intermediate edits are not reconstructible.",
+    "No continuous collector, model calls or production archive changes."
+  ]
+}

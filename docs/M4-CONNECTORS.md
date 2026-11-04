@@ -1,33 +1,28 @@
 # M4 平台采集与运行
 
-三个独立私有包实现现有 SourcePluginV1，只依赖 plugin-sdk 与 Node 24 内置模块。平台插件通过 Host 获取密钥、提交事件和 checkpoint、报告健康；可信运行脚本负责注册来源、打开既有 M1Runtime。没有新增数据库、队列或 Agent Runtime，也不直接调用 M3。
+三个独立私有 connector 包实现现有 SourcePluginV1。平台插件只通过应用注入的 Source Host 获取获准密钥、提交事件/checkpoint 和报告健康。正式应用入口由可信 `scripts/source-registry.mjs` 注册内置 Source，Supervisor 管理插件和 Host 生命周期；统一应用负责打开并共享既有 M1Runtime、M3 和 M5 服务。平台 JSON 不能指定可执行模块或业务处理策略。
 
 ## 运行
 
-在仓库根目录执行：
+正式运行使用统一应用配置。Steam public config 将启用三项 Steam Source（all reviews、review comments、public Discussions），并关闭模型、GitHub 写入、Delivery 和 Web：
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm build
 
-# 检查公开 Steam Reviews 接口，不打开数据库
-pnpm source:m4 --connector steam-reviews --config packages/connectors/steam-reviews/examples/config.json --probe
+# 静态配置/Manifest/权限检查；不访问 Steam
+pnpm start --config examples/steam-public/superagent.json --check-config
 
-# 单次有限分页，持久化到现有 M1 Host
-pnpm source:m4 --connector steam-reviews --config packages/connectors/steam-reviews/examples/config.json --database .artifacts/community.sqlite --project demo-game --source steam-reviews-demo --once
-
-# 修改 Discord 示例中的 Guild / Channel / Thread ID，在当前进程设置 DISCORD_BOT_TOKEN
-pnpm source:m4 --connector discord --config packages/connectors/discord/examples/config.json --database .artifacts/community.sqlite --project demo-game --source discord-demo
-
-# 明确的 Discussions 降级，仅导入随附的合成快照
-pnpm source:m4 --connector steam-discussions --config packages/connectors/steam-discussions/examples/snapshot-config.json --database .artifacts/community.sqlite --project demo-game --source steam-discussions-snapshot --once
+# 在限定时间内启动统一应用及受监督的 Steam 来源
+pnpm start --config examples/steam-public/superagent.json --run-for-ms 60000
 ```
 
-去掉 --once 持续运行；Ctrl+C 中止网络请求、停止插件，再关闭 M1。单次模式执行有限分页及一次 M1 tick，可能仍有未完成分页/缓冲分段，不能据此声称全历史或 M3 分析完成。持续模式只运行既有 M1 轻量处理，M3 由用户自己的 worker:m3 消费。不会加载 .env；密钥仅从当前进程环境经 Host 授权读取。
+正式入口为 `pnpm start --config config/superagent.json`。Steam-only 配置使用同一应用组合，数据库为 `.artifacts/steam-public/state.sqlite`。`--check-config` 不执行探测或采集；`--run-for-ms` 限定进程运行时长，插件在启动后自行开始受监督轮询，时间到后统一停止。它不保证完成全历史。统一应用共享 M1、M3、M5 的既有服务，不启动并行 Worker；一个 source ID 同时只能有一个进程写入。
+
 
 sourceUri 必须与注册来源一致；同一个 source ID 不得更换项目、URI、平台或采集对象集合。更换 Discord Guild/Channel 集合、Steam AppID 或 Discussions 快照路径时建立独立来源。一个来源只运行一个活跃插件实例；Host 的 checkpoint 接口没有多写者比较交换锁，不能启动两个实例争写同一来源。
 
---probe 不运行采集。Discord 在绑定 Host 前返回 unknown，绑定后探测当前机器人、应用 Intent、角色/覆盖权限和指定频道；--once 会绑定并实际读取历史。Steam Reviews 的 probe 是匿名公开读取，即使配置了 publisherKeySecret，也不代表发行商密钥已验证；密钥仅在 sync/start 由 Host 读取。Discussions 的 probe 只验证本地快照或报告 unavailable。
+应用启动时 Supervisor 执行插件 probe 并按配置周期复核健康。Steam Reviews 的 probe 是匿名官方读取；review comments 的 probe 只验证匿名评价索引可读，不证明评论页覆盖完整。Discussions public mode 检查匿名公开论坛页并始终报告 partial；snapshot mode 只验证本地文件。public mode 需要可信内置 Source 注册支持，并在统一应用配置中显式启用。站点原生路由未文档化，不承诺完整历史或平台保证。
 
 ## 事件与事务
 
@@ -36,8 +31,9 @@ sourceUri 必须与注册来源一致；同一个 source ID 不得更换项目�
 | Discord MESSAGE_CREATE / MESSAGE_UPDATE / MESSAGE_DELETE | message.created / updated / deleted.v1 | 消息 ID 字符串 | Gateway session+sequence；保留引用和指定 Thread ID |
 | Discord MESSAGE_DELETE_BULK | 每条 message.deleted.v1 | 各被删消息 ID | 同一批 dispatch 原子提交 |
 | Discord REST 快照 | message.created / updated.v1 | 消息 ID | 原生快照哈希；保留原始创建/编辑时间 |
-| Steam 差评和已追踪差评的后续修订 | review.created / updated.v1 | recommendationid 字符串 | 原生更新时间与完整快照哈希；保留 voted_up 和 native 元数据 |
-| Discussions 运营方快照 | thread/comment.created / updated / deleted.v1 | 带 kind 前缀的原生 ID | 精确记录哈希、thread/parent 引用；删除必须显式提供 deletedAt |
+| Steam Reviews（负评或配置的 all 范围） | review.created / updated.v1 | recommendationid 字符串 | 官方 GetAppReviews 当前快照；保留 voted_up 和 native 元数据 |
+| Steam review comments | comment.created / updated.v1 | `comment:{recommendationid}:{commentid}` | 独立来源，保留 review parent 链接；使用匿名评论页面 |
+| Discussions public pages 或运营方快照 | thread/comment.created / updated / deleted.v1 | 带 kind 前缀的原生 ID | public 模式保留 thread/parent；快照删除须显式提供 deletedAt |
 
 事件类型均以 com.superagent.feedback. 开头；无新契约类型。原文放在 content.text，平台元数据放在 attributes，permalink 放在 origin。大整数平台 ID 全程保留字符串，禁止经过 JS Number。
 
@@ -53,15 +49,15 @@ Discord 要求机器人已加入指定 Guild、启用/获批 Message Content Int
 
 指定 channelIds 和 threadIds 是完整白名单，不自动发现新建、归档或私有线程。论坛父频道本身不能当消息频道，需配置其 Thread ID。历史按 before 向前分页并保存最高边界；最近一页会回扫编辑。无法 Resume 时会记录 gap、补采仍可读取的消息，但离线删除、已不可见内容、较旧消息的编辑和多个中间修订不能恢复。partial 不会自动升级为 full。Gateway UPDATE 可缺少正文；这时不伪造空正文，保留 partialUpdate/native。删除发生时间平台未提供时使用首次接收时间。Gateway 与 REST 是不同观察路径，可能保留同一对象的重复观察；不会跨对象做语义去重。单实例不支持分片协调，官方要求多 shard 的 Bot 会明确拒绝启动。Gateway 待处理 dispatch 上限 512，超过后断开并从提交序号 Resume。
 
-Steam 的实现依据当前英文 [IUserReviewsService 官方文档](https://partner.steamgames.com/doc/webapi/IUserReviewsService?language=english)，使用替代旧 appreviews 的 GetAppReviews，并按 updated 读取所有推荐状态。实现从查询头部反复扫描，跨页保留游标，完整扫到旧水位以下后才推进水位；同秒边界包含在回扫中。默认回扫重叠 600 秒，每轮最多 10 页，未完成页下次继续。首次扫描可能很长；追踪过差评的对象状态会随评价数增长，checkpoint 序列化成本须监控。API 提供当前公开快照，不能重建两次轮询之间所有编辑或删除；不把缺席当删除。回扫不能保证捕捉平台迟于重叠窗口才暴露的数据。英文接口与本地化旧文档可能不同，应以英文当前文档和实际响应为准。
+Steam Reviews 使用 Valve 官方 [IUserReviewsService](https://partner.steamgames.com/doc/webapi/IUserReviewsService?language=english) 的 GetAppReviews，默认负评范围，也可在 Source config 显式设 `reviewScope: "all"`。它读取公开当前快照，不会重建两次轮询之间所有中间编辑或删除；不把缺席当删除。详细 API 与边界见 [Steam surfaces research](M4-STEAM-SURFACES-RESEARCH.md)。
 
-M1 对同时间的歧义修订、迟到事件会保留原始历史并写入 source_reconciliations；M4 不修改该冻结主链路，也不声称这些歧义已自动解决。
+Steam review comments 是 `steam-reviews` 包内的独立 Source。它用官方评价元数据定位候选评价，再调用未文档化 Steam Community 评论页；有界分页、重试和每日已知对象重扫不能证明完整历史。Discussions `mode: "public"` 同样使用未文档化站点页面路由；public 健康始终 partial，回复请求依赖公开主题页的 `extended_data`。默认 mode 为 unavailable，`mode: "snapshot"` 仍支持运营方准备的 JSON 文件。两种远端页面模式均不得把不可见/缺失对象当作删除。见 [Discussions research](M4-STEAM-DISCUSSIONS-RESEARCH.md)。
 
-Discussions 调查、候选方式和明确降级方案见 [M4-STEAM-DISCUSSIONS-RESEARCH.md](M4-STEAM-DISCUSSIONS-RESEARCH.md)。快照模式的可用性只证明本地文件可读，不证明 Steam 端授权或采集覆盖率。
+应用将每个 Steam Source 注册到现有 M1 Archive/Host，并由 Supervisor 管理 probe、start、stop 和重启。connector 不访问数据库，也不自己创建处理策略、队列或模型调用。全站状态、路径解释和新架构的验收证据见 [Steam public feedback 操作说明](STEAM-PUBLIC-FEEDBACK.md)。
 
 ## 配置及测试入口
 
-配置 Schema 随各包导出并放入 manifest.configSchema，构造器也验证配置。示例放在各包 examples，避免修改冻结的根 config。snapshotPath 相对进程工作目录解析；运营方应通过临时文件写好后原子替换快照，避免读到半写文件。快照最多 10 MiB/10,000 条，超限整批拒绝而非截断；格式参照 tests/fixtures/m4/discussions.json。已存在对象改变必须携带 updatedAt 或 deletedAt；省略对象不会删除历史。title 原文保存在 attributes.title，正文在 content.text。
+配置 Schema 随各包导出并放入 manifest.configSchema，构造器也验证配置。示例放在各包 examples，避免修改冻结的根 config。snapshotPath 相对 platform config 文件目录解析；运营方应通过临时文件写好后原子替换快照，避免读到半写文件。快照最多 10 MiB/10,000 条，超限整批拒绝而非截断；格式参照 tests/fixtures/m4/discussions.json。已存在对象改变必须携带 updatedAt 或 deletedAt；省略对象不会删除历史。title 原文保存在 attributes.title，正文在 content.text。
 
 ```powershell
 pnpm build
@@ -73,4 +69,4 @@ pnpm check:freeze
 pnpm check
 ```
 
-测试 fixtures 为合成内容。自动化验证、真实公开 API 冒烟及尚缺少的目标平台权限验证分别记录在 [M4-ACCEPTANCE.md](M4-ACCEPTANCE.md)。
+测试 fixtures 为合成内容。当前 Steam connector 文件可从现有 application config 的 trusted Source Registry 装配；运行入口、配置检查和实际验证证据按 [Steam public feedback 操作说明](STEAM-PUBLIC-FEEDBACK.md) 与 [统一入口验收](UNIFIED-APPLICATION-ACCEPTANCE.md) 分别核对。

@@ -86,6 +86,14 @@ export class ApplicationPlugins {
         this.update(entry,{coverage:health.coverage,state:health.coverage==='unavailable'?'unavailable':'running',healthReason:health.reason??null});
       };
       try {
+        this.owner.assert();
+        const notBefore=await definition.initialize?.({ runtime:this.runtime, entry, binding });
+        if(Number.isSafeInteger(notBefore)&&notBefore>this.timing.now()) {
+          this.update(entry,{state:'retry_wait',coverage:'unavailable',healthReason:'RATE_LIMITED',nextRetryAt:new Date(notBefore).toISOString()});
+          this.runtime.ingress.reportHealth(binding,{coverage:'unavailable',reason:'RATE_LIMITED',checkedAt:now()});
+          await this.timing.wait(notBefore-this.timing.now(),signal);
+        }
+        signal.throwIfAborted();
         plugin=attempt===0?this.prepared.get(entry.id):this.make(entry);
         capabilityHost=scopedSourceHost(this.runtime,binding,entry,this.owner,{env:this.env,onHealth:observedHealth,onCommit:result=>{if(result.accepted>0)success();}});
         const host=capabilityHost.host;

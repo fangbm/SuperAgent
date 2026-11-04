@@ -10,6 +10,7 @@
 - M6 本地故障与安全审查已交付，专项入口 `pnpm test:m6`，证据见 `docs/M6-ACCEPTANCE.md`。网关待提交队列有界，投递前复核绑定，GitHub 恢复只处理自己的仓库，Web 密钥轮换撤销旧会话；真实平台故障注入和长期压力测试尚未进行。
 - QQ ACK 使用互动体 `d.id`，被动回复使用外层 `payload.id`，禁止混用或缺失时自动改主动发送。当前文档核对见 `docs/QQ-PROTOCOL-AUDIT-2026-11-03.md`；首轮四条额度已用完，后续独立复测已确认被动原文分页正常。各轮预算分别记录，旧待处理点击不得自动补发。
 - 平台连接器通过 SDK Host 接口工作，不读取数据库或领域内部实现。Core 不导入平台 SDK。
-- 统一正式入口为 `pnpm start --config config/superagent.json`，开发中的 `codex/unified-application` 基于回滚 PR #6，不能与旧调试 Worker 并发操作同库。应用复用一个 M1Runtime 与既有 M3/M5；配置启用的基础 M4 插件由主程序监督生命周期。默认模型、平台实例和外部写入关闭；P0 未交付，Discussions 仅快照。验收为本地真实组件加受控外部 Fixture（261 Node 测试、6 组参考验证），不扩大为新的真实平台权限/送达验收。两个交付 PR 均 Draft，不自动合并；PR #5 保留不合并。详见 docs/UNIFIED-APPLICATION.md 与 docs/UNIFIED-APPLICATION-ACCEPTANCE.md。
+- 统一正式入口为 `pnpm start --config config/superagent.json`，开发中的 `codex/unified-application` 基于回滚 PR #6，不能与旧调试 Worker 并发操作同库。应用复用一个 M1Runtime 与既有 M3/M5；配置启用的 M4 插件由主程序监督生命周期。默认模型、平台实例和外部写入关闭；P0 未交付。统一入口的原始验收边界见 docs/UNIFIED-APPLICATION.md 与 docs/UNIFIED-APPLICATION-ACCEPTANCE.md；PR #5 保留不合并，后续工作以 #7 的 Registry/Host 为基础，交付均 Draft，不自动合并。
+- Steam 后续采集通过 `examples/steam-public/superagent.json` 接入同一主程序：官方评价可选 all、评价评论为独立 Source、Discussions 可选 public（默认仍 unavailable，snapshot 保留）。站点原生接口只报告 partial；真实有界读取、合成回归和旧19条评论回放分别记录在 docs/STEAM-PUBLIC-FEEDBACK.md。原始库不得因测试改写，不恢复 #6 已回滚的社区/工单/语音/部署实现。
 - 修改后运行适合变更范围的检查；完整入口为 `pnpm check`。验证后创建仅包含本次改动的本地 Git 提交，保留无关改动。
 - 验收说明应区分类型检查、内存 SQLite、模拟测试、真实平台联调和实际送达。
