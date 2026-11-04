@@ -29,4 +29,3 @@ Live smoke and compatibility proof from the prior branch are historical only bec
 ## Unified application smoke update from implementation lead
 
 The new Host smoke at `2026-11-04T06:07:27Z` on base `a2f1d9a` archived 132 reviews, 5 review comments, and 3 discussion topic bodies plus 2 replies (142 events), replayed to the same Internal IDs, and left both original/prepared archive hashes unchanged. Discussions progress was 30 discovered, 3 bodies, 2 completed, 28 queued, background index 30; no full-history or latency claim. Evidence is in `docs/evidence/steam-public-unified-2026-11-04.json`.
-

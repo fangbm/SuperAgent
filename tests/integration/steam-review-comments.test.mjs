@@ -309,5 +309,3 @@ test('legacy 19-event checkpoint seeding is metadata-only, exact-source scoped a
   assert.ok(checkedThreads.includes('76561198000000003'));
   assert.equal((await f.host.getCheckpoint()).observations['comment:7001:900001'].eventIds[0], oldEvents[0].id);
 });
-
-

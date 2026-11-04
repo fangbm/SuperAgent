@@ -54,4 +54,3 @@ Local automated validation passed `pnpm install --frozen-lockfile` and full `pnp
 The earlier pre-unified branch smoke remains historical: 131 reviews, 5 review comments, and 2 topic bodies plus 9 replies, from the removed Core integration; see its [historical evidence file](evidence/steam-public-feedback-2026-11-04.json). Its checkpoint proof and the earlier 129-review/19-comment archive counts are not results from this unified-application smoke. No production full-history or new-feedback latency claim follows from a bounded run.
 
 See [Discussion route research](M4-STEAM-DISCUSSIONS-RESEARCH.md), [Steam surface research](M4-STEAM-SURFACES-RESEARCH.md), [connector behavior](M4-CONNECTORS.md), and [unified application acceptance](UNIFIED-APPLICATION-ACCEPTANCE.md). Do not copy player text into checked-in docs or fixtures.
-
