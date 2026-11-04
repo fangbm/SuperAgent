@@ -32,7 +32,7 @@ export const steamReviewCommentsConfigSchema = {
 type Dict = Record<string, unknown>;
 type NativeComment = { id: string; authorUrl?: string; authorId?: string; created: number; text: string; nativeHtml: string; reviewId: string; reviewOwner: string; renderUrl: string };
 type Thread = { owner: string; reportedCount: number; offset: number; lastScannedAt: number; pending: boolean; known: boolean; retryAt: number; refreshAfterScan?: boolean };
-type Observation = { materialHash: string; revision: number; eventIds: string[]; observedAt: string };
+type Observation = { materialHash: string; revision: number; observedAt: string };
 type State = { version: 2; appId: number; sourceUri: string; parentReviewSourceId: string; mode: 'bounded-anonymous-web-observation'; reviewCursor: string; metadataSweepAt: number; nextEligibleAt: number; serviceTurn: 'head' | 'background' | 'comments'; knownReviews: Record<string, true>; threads: Record<string, Thread>; observations: Record<string, Observation> };
 
 const isObject = (value: unknown): value is Dict => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -57,10 +57,16 @@ function readState(input: JSONValue | null, config: SteamReviewCommentsConfig): 
     || !Number.isSafeInteger(value.lastScannedAt) || typeof value.pending !== 'boolean' || typeof value.known !== 'boolean'
     || !Number.isSafeInteger(value.retryAt) || Number(value.retryAt) < 0 || (value.refreshAfterScan !== undefined && typeof value.refreshAfterScan !== 'boolean')) throw new Error('INVALID_CHECKPOINT');
   for (const [key, value] of Object.entries(input.observations)) if (!/^comment:\d+:\d+$/.test(key) || !isObject(value) || typeof value.materialHash !== 'string'
-    || !/^[a-f0-9]{64}$/.test(value.materialHash) || !Number.isSafeInteger(value.revision) || Number(value.revision) < 1 || !Array.isArray(value.eventIds)
-    || value.eventIds.length === 0 || value.eventIds.some(eventId => typeof eventId !== 'string') || new Set(value.eventIds).size !== value.eventIds.length
+    || !/^[a-f0-9]{64}$/.test(value.materialHash) || !Number.isSafeInteger(value.revision) || Number(value.revision) < 1
+    || (value.eventIds !== undefined && (!Array.isArray(value.eventIds) || value.eventIds.length === 0
+      || value.eventIds.some(eventId => typeof eventId !== 'string') || new Set(value.eventIds).size !== value.eventIds.length))
     || typeof value.observedAt !== 'string' || !Number.isFinite(Date.parse(value.observedAt))) throw new Error('INVALID_CHECKPOINT');
-  return structuredClone(input) as unknown as State;
+  const state = structuredClone(input) as unknown as State;
+  // Event IDs already live in immutable source_events; old v2 checkpoint
+  // copies are accepted and compacted on the next atomic Host commit.
+  for (const observation of Object.values(state.observations))
+    delete (observation as Observation & { eventIds?: string[] }).eventIds;
+  return state;
 }
 
 function legacyMaterial(item: Partial<NativeComment>): string {
@@ -117,7 +123,7 @@ export function seedSteamReviewCommentsCheckpoint(config: SteamReviewCommentsCon
     const materialHash = legacyMaterial(item);
     if (codec[1] && codec[2] !== materialHash) throw new Error('INVALID_EVENT: archived comment revision mismatch');
     const eventSet = versions.get(externalId) ?? new Set<string>(); eventSet.add(event.id); versions.set(externalId, eventSet);
-    state.observations[externalId] = { materialHash, revision: codec[1] ? Number(codec[1]) : eventSet.size, eventIds: [...eventSet], observedAt: legacyObservedAt ?? event.time };
+    state.observations[externalId] = { materialHash, revision: codec[1] ? Number(codec[1]) : eventSet.size, observedAt: legacyObservedAt ?? event.time };
     state.knownReviews[item.reviewId] = true;
     if (state.threads[item.reviewId] && state.threads[item.reviewId]!.owner !== item.reviewOwner) throw new Error('INVALID_EVENT: archived review owner mismatch');
     state.threads[item.reviewId] ??= { owner: item.reviewOwner, reportedCount: 0, offset: 0, lastScannedAt: 0, pending: false, known: true, retryAt: 0 };
@@ -339,7 +345,7 @@ export class SteamReviewCommentsConnector implements SourcePluginV1 {
           origin: { permalink: `https://steamcommunity.com/profiles/${item.reviewOwner}/recommended/${this.config.appId}/#comment_${item.id}` },
           attributes: { appId: this.config.appId, surface: 'review-comments', ingestionMode: 'bounded-anonymous-web-observation', parentReviewSourceId: this.config.parentReviewSourceId,
             parentRecommendationId: item.reviewId, nativeCreatedAt: item.created, ...(previous ? { observedAt } : {}), sourceEndpoint: item.renderUrl, native: item } } };
-      events.push(event); next.observations[externalId] = { materialHash, revision, eventIds: [...(previous?.eventIds ?? []), eventId], observedAt };
+      events.push(event); next.observations[externalId] = { materialHash, revision, observedAt };
     }
     next.serviceTurn = turn;
     await host.commitBatch(events, { sourceId: host.sourceId, cursor: next as unknown as JSONValue });

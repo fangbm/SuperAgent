@@ -65,7 +65,19 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       if (!stored) throw new Error('EVENT_NOT_FOUND');
       const event = JSON.parse(stored.payload_json) as NormalizedEventV1;
       const now = timestamp(this.clock());
-      const result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
+      let result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
+    // Preserve substantive-to-trivial edits for reanalysis: the earlier bug
+    // report may have been withdrawn. Only trivial-to-trivial edits are skipped.
+    if (!forced && event.type.includes('.updated.') && typeof event.data.content?.text === 'string') {
+      const trivial = (value: string) => !value.trim() || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(value.trim()) || /^[\p{P}\p{S}\s]+$/u.test(value.trim());
+      if (trivial(event.data.content.text)) {
+        const previous = this.store.get<{ text: string | null }>(`SELECT json_extract(payload_json,'$.data.content.text') AS text FROM source_events
+          WHERE source_id=? AND event_id<>? AND json_extract(payload_json,'$.data.object.externalId')=?
+          ORDER BY rowid DESC LIMIT 1`, stored.source_id, eventId, event.data.object.externalId);
+        if (previous && typeof previous.text === 'string' && trivial(previous.text))
+          result = { decision: 'archive_only', rationale: 'TRIVIAL_REVISION' };
+      }
+    }
       this.store.run('INSERT INTO admission_decisions VALUES(?,?,?,?,?)', eventId, policy.policyVersion, result.decision, result.rationale, now);
       const alreadyCandidate = this.store.get("SELECT 1 FROM segment_events WHERE event_id=? AND role='candidate' LIMIT 1", eventId);
       // Re-evaluating a policy never invents a second player feedback entity.
@@ -86,6 +98,25 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
           if (parentId) {
             const parent = this.store.get<{ event_id: string }>('SELECT event_id FROM source_objects WHERE source_id=? AND external_id=? AND deleted=0', stored.source_id, parentId);
             if (parent && parent.event_id !== eventId) this.addContext(segment.segment_id, parent.event_id, policy.maxContextMessages);
+          }
+          // Comments and original reviews live in separate Sources. Carry only
+          // exact same-project, same-app Steam review context into the M3 batch.
+          const attrs = event.data.attributes;
+          if (event.data.platform === 'steam-reviews' && event.data.object.kind === 'comment'
+            && attrs?.surface === 'review-comments' && typeof attrs.parentReviewSourceId === 'string'
+            && typeof attrs.appId === 'number' && typeof event.data.object.parentExternalId === 'string'
+            && attrs.parentRecommendationId === event.data.object.parentExternalId
+            && attrs.parentReviewSourceId !== stored.source_id) {
+            const review = this.store.get<{ event_id: string }>(`SELECT o.event_id FROM source_objects o
+              JOIN sources s ON s.source_id=o.source_id AND s.project_id=? AND s.platform='steam-reviews'
+              JOIN source_events e ON e.event_id=o.event_id AND e.project_id=? AND e.source_id=o.source_id
+              WHERE o.source_id=? AND o.external_id=? AND o.object_kind='review' AND o.deleted=0
+                AND json_extract(e.payload_json,'$.data.platform')='steam-reviews'
+                AND json_extract(e.payload_json,'$.data.attributes.appId')=?
+                AND json_extract(e.payload_json,'$.data.object.externalId')=?`,
+              stored.project_id, stored.project_id, attrs.parentReviewSourceId,
+              event.data.object.parentExternalId, attrs.appId, event.data.object.parentExternalId);
+            if (review && review.event_id !== eventId) this.addContext(segment.segment_id, review.event_id, policy.maxContextMessages);
           }
           this.store.run('UPDATE conversation_segments SET last_related_at=?,quiet_due_at=?,urgent_due_at=CASE WHEN ?=1 THEN coalesce(urgent_due_at,?) ELSE urgent_due_at END,replay=max(replay,?) WHERE segment_id=?',
             now, addMilliseconds(now, policy.quietWindowMs), result.decision === 'urgent_candidate' ? 1 : 0, addMilliseconds(now, policy.urgentMaxDelayMs), forced || event.type.includes('.updated.') || event.type.includes('.deleted.') ? 1 : 0, segment.segment_id);

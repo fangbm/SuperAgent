@@ -307,5 +307,25 @@ test('legacy 19-event checkpoint seeding is metadata-only, exact-source scoped a
   await connector.sync(f.host, signal());
   assert.equal(f.events(f.runtime).length, 19);
   assert.ok(checkedThreads.includes('76561198000000003'));
-  assert.equal((await f.host.getCheckpoint()).observations['comment:7001:900001'].eventIds[0], oldEvents[0].id);
+  assert.equal((await f.host.getCheckpoint()).observations['comment:7001:900001'].revision, 1);
+  assert.equal(JSON.stringify(await f.host.getCheckpoint()).includes('eventIds'), false);
+  assert.ok(f.runtime.store.get('SELECT event_id FROM source_events WHERE external_event_id=?', oldEvents[0].id));
+});
+
+
+test('legacy v2 checkpoint eventIds are compacted while revision counters stay stable', async t => {
+  const f = connectorFixture(t, 'steam-reviews'), cfg = config(f);
+  const commentId = 'comment:7001:900001';
+  const state = seedSteamReviewCommentsCheckpoint(cfg, null, []);
+  state.observations[commentId] = { materialHash: 'a'.repeat(64), revision: 5,
+    eventIds: Array.from({ length: 25 }, (_, n) => 'old-event-' + n), observedAt: new Date(1800000000000).toISOString() };
+  await f.host.commitBatch([], { sourceId: f.scope.sourceId, cursor: state });
+  const collector = new SteamReviewCommentsConnector(cfg, { now: () => 1800000000000, sleep: async () => {},
+    fetch: async () => reviewsPage([], 'end') });
+  await collector.sync(f.host, signal());
+  const current = await f.host.getCheckpoint();
+  assert.equal(current.observations[commentId].revision, 5);
+  assert.equal(current.observations[commentId].materialHash, 'a'.repeat(64));
+  assert.equal(Object.hasOwn(current.observations[commentId], 'eventIds'), false);
+  assert.equal(f.events(f.runtime).length, 0);
 });

@@ -4,7 +4,7 @@ This guide describes Steam connector use through the unified application. The fo
 
 ## Steam-only application config
 
-`examples/steam-public/superagent.json` enables three Steam sources: all public reviews, comments on reviews, and public Discussions. It uses `.artifacts/steam-public/state.sqlite`. Models, GitHub writes, QQ Delivery, reports, and Web are disabled in this Steam-only config. The unified application still runs its existing M1 admission loop; with analysis disabled, it does not call an LLM. No Steam publisher key or login credential is needed for these public routes.
+`examples/steam-public/superagent.json` enables three Steam sources: all public reviews, comments on reviews, and public Discussions. It uses `.artifacts/steam-public/state.sqlite`. M3 analysis is enabled in this Steam-only config with a local OpenAI-compatible endpoint (default Ollama `http://127.0.0.1:11434/v1`, model `qwen3:8b`). Install and pull the model before running, or replace `analysis.baseURL` and `analysis.model` with your own compatible provider. Use `analysis.apiKeyEnv` for secrets, not a JSON key. GitHub writes, QQ Delivery, reports, and Web remain disabled. Core archives source events first; M1 filters trivial messages to `archive_only`, while actionable feedback reaches M3. No Steam publisher key or login credential is needed for these public routes.
 
 The three sources remain independently bound:
 
@@ -25,13 +25,16 @@ Validate without starting connectors or opening the database, then run the forma
 ```powershell
 pnpm install --frozen-lockfile
 pnpm build
+ollama pull qwen3:8b
+ollama serve
+# In another terminal:
 pnpm start --config examples/steam-public/superagent.json --check-config
 pnpm start --config examples/steam-public/superagent.json --run-for-ms 60000
 ```
 
 `--check-config` validates application fields, enabled plugin configs, manifests, and declared permissions; it does not make a Steam request. The application normally runs until stopped. `--run-for-ms` starts the same supervised application and then shuts it down after the requested interval; it is not a one-shot or a full-history guarantee. The connectors begin their own bounded sync on start and poll according to their configs. One active application process should own the database.
 
-The default formal config is `config/superagent.json`; it leaves platform sources disabled. Use `examples/steam-public/superagent.json` when you want just the three Steam sources. Do not use the old Core configuration, the removed `scripts/core-runtime.mjs` integration, or standalone workers against this application database.
+The default formal config is `config/superagent.json`; it leaves platform sources disabled. Use `examples/steam-public/superagent.json` when you want the three Steam sources with M3 LLM analysis. For offline capture without a model, explicitly set `analysis` to `{ "enabled": false, "allowExternalCalls": false }` in a local copy. Trivial greetings/thanks stay in the durable archive but do not consume model calls; editing a substantive report into a trivial reply remains an analysis candidate because it may withdraw the original issue. Do not use the old Core configuration, the removed `scripts/core-runtime.mjs` integration, or standalone workers against this application database.
 
 ## Collection limits
 

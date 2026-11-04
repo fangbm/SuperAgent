@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createApplication } from '../../scripts/application.mjs';
 import { loadApplicationConfig } from '../../scripts/application-config.mjs';
 import { ApplicationPlugins } from '../../scripts/application-plugins.mjs';
-import { SteamReviewsConnector,SteamReviewCommentsConnector,seedSteamReviewCommentsCheckpoint } from '@superagent/connector-steam-reviews';
+import { SteamReviewsConnector,SteamReviewCommentsConnector,seedSteamReviewCommentsCheckpoint,normalizeSteamReview } from '@superagent/connector-steam-reviews';
 import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
 import { appFixture,eventually,untilAbort,SupervisorClock } from './application-helpers.mjs';
 import { M1Runtime } from '@superagent/agent-core';
@@ -18,7 +18,9 @@ test('Steam application example validates real manifests without opening its arc
   new ApplicationPlugins(null,config,null,{env:{}});
   assert.equal(existsSync(config.database),false);
   assert.deepEqual(config.sources.map(s=>s.plugin),['steam-reviews','steam-review-comments','steam-discussions']);
-  assert.equal(config.analysis.enabled,false);assert.equal(config.github.allowWrites,false);assert.equal(config.deliveries.length,0);
+  assert.equal(config.analysis.enabled,true);assert.equal(config.analysis.allowExternalCalls,true);
+  assert.equal(config.analysis.baseURL,'http://127.0.0.1:11434/v1');
+  assert.equal(config.github.allowWrites,false);assert.equal(config.deliveries.length,0);
   const defaults=loadApplicationConfig(fileURLToPath(new URL('../../config/superagent.json',import.meta.url)));
   assert.ok(defaults.sources.every(source=>!source.enabled));
 });
@@ -108,4 +110,45 @@ test('first-ever 429 is persisted before any supervised probe and respected afte
     await clock.advance(3599999);
     assert.equal(calls, 1);
   });
+});
+
+
+test('Steam review-comment M1 batches include the exact same-app parent review context', async t => {
+  const f = appFixture(t);
+  const runtime = new M1Runtime(f.config.database, { policy: { ...f.policy, maxCandidateMessages: 1 } });
+  f.after(() => runtime.close());
+  const projectId = 'steam-link-fixture', appId = 570;
+  const parent = { projectId, sourceId: 'reviews-all', sourceUri: 'urn:steam:reviews-all', platform: 'steam-reviews' };
+  const child = { projectId, sourceId: 'review-comments', sourceUri: 'urn:steam:review-comments', platform: 'steam-reviews' };
+  runtime.ingress.registerSource(parent); runtime.ingress.registerSource(child);
+  const native = JSON.parse(fixture('steam-review.json'));
+  const reviewEvent = normalizeSteamReview(native, { sourceUri: parent.sourceUri, appId }, parent);
+  const reviewId = native.recommendationid;
+  const commentEvent = structuredClone(reviewEvent);
+  commentEvent.source = child.sourceUri;
+  commentEvent.id = 'comment:' + reviewId + ':9001:created:x1';
+  commentEvent.type = 'com.superagent.feedback.comment.created.v1';
+  commentEvent.data.sourceId = child.sourceId;
+  commentEvent.data.object = { kind: 'comment', externalId: 'comment:' + reviewId + ':9001', revision: 'x1',
+    parentExternalId: reviewId, threadExternalId: 'review:' + reviewId };
+  commentEvent.data.content = { text: '更新后联机仍然崩溃，请修复' };
+  commentEvent.data.attributes = { appId, surface: 'review-comments', parentReviewSourceId: parent.sourceId,
+    parentRecommendationId: reviewId };
+  const parentReceipt = runtime.ingress.commitBatch(parent, [reviewEvent]);
+  const childReceipt = runtime.ingress.commitBatch(child, [commentEvent]);
+  runtime.tick();
+  const batches = runtime.store.all('SELECT batch_json FROM feedback_batches').map(row => JSON.parse(row.batch_json));
+  const batch = batches.find(item => item.candidateEventIds.includes(childReceipt.refs[0].eventId));
+  assert.ok(batch, 'comment must still enter the model candidate queue');
+  assert.ok(batch.contextEventIds.includes(parentReceipt.refs[0].eventId), 'parent review belongs in M3 context');
+  assert.ok(!batch.candidateEventIds.includes(parentReceipt.refs[0].eventId), 'parent review is not new comment evidence');
+  const bad = structuredClone(commentEvent); bad.id += ':wrong-app';
+  bad.data.object.externalId += ':other'; bad.data.object.revision = 'x2';
+  bad.data.attributes.appId = 999;
+  const badReceipt = runtime.ingress.commitBatch(child, [bad]);
+  runtime.tick();
+  const other = runtime.store.all('SELECT batch_json FROM feedback_batches').map(row => JSON.parse(row.batch_json))
+    .find(item => item.candidateEventIds.includes(badReceipt.refs[0].eventId));
+  assert.ok(other);
+  assert.ok(!other.contextEventIds.includes(parentReceipt.refs[0].eventId), 'wrong-app parent must not cross-link');
 });

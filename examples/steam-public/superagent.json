@@ -20,7 +20,7 @@
     }
   ],
   "deliveries": [],
-  "analysis": { "enabled": false, "allowExternalCalls": false },
+  "analysis": { "enabled": true, "allowExternalCalls": true, "baseURL": "http://127.0.0.1:11434/v1", "model": "qwen3:8b", "allowLoopbackHTTP": true },
   "github": { "enabled": false, "allowWrites": false },
   "reports": { "enabled": false },
   "notifications": { "p0Enabled": false },
