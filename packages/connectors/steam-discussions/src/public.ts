@@ -139,7 +139,9 @@ export class PublicDiscussionsCollector {
         && !/^\/comment\/ForumTopic\/render\/\d{1,24}\/\d{1,24}\/$/.test(url.pathname)) throw new Error('REQUEST_URL_REJECTED: ' + url.pathname);
     for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted(); if (budget.used >= budget.limit) throw new Error('REQUEST_BUDGET');
-      if (this.deferUntil > this.now().getTime()) await this.pause(this.deferUntil - this.now().getTime(), signal);
+      // A second request in the same sync must not sleep across a 429 deadline:
+      // surface the cooldown immediately so sync() can persist it atomically.
+      if (this.deferUntil > this.now().getTime()) throw new Error('RATE_LIMITED');
       if (this.lastRequestAt !== undefined) await this.pause(Math.max(0, this.lastRequestAt + this.config.requestIntervalMs - this.now().getTime()), signal);
       budget.used++;
       this.lastRequestAt = this.now().getTime();
