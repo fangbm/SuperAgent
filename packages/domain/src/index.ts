@@ -47,7 +47,8 @@ export class DomainService {
         if(!batch.candidateEventIds.includes(anchor.eventId))throw new Error('CONTEXT_CANNOT_CREATE_FEEDBACK');
         if(!stored.current)throw new Error('STALE_EVIDENCE');primary=true;
       }
-      const title = stored.event.data.object.kind === 'thread' && typeof stored.event.data.attributes?.title === 'string'
+      const title = stored.event.type !== 'com.superagent.source.coverage.changed.v1'
+        && stored.event.data.object.kind === 'thread' && typeof stored.event.data.attributes?.title === 'string'
         ? stored.event.data.attributes.title.slice(0, 2048) : '';
       if(anchor.quote!==undefined&&(!anchor.quote||!(stored.text.includes(anchor.quote)||title.includes(anchor.quote))))
         throw new Error('EVIDENCE_QUOTE_MISMATCH');
