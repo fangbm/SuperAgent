@@ -13,7 +13,8 @@
     "draft": true,
     "nodeTests": 244,
     "referenceSuites": 6,
-    "exactRevertTreeVerified": true
+    "exactRevertTreeVerified": true,
+    "merged": false
   },
   "unified": {
     "branch": "codex/unified-application",
@@ -59,7 +60,12 @@
     "checkpointIsolation": true,
     "sourceSecretIsolation": true,
     "duplicateMainRejected": true,
-    "shutdownHostFenced": true
+    "shutdownHostFenced": true,
+    "pullRequest": 7,
+    "url": "https://github.com/fangbm/SuperAgent/pull/7",
+    "codeCommit": "2c2fcb318333dbee8e8d4770e292464de73fb590",
+    "draft": true,
+    "merged": false
   },
   "formalCliSmoke": {
     "command": "pnpm start --config config/superagent.json --run-for-ms 300",
@@ -75,7 +81,8 @@
     "githubIssueWrites": 0,
     "qqMessages": 0,
     "discordResourceOperations": 0,
-    "deployments": 0
+    "deployments": 0,
+    "pullRequestCreates": 2
   },
   "notDelivered": [
     "P0 real-time scheduler",

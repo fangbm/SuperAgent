@@ -8,7 +8,7 @@
 - PR #1/#2/#3 已合并，分别保留 Steam Reviews、Discord、Steam Discussions 快照基础适配器。
 - #4 合并提交通过 00b8c87793527c67ea6451d03f7ac1e4ff8286d3 新 Revert Commit 撤销，完整反向树与第一父提交 448c2cc 一致，仅另加回滚说明。[PR A #6](https://github.com/fangbm/SuperAgent/pull/6) 为 Draft，base main。
 - #5 仍开放，非 Draft、未合并；分支 fix/core-owned-plugin-ingestion，核对 head 8f29b2949f089d012f42a8cb7689a3d8865eb304。仅参考其思路，不引入 Source 永久禁分析策略或社区功能。
-- PR B 分支 codex/unified-application，base codex/revert-pr4，依赖 #6，保持 Draft。SHA 与链接以最终提交/PR 为准。
+- [PR B #7](https://github.com/fangbm/SuperAgent/pull/7) 为 Draft，分支 codex/unified-application，base codex/revert-pr4，依赖 #6。实现提交 `2c2fcb318333dbee8e8d4770e292464de73fb590` 已推送；后续记录链接的提交只修改验收文档/机器记录。
 
 ## 实际执行
 
