@@ -11,7 +11,7 @@ import { appFixture,sourceDouble,material,eventually,SupervisorClock as Clock } 
 test('short network failure restores a fresh instance and records successful collection',async t=>{
   const f=appFixture(t),entry=f.config.sources[0];entry.enabled=true;let starts=0;
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{'qq-official':()=>sourceDouble(entry,{start:async host=>{if(++starts===1)throw new Error('TRANSIENT_NETWORK');await host.commitBatch([material(entry,f.config.projectId)],{sourceId:entry.id,cursor:{offset:1}});await host.reportHealth({coverage:'partial',checkedAt:new Date().toISOString()});}})}});
-  t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].lastSuccessAt!==null);
+  f.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].lastSuccessAt!==null);
   const state=app.plugins.status()[entry.id];assert.equal(starts,2);assert.equal(state.restarts,1);assert.equal(state.consecutiveFailures,0);assert.equal(state.error,null);assert.equal(state.coverage,'partial');assert.equal(state.nextRetryAt,null);
 });
 
@@ -29,7 +29,7 @@ test('after short budget, low-frequency recovery uses committed checkpoint; old 
     }});},
     discord:()=>sourceDouble(other,{start:host=>host.commitBatch([material(other,f.config.projectId,'healthy')])}),
   }});
-  const running=app.run();running.catch(()=>{});t.after(async()=>{await app.close();await running;});
+  const running=app.run();running.catch(()=>{});f.after(async()=>{await app.close();await running;});
   await clock.until(()=>app.plugins.status()[entry.id].state==='recovery_wait');
   const failure=app.plugins.status()[entry.id];assert.equal(created,2);assert.equal(failure.consecutiveFailures,2);assert.equal(failure.error,'TRANSIENT_NETWORK');assert.equal(failure.coverage,'unavailable');assert.ok(failure.lastSuccessAt);assert.equal(Date.parse(failure.nextRetryAt)-clock.now(),330000);
   await eventually(()=>app.runtime.store.get('SELECT count(*) n FROM report_revisions').n>0&&app.runtime.store.get('SELECT count(*) n FROM admission_decisions').n>=2);
@@ -46,7 +46,7 @@ test('persistent outage respects long recovery interval/jitter and shutdown canc
   const f=appFixture(t),entry=f.config.sources[0];entry.enabled=true;f.config.runtime.maxRestarts=0;f.config.runtime.recoveryIntervalMs=300000;
   const clock=new Clock();let created=0;
   const app=await createApplication(f.config,{access:f.access,supervisorTiming:clock,sourceFactories:{'qq-official':()=>{created++;return sourceDouble(entry,{start:()=>{throw new Error('RATE_LIMITED');}});}}});
-  t.after(()=>app.close());await app.start();await clock.until(()=>app.plugins.status()[entry.id].state==='recovery_wait');
+  f.after(()=>app.close());await app.start();await clock.until(()=>app.plugins.status()[entry.id].state==='recovery_wait');
   assert.equal(created,1);await clock.advance(329999);assert.equal(created,1);await clock.advance(1);await clock.until(()=>app.plugins.status()[entry.id].state==='recovery_wait'&&created===2);
   assert.equal(app.plugins.status()[entry.id].consecutiveFailures,2);assert.equal(Date.parse(app.plugins.status()[entry.id].nextRetryAt)-clock.now(),330000);
   await app.close();assert.equal(clock.pending.size,0);await clock.advance(86400000);assert.equal(created,2);assert.equal(app.plugins.status()[entry.id].state,'stopped');
@@ -56,7 +56,7 @@ test('explicit permanent config/auth/permission failures do not retry while anot
   for(const reason of ['INVALID_CONFIG','UNAUTHORIZED','PERMISSION_DENIED'])await t.test(reason,async t=>{
     const f=appFixture(t),[entry,other]=f.config.sources;entry.enabled=other.enabled=true;const clock=new Clock();let starts=0;
     const app=await createApplication(f.config,{access:f.access,supervisorTiming:clock,sourceFactories:{'qq-official':()=>sourceDouble(entry,{start:()=>{starts++;throw new Error(reason);}}),discord:()=>sourceDouble(other,{start:host=>host.commitBatch([material(other,f.config.projectId)])})}});
-    t.after(()=>app.close());await app.start();await clock.until(()=>app.plugins.status()[entry.id].state==='failed');await clock.advance(86400000);await app.tick();
+    f.after(()=>app.close());await app.start();await clock.until(()=>app.plugins.status()[entry.id].state==='failed');await clock.advance(86400000);await app.tick();
     assert.equal(starts,1);const state=app.plugins.status()[entry.id];assert.equal(state.error,reason);assert.equal(state.retryable,false);assert.equal(state.nextRetryAt,null);assert.equal(state.consecutiveFailures,1);assert.equal(state.lastSuccessAt,null);
     assert.equal(app.runtime.store.get('SELECT count(*) n FROM admission_decisions').n,1);
   });
@@ -65,7 +65,7 @@ test('explicit permanent config/auth/permission failures do not retry while anot
 test('SIGTERM handling exits a child with a pending long recovery timer without another attempt',async t=>{
   const f=appFixture(t);f.config.sources[0].enabled=true;f.config.runtime.maxRestarts=0;const file=f.directory+'/signal.json';writeFileSync(file,JSON.stringify(f.config));
   const child=spawn(process.execPath,['tests/integration/application-supervision-signal-child.mjs',file],{cwd:new URL('../..',import.meta.url),windowsHide:true,stdio:['ignore','ignore','pipe','ipc']});
-  let stderr='';child.stderr.on('data',b=>stderr+=b);t.after(()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');});
+  let stderr='';child.stderr.on('data',b=>stderr+=b);f.after(async()=>{if(child.exitCode===null&&child.signalCode===null){const exited=once(child,'exit');child.kill('SIGKILL');await exited;}});
   const [ready]=await bounded(Promise.race([once(child,'message'),once(child,'exit').then(()=>{throw new Error(stderr);})]),10000);assert.equal(ready.state,'recovery_wait');
   const messages=[];child.on('message',m=>messages.push(m));const exited=once(child,'exit');
   // Windows cannot deliver POSIX SIGTERM handlers via kill; exercise that handler

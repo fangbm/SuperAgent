@@ -32,7 +32,7 @@ function discordFetch(){return async url=>{
 };}
 async function integrated(t,{unknownGitHub=false,unknownDelivery=false}={}) {
   const f=appFixture(t);let now='2026-11-02T00:00:00.000Z';const clock=()=>now;
-  const server=await modelServer(t,(task,...args)=>{assert.ok(app.runtime.store.get('SELECT count(*) n FROM source_events').n>=1,'archive precedes model');return fixtureAnswer(task,...args);});
+  const server=await modelServer({after:f.after},(task,...args)=>{assert.ok(app.runtime.store.get('SELECT count(*) n FROM source_events').n>=1,'archive precedes model');return fixtureAnswer(task,...args);});
   f.config.analysis={enabled:true,allowExternalCalls:true,baseURL:server.baseURL,model:'fixture-model',allowLoopbackHTTP:true};
   f.config.github={enabled:true,allowWrites:true,repository:'owner/private-test',tokenEnv:'FIXTURE_GITHUB_TOKEN'};
   f.config.reports.enabled=true;f.config.web={enabled:true,port:0};f.config.runtime.stopTimeoutMs=2000;f.config.runtime.probeIntervalMs=50;
@@ -60,7 +60,7 @@ async function integrated(t,{unknownGitHub=false,unknownDelivery=false}={}) {
     // Steam Discussions intentionally uses its real local snapshot implementation.
   };
   const options={access:f.access,policy:f.policy,clock,env,github:remote,sourceFactories:sources,deliveryFactory:c=>new QQC2CDelivery({...c,api:{fetch:api}})};
-  let app=await createApplication(f.config,options);t.after(()=>app?.close());
+  let app=await createApplication(f.config,options);f.after(()=>app?.close());
   await app.start();await eventually(()=>app.plugins.instances.size===4&&app.plugins.status()['qq-main'].state==='running');
   const payload=qqEvent('unified-real-adapter',{text,type:'GROUP_MESSAGE_CREATE'}),[headers,body]=signed(payload,clock);
   const endpoint=`http://127.0.0.1:${app.status().sourcePorts['qq-main']}/qq/events`;
@@ -72,7 +72,7 @@ async function integrated(t,{unknownGitHub=false,unknownDelivery=false}={}) {
 test('single application starts all four real adapters and runs SQLite→M3 cross-platform Bug→GitHub→scheduled report→QQ/Web',async t=>{
   const f=await integrated(t),app=f.app;
   assert.equal(app.m5.runtime,app.runtime);assert.equal(app.m5.domain,app.domain);assert.equal(app.m3.analysis.store,app.runtime.store);
-  const running=app.run();running.catch(()=>{});t.after(async()=>{await app.close();await running;});
+  const running=app.run();running.catch(()=>{});f.after(async()=>{await app.close();await running;});
   await eventually(()=>app.runtime.store.get('SELECT count(*) n FROM triage_extractions').n===3&&f.remote.posts===1);
   assert.equal(app.runtime.store.get('SELECT count(*) n FROM issues').n,1);
   assert.equal(app.runtime.store.get('SELECT count(*) n FROM triage_extractions').n,3);
@@ -90,7 +90,7 @@ test('single application starts all four real adapters and runs SQLite→M3 cros
   const html=await fetch(`${origin}/api/reports/${row.report_id}/1/content?project=${f.config.projectId}`,{headers:{Cookie:cookie}});assert.equal(html.status,200);assert.match((await html.json()).html,/<h1>/);
   const before=app.runtime.store.all('SELECT event_id,payload_json FROM source_events ORDER BY event_id');
   await app.close();await running;
-  const restarted=await f.restart();const again=restarted.run();again.catch(()=>{});t.after(async()=>{await restarted.close();await again;});await eventually(()=>restarted.plugins.instances.size===4);await delay(100);
+  const restarted=await f.restart();const again=restarted.run();again.catch(()=>{});f.after(async()=>{await restarted.close();await again;});await eventually(()=>restarted.plugins.instances.size===4);await delay(100);
   assert.equal(f.remote.posts,1);assert.equal(f.sends(),posts);assert.equal(f.server.requests.length,modelCalls);
   assert.deepEqual(restarted.runtime.store.all('SELECT * FROM report_revision_seals ORDER BY report_id'),seals);
   assert.deepEqual(restarted.runtime.store.all('SELECT event_id,payload_json FROM source_events ORDER BY event_id'),before);
@@ -114,10 +114,10 @@ test('unknown QQ report delivery is never replayed after restarting the unified 
 test('slow M3 model IO does not block M1 admission or fixed-window M5 reports in the managed main loop',async t=>{
   const f=appFixture(t),entry=f.config.sources[0];entry.enabled=true;f.config.reports.enabled=true;let now='2026-11-02T00:00:00.000Z',release;
   const pending=new Promise(resolve=>{release=resolve;});
-  const server=await modelServer(t,async task=>{await pending;return fixtureAnswer(task);});
+  const server=await modelServer({after:f.after},async task=>{await pending;return fixtureAnswer(task);});
   f.config.analysis={enabled:true,allowExternalCalls:true,baseURL:server.baseURL,model:'fixture-model',allowLoopbackHTTP:true};
   const app=await createApplication(f.config,{access:f.access,clock:()=>now,policy:f.policy,sourceFactories:{'qq-official':()=>sourceDouble(entry,{start:host=>host.commitBatch([material(entry,f.config.projectId)])})}});
-  const running=app.run();running.catch(()=>{});t.after(async()=>{release();await app.close();await running;});
+  const running=app.run();running.catch(()=>{});f.after(async()=>{release();await app.close();await running;});
   await eventually(()=>server.requests.length===1);now='2026-11-02T10:04:00.000Z';
   await eventually(()=>app.runtime.store.get("SELECT 1 FROM report_revisions WHERE window_end='2026-11-02T10:00:00.000Z'"));
   const report=JSON.parse(app.runtime.store.get("SELECT report_json FROM report_revisions WHERE window_end='2026-11-02T10:00:00.000Z'").report_json);

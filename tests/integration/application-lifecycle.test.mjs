@@ -25,7 +25,7 @@ test('enabled instances start under scoped SDK Hosts; blocking starts never get 
     start:async host=>{hosts.push(host);seen.set(entry.id,{start:1,sync:0,stop:0});await host.commitBatch([material(entry,f.config.projectId)],{sourceId:entry.id,cursor:{n:1}});},
     sync:async()=>{seen.get(entry.id).sync++;},stop:async()=>{if(seen.has(entry.id))seen.get(entry.id).stop++;},
   })]));
-  const app=await createApplication(f.config,{access:f.access,sourceFactories:factories,policy:f.policy});t.after(()=>app.close());await app.start();
+  const app=await createApplication(f.config,{access:f.access,sourceFactories:factories,policy:f.policy});f.after(()=>app.close());await app.start();
   await eventually(()=>seen.size===4&&seen.get('qq-main').sync>0);
   assert.equal(app.runtime.store.get('SELECT count(*) n FROM source_events').n,4);
   for(const entry of f.config.sources)if(entry.plugin!=='qq-official')assert.equal(seen.get(entry.id).sync,0);
@@ -44,7 +44,7 @@ test('failed source is recreated within bounded budget; another source keeps com
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{
     'qq-official':()=>sourceDouble(qq,{start:async host=>{if(++tries===1)throw new Error('RATE_LIMITED');await host.commitBatch([material(qq,f.config.projectId)]);},stop:()=>{stops++;}}),
     discord:()=>sourceDouble(discord,{start:host=>host.commitBatch([material(discord,f.config.projectId)])}),
-  }});t.after(()=>app.close());await app.start();await eventually(()=>app.runtime.store.get('SELECT count(*) n FROM source_events').n===2);
+  }});f.after(()=>app.close());await app.start();await eventually(()=>app.runtime.store.get('SELECT count(*) n FROM source_events').n===2);
   assert.equal(tries,2);assert.equal(app.plugins.status()['qq-main'].restarts,1);assert.equal(stops,1);
   await app.tick();assert.equal(app.runtime.store.get('SELECT count(*) n FROM event_outbox WHERE status=?','pending').n,0);
 });
@@ -52,18 +52,18 @@ test('failed source is recreated within bounded budget; another source keeps com
 test('unsupported plugin stays unavailable without automatic retries or stopping Core',async t=>{
   const f=appFixture(t),entry=f.config.sources[3];entry.enabled=true;let starts=0;
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{'steam-discussions':()=>sourceDouble(entry,{start:()=>{starts++;},overrides:{probe:async()=>({connection:'poll',coverage:'unavailable',readMessages:false,readHistory:false,readEdits:false,readAttachments:false})}})}});
-  t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='failed');
+  f.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='failed');
   assert.equal(starts,0);assert.equal(app.plugins.status()[entry.id].restarts,0);assert.equal(app.plugins.status()[entry.id].error,'UNSUPPORTED_CAPABILITY');await app.tick();assert.equal(app.runtime.store.get('SELECT coverage FROM sources WHERE source_id=?',entry.id).coverage,'unavailable');
 });
 
 test('background health failure is supervised and is not overwritten by successful sync',async t=>{
   const f=appFixture(t),entry=f.config.sources[0];entry.enabled=true;let starts=0;
   const app=await createApplication(f.config,{access:f.access,sourceFactories:{'qq-official':()=>sourceDouble(entry,{start:async host=>{starts++;await host.reportHealth({coverage:'unavailable',reason:'QQ_GATEWAY_FAILED',checkedAt:new Date().toISOString()});},sync:async host=>host.reportHealth({coverage:'partial',checkedAt:new Date().toISOString()})})}});
-  t.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='recovery_wait');assert.equal(starts,2);
+  f.after(()=>app.close());await app.start();await eventually(()=>app.plugins.status()[entry.id].state==='recovery_wait');assert.equal(starts,2);
 });
 
 test('SQLite owner excludes second main instance and releases after normal shutdown',async t=>{
-  const f=appFixture(t),first=await createApplication(f.config,{access:f.access});t.after(()=>first.close());
+  const f=appFixture(t),first=await createApplication(f.config,{access:f.access});f.after(()=>first.close());
   await assert.rejects(createApplication(f.config,{access:f.access}),/APPLICATION_ALREADY_RUNNING/);
   await first.tick();await first.close();const next=await createApplication(f.config,{access:f.access});await next.tick();await next.close();
 });

@@ -20,7 +20,7 @@ async function runningFixture(t,{plugin='qq-official',failures=4,signal=QQ,probe
       return {connection:plugin==='qq-official'?'push':'poll',coverage:probeCoverage,readMessages:probeCoverage==='partial',readHistory:false,readEdits:false,readAttachments:false};
     }}});
   }}});
-  t.after(()=>app.close());await app.start();
+  f.after(()=>app.close());await app.start();
   if(failures>=4){await clock.until(()=>app.plugins.status()[entry.id].state==='recovery_wait');await clock.advance(330000);}
   await clock.until(()=>!!currentHost&&app.plugins.status()[entry.id].state==='running');
   const health=async info=>currentHost.reportHealth({...info,checkedAt:new Date(clock.now()).toISOString()});

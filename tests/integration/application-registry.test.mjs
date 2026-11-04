@@ -31,7 +31,7 @@ test('trusted registry resolves the four builtins and rejects unknown executable
 });
 
 test('registering one trusted Source plus configuration requires no supervisor or parser platform changes',async t=>{
-  const f=extraFixture(t);const app=await createApplication(f.config,{access:f.access,sourceRegistry:f.registry});t.after(()=>app.close());await app.start();
+  const f=extraFixture(t);const app=await createApplication(f.config,{access:f.access,sourceRegistry:f.registry});f.after(()=>app.close());await app.start();
   await eventually(()=>app.runtime.store.get('SELECT count(*) n FROM source_events').n===1);
   assert.equal(f.created(),1);assert.equal(app.runtime.store.get('SELECT platform FROM sources WHERE source_id=?',f.entry.id).platform,'discord');
   assert.deepEqual(await app.plugins.instances.get(f.entry.id).host.getCheckpoint(),{offset:1});

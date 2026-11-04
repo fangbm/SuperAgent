@@ -11,11 +11,20 @@ import { event,defaultPolicy } from './helpers.mjs';
 export const access={accessKey:'unified-local-fixture-access-key-longer-than-32',signingKey:'unified-fixture-cursor-signing-key-longer-than-32'};
 export function appFixture(t) {
   const directory=mkdtempSync(path.join(tmpdir(),'superagent-application-'));
-  t.after(()=>rmSync(directory,{recursive:true,force:true}));
+  // node:test after hooks run in registration order and stop on the first error.
+  // Own one hook so workers/servers/SQLite close before deleting their directory,
+  // and a failed cleanup cannot strand the remaining live resources.
+  const cleanups=[()=>rmSync(directory,{recursive:true,force:true})];
+  const after=cleanup=>{cleanups.push(cleanup);};
+  t.after(async()=>{
+    const errors=[];
+    while(cleanups.length){try{await cleanups.pop()();}catch(error){errors.push(error);}}
+    if(errors.length)throw new AggregateError(errors,'APPLICATION_FIXTURE_CLEANUP_FAILED');
+  });
   const config=loadApplicationConfig(fileURLToPath(new URL('../../config/superagent.json',import.meta.url)));
   config.database=path.join(directory,'state.sqlite');config.reports.enabled=false;
   config.runtime={pollMs:10,probeIntervalMs:10,healthGraceMs:10,maxRestarts:1,backoffMs:5,maxBackoffMs:20,stopTimeoutMs:100};
-  return {directory,config,policy:{...defaultPolicy,auditSampleRate:0,maxCandidateMessages:1},access};
+  return {directory,config,policy:{...defaultPolicy,auditSampleRate:0,maxCandidateMessages:1},access,after};
 }
 export const untilAbort=signal=>signal.aborted?Promise.resolve():new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));
 export async function eventually(check,ms=5000) {const end=Date.now()+ms;while(Date.now()<end){if(await check())return;await delay(5);}assert.fail('Application condition timed out');}
