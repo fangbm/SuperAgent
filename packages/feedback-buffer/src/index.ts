@@ -68,7 +68,7 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       let result = forced ? { decision: 'candidate' as const, rationale: 'MANUAL_ARCHIVE_REPROCESS' } : classifyAdmission(event, eventId, policy);
     // Preserve substantive-to-trivial edits for reanalysis: the earlier bug
     // report may have been withdrawn. Only trivial-to-trivial edits are skipped.
-    if (!forced && event.type.includes('.updated.') && typeof event.data.content?.text === 'string') {
+    if (!forced && event.type !== 'com.superagent.source.coverage.changed.v1' && event.type.includes('.updated.') && typeof event.data.content?.text === 'string') {
       const trivial = (value: string) => !value.trim() || /^(?:早上好|晚上好|大家好|你好|谢谢|哈哈+|hi|hello|thanks|lol)[!！。,.，\s]*$/iu.test(value.trim()) || /^[\p{P}\p{S}\s]+$/u.test(value.trim());
       if (trivial(event.data.content.text)) {
         const previous = this.store.get<{ text: string | null }>(`SELECT json_extract(payload_json,'$.data.content.text') AS text FROM source_events
