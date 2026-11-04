@@ -31,7 +31,7 @@ interface Review extends RecordJSON {
 }
 interface State {
   version: 1; appId: number; cursor: string; watermark: number; scanHigh: number;
-  reviewScope?: 'negative' | 'all'; sequences?: Record<string, number>;
+  reviewScope?: 'negative' | 'all'; sequences?: Record<string, number>; observationTimes?: Record<string, number>;
   tracked: Record<string, string>;
 }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -72,6 +72,7 @@ function readState(input: JSONValue | null, appId: number, scope: 'negative' | '
   if (!object(input) || input.version !== 1 || input.appId !== appId || typeof input.cursor !== 'string' || !input.cursor
     || (input.reviewScope ?? 'negative') !== scope
     || (input.sequences !== undefined && (!object(input.sequences) || Object.entries(input.sequences).some(([id, count]) => !/^\d+$/.test(id) || !Number.isSafeInteger(count) || Number(count) < 1)))
+    || (input.observationTimes !== undefined && (!object(input.observationTimes) || Object.entries(input.observationTimes).some(([id, time]) => !/^\d+$/.test(id) || !Number.isSafeInteger(time) || Number(time) < 1)))
     || !Number.isSafeInteger(input.watermark) || Number(input.watermark) < 0 || !Number.isSafeInteger(input.scanHigh) || Number(input.scanHigh) < 0
     || !object(input.tracked) || Object.entries(input.tracked).some(([id, revision]) => !/^\d+$/.test(id) || typeof revision !== 'string')) throw new Error('INVALID_CHECKPOINT');
   return structuredClone(input) as unknown as State;
@@ -181,6 +182,14 @@ export class SteamReviewsConnector implements SourcePluginV1 {
               // Observation order distinguishes A→B→A snapshots with identical native timestamps.
               event.id += ':observation:' + sequence;
               event.data.object.revision += ':observation:' + sequence;
+              // Core orders projections by event.time, but Steam metadata may change
+              // without advancing its native timestamp_updated. Persist a strictly
+              // increasing observation time, including across restarts.
+              const nativeTime = review.timestamp_updated * 1000;
+              const priorTime = next.observationTimes?.[review.recommendationid] ?? nativeTime;
+              const observationTime = previous ? Math.max(Date.now(), nativeTime + 1, priorTime + 1) : nativeTime;
+              (next.observationTimes ??= {})[review.recommendationid] = observationTime;
+              event.time = new Date(observationTime).toISOString();
             }
             events.push(event);
             next.tracked[review.recommendationid] = revision;

@@ -173,7 +173,9 @@ export class SteamReviewCommentsConnector implements SourcePluginV1 {
   private controller = new AbortController(); private tail: Promise<void> = Promise.resolve(); private lastRequestAt = 0; private activeRequests = 0; private requestLimit = 0; private deferUntil = 0;
   private capability: ConnectorCapabilityV1 = { connection: 'poll', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'Not probed against a public review comment thread' };
   private verifiedCommentAccess = false;
-  constructor(config: SteamReviewCommentsConfig, options: { fetch?: typeof fetch; sleep?: (ms: number, signal: AbortSignal) => Promise<void>; now?: () => number } = {}) {
+  // Bypass unbound network probes under unified supervision; the Host owns cooldown persistence.
+  private readonly passiveProbe: boolean;
+  constructor(config: SteamReviewCommentsConfig, options: { fetch?: typeof fetch; sleep?: (ms: number, signal: AbortSignal) => Promise<void>; now?: () => number; passiveProbe?: boolean } = {}) {
     new URL(config.sourceUri);
     if (Object.keys(config).some(key => !Object.hasOwn(steamReviewCommentsConfigSchema.properties, key)) || !Number.isInteger(config.appId) || config.appId < 1
       || config.appId > 4294967295 || !config.parentReviewSourceId.trim() || (config.publisherKeySecret !== undefined && !config.publisherKeySecret.trim())) throw new Error('INVALID_CONFIG');
@@ -181,7 +183,7 @@ export class SteamReviewCommentsConnector implements SourcePluginV1 {
     for (const [key, min, max] of [['pollIntervalMs', 1000, 86400000], ['requestIntervalMs', 2000, 60000], ['maxRequestsPerSync', 1, 25], ['rescanIntervalMs', 1000, 604800000], ['pageSize', 1, 100]] as const) {
       const value = this.config[key]; if (!Number.isInteger(value) || value < min || value > max) throw new Error('INVALID_CONFIG: ' + key);
     }
-    this.fetcher = options.fetch ?? fetch; this.now = options.now ?? Date.now;
+    this.fetcher = options.fetch ?? fetch; this.now = options.now ?? Date.now; this.passiveProbe = options.passiveProbe === true;
     this.pause = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); });
     this.manifest = { apiVersion: 'superagent.io/plugin/v1', id: 'superagent.steam-review-comments', version: '0.1.0', displayName: 'Steam Review Comments', kind: 'source', engine: { sdk: '^0.1.0' },
       permissions: { networkHosts: ['api.steampowered.com', 'steamcommunity.com'], secretKeys: config.publisherKeySecret ? [config.publisherKeySecret] : [], eventPublish: true }, configSchema: steamReviewCommentsConfigSchema };
@@ -201,8 +203,13 @@ export class SteamReviewCommentsConnector implements SourcePluginV1 {
         const header = response.headers.get('retry-after'); const seconds = header === null ? NaN : Number(header);
         const wait = Number.isFinite(seconds) ? seconds * 1000 : header ? Date.parse(header) - this.now() : 0;
         const retryWait = Math.max(this.config.requestIntervalMs, 1000 * 2 ** attempt, Number.isFinite(wait) ? wait : 0);
-        if (response.status === 429) this.deferUntil = Math.max(this.deferUntil, this.now() + retryWait);
-        if (attempt === 3) throw new Error(response.status === 429 ? 'RATE_LIMITED' : 'PLATFORM_UNAVAILABLE');
+        if (response.status === 429) {
+          // Never sleep through a long Retry-After inside a bounded probe. The
+          // running scan persists the deadline through the scoped Host.
+          this.deferUntil = Math.max(this.deferUntil, this.now() + retryWait);
+          throw new Error('RATE_LIMITED');
+        }
+        if (attempt === 3) throw new Error('PLATFORM_UNAVAILABLE');
         await this.pause(retryWait, signal); continue;
       }
       if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 403 ? 'PERMISSION_DENIED' : response.status === 401 ? 'UNAUTHORIZED' : 'PLATFORM_UNAVAILABLE'); }
@@ -240,6 +247,9 @@ export class SteamReviewCommentsConnector implements SourcePluginV1 {
     return { items, total: Number(body.total_count), returned: items.length };
   }
   probe(): Promise<ConnectorCapabilityV1> {
+    // Production discovers capability by start(host)/sync(host), so a first 429
+    // can be committed to the checkpoint before the next instance starts.
+    if (this.passiveProbe) return Promise.resolve({ ...this.capability });
     const job = this.tail.then(() => this.checkAccess());
     this.tail = job.then(() => {}, () => {});
     return job;

@@ -30,14 +30,14 @@ export const builtinSources=createSourceRegistry({
   'steam-reviews':{factory:c=>new SteamReviewsConnector(c),id:'superagent.steam-reviews',platform:'steam-reviews',mode:'blocking',
     stability:(config,health)=>({confirmed:health.coverage==='partial'&&/^Review scan (?:completed|incomplete)/.test(health.reason??''),interrupted:health.coverage==='unavailable'||/^STEAM_REVIEWS_POLL_INTERRUPTED/.test(health.reason??''),maxGapMs:Math.max(60000,3*(config.pollIntervalMs??60000))})},
   'steam-discussions':{
-    factory:c=>new SteamDiscussionsConnector(c),id:'superagent.steam-discussions',platform:'steam-discussions',mode:'blocking',
+    factory:c=>new SteamDiscussionsConnector(c,{passiveProbe:true}),id:'superagent.steam-discussions',platform:'steam-discussions',mode:'blocking',
     initialize:initializePublicSteamDiscussions,
     normalize:(config,{directory})=>({...config,...(config.snapshotPath?{snapshotPath:path.resolve(directory,config.snapshotPath)}:{})}),
     unavailableCode:config=>!['snapshot','public'].includes(config.mode)?'UNSUPPORTED_CAPABILITY':null,
     stability:(config,health)=>({confirmed:config.mode==='snapshot'&&health.coverage==='partial'&&/^Operator snapshot committed/.test(health.reason??''),interrupted:health.coverage==='unavailable',maxGapMs:Math.max(60000,3*(config.pollIntervalMs??60000))}),
   },
   'steam-review-comments':{
-    factory:c=>new SteamReviewCommentsConnector(c),id:'superagent.steam-review-comments',platform:'steam-reviews',mode:'blocking',
+    factory:c=>new SteamReviewCommentsConnector(c,{passiveProbe:true}),id:'superagent.steam-review-comments',platform:'steam-reviews',mode:'blocking',
     initialize:initializeSteamReviewComments,
   },
 });

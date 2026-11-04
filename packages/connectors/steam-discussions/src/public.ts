@@ -9,7 +9,7 @@ export interface PublicConfig {
   sourceUri: string; appId: number; forumIds: string[]; pollIntervalMs: number; requestIntervalMs: number;
   maxRequestsPerSync: number; rescanIntervalMs: number;
 }
-export interface PublicOptions { fetch?: typeof fetch; sleep?: (ms: number, signal: AbortSignal) => Promise<void>; clock?: () => Date }
+export interface PublicOptions { fetch?: typeof fetch; sleep?: (ms: number, signal: AbortSignal) => Promise<void>; clock?: () => Date; passiveProbe?: boolean }
 type Forum = { owner: string; type: string; feature: string; gidforum: string; appid: number };
 type Topic = { forumId: string; gid: string; revision?: string; lastChecked?: number; retryAt?: number; gap?: string; start: number; total: number; activityHash?: string; refreshThread?: boolean; extendedData?: string; commentOwner?: string; commentFeature?: string };
 type State = { version: 2; mode: 'public'; appId: number; sourceUri: string; forumIds: string[]; forums: Record<string, Forum>; topics: Record<string, Topic>; comments: Record<string, { revision?: string; count?: number }>;
@@ -126,8 +126,10 @@ export class PublicDiscussionsCollector {
   private readonly now: () => Date;
   private lastRequestAt: number | undefined;
   private deferUntil = 0;
+  private readonly passiveProbe: boolean;
+  private capability: ConnectorCapabilityV1 = { connection: 'poll', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'Public forum access not yet verified through a bound Host' };
   constructor(private readonly config: PublicConfig, options: PublicOptions = {}) {
-    this.fetcher = options.fetch ?? fetch; this.pause = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); }); this.now = options.clock ?? (() => new Date());
+    this.fetcher = options.fetch ?? fetch; this.pause = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); }); this.now = options.clock ?? (() => new Date()); this.passiveProbe = options.passiveProbe === true;
   }
   private async request(url: URL, signal: AbortSignal, budget: RequestBudget): Promise<string> {
     if (url.protocol !== 'https:' || url.hostname !== 'steamcommunity.com' || url.username || url.password
@@ -148,8 +150,13 @@ export class PublicDiscussionsCollector {
         const header = response.headers.get('retry-after'); await response.body?.cancel();
         const seconds = header === null ? NaN : Number(header); const dateWait = header && !Number.isFinite(seconds) ? Date.parse(header) - this.now().getTime() : 0;
         const wait = Math.max(this.config.requestIntervalMs, 1000 * 2 ** attempt, Number.isFinite(seconds) ? seconds * 1000 : Number.isFinite(dateWait) ? dateWait : 0);
-        if (response.status === 429) this.deferUntil = Math.max(this.deferUntil, this.now().getTime() + wait);
-        if (attempt >= 3) throw new Error(response.status === 429 ? 'RATE_LIMITED' : 'PLATFORM_UNAVAILABLE');
+        if (response.status === 429) {
+          // Do not let Retry-After sleep overrun probe timeout; sync() commits
+          // the cooldown so a fresh supervised instance cannot probe early.
+          this.deferUntil = Math.max(this.deferUntil, this.now().getTime() + wait);
+          throw new Error('RATE_LIMITED');
+        }
+        if (attempt >= 3) throw new Error('PLATFORM_UNAVAILABLE');
         await this.pause(wait, signal); continue;
       }
       if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 401 || response.status === 403 ? 'PERMISSION_DENIED' : response.status === 404 ? 'UNAVAILABLE_OR_PRIVATE' : 'PLATFORM_UNAVAILABLE'); }
@@ -170,6 +177,7 @@ export class PublicDiscussionsCollector {
     }
   }
   async probe(stopSignal?: AbortSignal): Promise<ConnectorCapabilityV1> {
+    if (this.passiveProbe) return { ...this.capability };
     const signal = AbortSignal.any([AbortSignal.timeout(20000), ...(stopSignal ? [stopSignal] : [])]); const budget = { used: 0, limit: this.config.maxRequestsPerSync };
     try {
       if (this.deferUntil > this.now().getTime()) throw new Error('RATE_LIMITED');
@@ -337,7 +345,9 @@ export class PublicDiscussionsCollector {
     if (state.listError) details.push(`listError=${state.listError}`);
     if (gaps.length) details.push(`gaps=${gaps.slice(0, 5).join(';')}`);
     if (gaps.length > 5) details.push(`additionalGaps=${gaps.length - 5}`);
-    await host.reportHealth({ coverage, reason: details.join(' '), checkedAt: this.now().toISOString() });
+    const message = details.join(' ');
+    this.capability = { connection: 'poll', coverage, readMessages: coverage === 'partial', readHistory: coverage === 'partial', readEdits: coverage === 'partial', readAttachments: false, reason: message };
+    await host.reportHealth({ coverage, reason: message, checkedAt: this.now().toISOString() });
   }
   async sync(host: SourcePluginHostV1, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted(); const state = stateFrom(await host.getCheckpoint(), this.config, this.now().getTime());

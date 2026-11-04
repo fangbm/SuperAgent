@@ -75,3 +75,37 @@ test('fresh application instances delay diagnostic probes until each Steam sourc
     await clock.advance(1);await eventually(()=>probes>0);
   });
 });
+
+
+test('first-ever 429 is persisted before any supervised probe and respected after restart', async t => {
+  for (const kind of ['steam-review-comments', 'steam-discussions']) await t.test(kind, async t => {
+    const f = appFixture(t), clock = new SupervisorClock(), config = loadApplicationConfig(example);
+    config.database = f.config.database;
+    config.sources = config.sources.filter(entry => entry.plugin === kind);
+    config.runtime.healthGraceMs = 10;
+    const entry = config.sources[0], scope = { projectId: config.projectId, sourceId: entry.id };
+    const deadlineField = kind === 'steam-review-comments' ? 'nextEligibleAt' : 'retryAfter';
+    let calls = 0;
+    const sourceFactories = { [kind]: c => {
+      const options = {
+        passiveProbe: true,
+        sleep: async (_ms, signal) => untilAbort(signal),
+        now: () => clock.now(), clock: () => new Date(clock.now()),
+        fetch: async () => { calls++; return new Response('', { status: 429, headers: { 'Retry-After': '3600' } }); },
+      };
+      return kind === 'steam-review-comments' ? new SteamReviewCommentsConnector(c, options) : new SteamDiscussionsConnector(c, options);
+    } };
+    let app = await createApplication(config, { env: {}, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
+    f.after(() => app?.close());
+    await app.start();
+    await eventually(() => app.runtime.ingress.getCheckpoint(scope)?.[deadlineField] === clock.now() + 3600000);
+    assert.equal(calls, 1, 'no unbound startup probe or early retry of a rate-limited request');
+    await app.close();
+    app = await createApplication(config, { env: {}, access: f.access, policy: f.policy, supervisorTiming: clock, sourceFactories });
+    await app.start();
+    await eventually(() => app.status().plugins[entry.id].state === 'retry_wait');
+    assert.equal(calls, 1, 'fresh process must not make any early external request');
+    await clock.advance(3599999);
+    assert.equal(calls, 1);
+  });
+});
