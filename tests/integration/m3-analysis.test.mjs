@@ -161,3 +161,50 @@ test('untrusted thread-title quotes still fail exact source-evidence validation'
     f.runtime.buffer.flushSync(row.segment_id,'replay');
   assert.equal((await f.worker.tick()).status,'EVIDENCE_QUOTE_MISMATCH');
 });
+
+
+test('bug matching receives the native Steam thread title, not just an LLM summary',async t=>{
+  const f=await m3Fixture(t);
+  const title='Windows 联机加载90%时崩溃';
+  const original=event('steam-title-original',{text:'如题'});
+  original.type='com.superagent.feedback.thread.created.v1';
+  original.data.object.kind='thread';
+  original.data.attributes={title};
+  const initial=f.runtime.ingress.commitBatch(scope,[original]).refs[0].eventId;
+  f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  f.add('new-report','Windows 1.2.0 联机载入90%时崩溃');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  const match=f.server.requests.find(r=>r.task.task==='match_bug');
+  assert.ok(match,'the second bug should be compared to the existing thread report');
+  const native=match.task.candidate.evidence.find(e=>e.eventId===initial);
+  assert.deepEqual(native,{eventId:initial,text:'如题',title});
+  assert.notEqual(match.task.candidate.summary,title,'native title must be provided separately from summary');
+});
+
+test('suggestion matching receives original Steam thread title independently of summary',async t=>{
+  const f=await m3Fixture(t,{responder:task=>{
+    const answer=fixtureAnswer(task);
+    if(task.task==='extract'&&task.messages.some(m=>m.title?.includes('自动重连'))){
+      const msg=task.messages.find(m=>m.role==='candidate');
+      answer.items=[{kind:'suggestion',category:'feature_request',title:'断线自动重连',description:'希望断线后自动重连',confidence:0.95,
+        requestedOutcome:'网络断开后自动重连',evidence:[{eventId:msg.eventId,role:'primary',quote:msg.text}]}];
+    }
+    return answer;
+  }});
+  const title='希望增加断线自动重连';
+  const thread=event('thread-suggestion',{text:'如题'});
+  thread.type='com.superagent.feedback.thread.created.v1';thread.data.object.kind='thread';thread.data.attributes={title};
+  const id=f.runtime.ingress.commitBatch(scope,[thread]).refs[0].eventId;
+  f.runtime.tick();
+  for(const row of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))
+    f.runtime.buffer.flushSync(row.segment_id,'replay');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  f.add('suggest-again','断线以后希望自动重连');
+  assert.equal((await f.worker.tick()).status,'succeeded');
+  const match=f.server.requests.find(r=>r.task.task==='match_suggestion');
+  assert.ok(match);
+  assert.deepEqual(match.task.candidate.evidence.find(e=>e.eventId===id),{eventId:id,text:'如题',title});
+});

@@ -82,9 +82,14 @@ export class AnalysisWorker {
           const ids=[...new Set([...item.evidence.map(e=>e.eventId),...chosen.map(e=>e.eventId)])];
           if(!ids.length)continue;
           const schema=matchSchema(item.kind,candidate,ids);
-          const evidence=chosen.flatMap(anchor=>{const e=this.domain.evidence(identity.projectId,anchor.eventId);return e&&!e.deleted?[{eventId:anchor.eventId,text:e.text}]:[];});
+          // Match against the player's actual source evidence, not only the
+          // previously generated work summary. Thread title is a separate field.
+          const evidence=chosen.flatMap(anchor=>{
+            const e=this.domain.evidence(identity.projectId,anchor.eventId);
+            return e&&!e.deleted?[{eventId:anchor.eventId,text:e.text,...(e.title?{title:e.title.trim().slice(0,2048)}:{})}]:[];
+          });
           const {evidence:_historical,confidence:_confidence,...content}=candidate.content;
-          const instructions='Compare triggering conditions, observed/requested outcome, versions, platform and evidence. Related is not identical. Cite evidence from both the new item and candidate. Missing/conflicting information means uncertain. '+(item.kind==='suggestion'?'For the same request without genuine differences, conflictingRequirements and distinguishingDetails must both be []. Put shared evidence, identical wording, confirmations and reasoning in matchingOutcome or rationale, never in distinguishingDetails. A title paraphrase or the same primary event is not a difference. If important information is actually missing or conflicting, report it and do not declare same_request. ':'')+'Return JSON.';
+          const instructions='Compare triggering conditions, observed/requested outcome, versions, platform and evidence. Related is not identical. For thread evidence consider original title as well as body, not just the generated summary. Cite evidence from both the new item and candidate. Missing/conflicting information means uncertain. '+(item.kind==='suggestion'?'For the same request without genuine differences, conflictingRequirements and distinguishingDetails must both be []. Put shared evidence, identical wording, confirmations and reasoning in matchingOutcome or rationale, never in distinguishingDetails. A title paraphrase or the same primary event is not a difference. If important information is actually missing or conflicting, report it and do not declare same_request. ':'')+'Return JSON.';
           const raw=await this.call(identity,runId,job,item.kind==='defect'?'bug-match-v1':'suggestion-match-v1',schema,json({task:item.kind==='defect'?'match_bug':'match_suggestion',instructions,item,candidate:{id:candidate.id,kind:candidate.kind,title:candidate.title,summary:candidate.summary,status:candidate.status,feedbackCount:candidate.feedbackCount,content,evidence,evidenceTruncated:candidate.evidence.length>chosen.length},candidateId:candidate.id}),signal);
           const value=raw as Record<string,JSONValue>;
           const relation=String(value.relationship);const refs=(value.supportingEvidence??value.evidence) as Array<{eventId:string}>;

@@ -32,11 +32,17 @@ export class DomainService {
       return {triageId,batchId,pipelineVersion,revision,projectId:batch.project_id};
     });
   }
-  evidence(projectId:string,eventId:string):{event:NormalizedEventV1;text:string;current:boolean;deleted:boolean}|undefined {
+  evidence(projectId:string,eventId:string):{event:NormalizedEventV1;text:string;title:string;originalText:string;current:boolean;deleted:boolean}|undefined {
     const row=this.store.get<{payload_json:string}>('SELECT payload_json FROM source_events WHERE event_id=? AND project_id=?',eventId,projectId);if(!row)return undefined;
     const event=JSON.parse(row.payload_json) as NormalizedEventV1;if(event.type==='com.superagent.source.coverage.changed.v1')return undefined;
     const projection=this.store.get<{event_id:string;deleted:number}>('SELECT event_id,deleted FROM source_objects WHERE source_id=? AND external_id=?',event.data.sourceId,event.data.object.externalId);
-    return {event,text:event.data.content?.text??'',current:projection?.event_id===eventId,deleted:projection?.deleted===1};
+    const text=event.data.content?.text??'';
+    const title=event.data.object.kind==='thread'&&typeof event.data.attributes?.title==='string'
+      ? event.data.attributes.title:'';
+    // One authorized, immutable source of truth for QQ/Web original views.
+    // Keep the verbatim body in text for exact evidence checks and model prompts.
+    const originalText=title ? `标题：${title}\n正文：${text}` : text;
+    return {event,text,title,originalText,current:projection?.event_id===eventId,deleted:projection?.deleted===1};
   }
   validateEvidence(projectId:string,item:FeedbackItemV2,batch:FeedbackBatchV1):void{
     const allowed=new Set([...batch.candidateEventIds,...batch.contextEventIds]);let primary=false;
@@ -47,9 +53,7 @@ export class DomainService {
         if(!batch.candidateEventIds.includes(anchor.eventId))throw new Error('CONTEXT_CANNOT_CREATE_FEEDBACK');
         if(!stored.current)throw new Error('STALE_EVIDENCE');primary=true;
       }
-      const title = stored.event.type !== 'com.superagent.source.coverage.changed.v1'
-        && stored.event.data.object.kind === 'thread' && typeof stored.event.data.attributes?.title === 'string'
-        ? stored.event.data.attributes.title.slice(0, 2048) : '';
+      const title=stored.title.slice(0,2048);
       if(anchor.quote!==undefined&&(!anchor.quote||!(stored.text.includes(anchor.quote)||title.includes(anchor.quote))))
         throw new Error('EVIDENCE_QUOTE_MISMATCH');
       if(anchor.start!==undefined||anchor.end!==undefined){
