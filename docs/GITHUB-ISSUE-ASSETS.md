@@ -1,6 +1,6 @@
 # 原生 Issue 附件和开发报告
 
-PR 顺序：A [#15](https://github.com/fangbm/SuperAgent/pull/15) 结构化报告 → B [#16](https://github.com/fangbm/SuperAgent/pull/16) 私有附件捕获 → C [#17](https://github.com/fangbm/SuperAgent/pull/17)。三个均为 Draft，不自动合并。当前 main 不因这些 PR 自动启用任何下载/发布。
+PR 顺序：A [#15](https://github.com/fangbm/SuperAgent/pull/15) 结构化报告 → B [#16](https://github.com/fangbm/SuperAgent/pull/16) 私有附件捕获 → C [#17](https://github.com/fangbm/SuperAgent/pull/17)。2026-11-05 已按用户明确授权依次合入 main，并保留提交历史。合并不会自动开启平台父开关、外部写入或部署真实服务；下文保留各轮验收边界。
 
 ## 配置
 
