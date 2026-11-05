@@ -1,0 +1,7 @@
+{
+  "schemaVersion":1,"database":"../../.artifacts/discord-tickets/state.sqlite","projectId":"discord-public",
+  "sources":[{"id":"discord-platform","plugin":"discord","enabled":false,
+    "config":{"sourceUri":"urn:superagent:source:discord-platform","guildId":"100","channelIds":["200"],"sourceEnabled":true,"tickets":{"enabled":false,"allowWrites":false,"projectId":"discord-staff-tickets","categoryId":"400","staffRoleIds":["500"]}},
+    "permissions":{"networkHosts":["discord.com","gateway.discord.gg","*.discord.gg"],"secretKeys":["DISCORD_BOT_TOKEN"]},"secrets":{"DISCORD_BOT_TOKEN":"SA_DISCORD_BOT_TOKEN"}}],
+  "deliveries":[],"analysis":{"enabled":false,"allowExternalCalls":false},"github":{"enabled":false,"allowWrites":false},"reports":{"enabled":false},"web":{"enabled":false},"notifications":{"p0Enabled":false}
+}

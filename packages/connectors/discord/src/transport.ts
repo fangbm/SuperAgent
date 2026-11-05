@@ -11,6 +11,9 @@ export class DiscordREST implements DiscordAPI {
   constructor(private readonly token:()=>Promise<string>,private readonly options:{fetch?:typeof fetch;sleep?:(ms:number,signal:AbortSignal)=>Promise<void>;onFailure?:(code:string)=>Promise<void>}={}){}
   request(method:DiscordMethod,route:string,body?:unknown,signal:AbortSignal=new AbortController().signal):Promise<unknown>{
     if(!['GET','POST','PUT','PATCH','DELETE'].includes(method)||!route.startsWith('/')||route.startsWith('//')||/[\\#\r\n]/.test(route)||route.includes('..'))return Promise.reject(new Error('INVALID_REQUEST'));
+    // Initial ephemeral ACKs have a three-second protocol deadline; do not queue
+    // them behind history scans. They still use this client's shared cooldown.
+    if(method==='POST'&&/^\/interactions\/\d+\/[^/]+\/callback$/.test(route))return this.execute(method,route,body,AbortSignal.any([signal,AbortSignal.timeout(2500)]));
     const result=this.tail.then(()=>this.execute(method,route,body,signal));this.tail=result.catch(()=>{});return result;
   }
   private async execute(method:DiscordMethod,route:string,body:unknown,signal:AbortSignal):Promise<unknown>{

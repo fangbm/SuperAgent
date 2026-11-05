@@ -1,7 +1,7 @@
 import { parseContract } from '@superagent/contract-validation';
 export { P0Service, P0NotificationPolicy } from './p0.js';
 export type { P0Assessment, CriticalImpact } from './p0.js';
-import { SqliteStore, canonicalJSON, stableId, systemClock, timestamp, addMilliseconds } from '@superagent/persistence';
+import { SqliteStore, canonicalJSON, stableId, systemClock, timestamp, addMilliseconds, isRestrictedProject } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
 import { HybridMemory } from '@superagent/memory';
 import type { WorkKind, WorkSnapshot } from '@superagent/memory';
@@ -26,6 +26,7 @@ export class DomainService {
     if(!pipelineVersion.trim()||!Number.isSafeInteger(revision)||revision<1)throw new Error('INVALID_ANALYSIS_IDENTITY');
     return this.store.transaction(()=>{
       const batch=this.store.get<{project_id:string}>('SELECT project_id FROM feedback_batches WHERE batch_id=?',batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');
+      if(isRestrictedProject(this.store,batch.project_id))throw new Error('PRIVATE_PROJECT_PROCESSING_NOT_AUTHORIZED');
       const triageId=stableId('triage',batchId,pipelineVersion,String(revision));
       const old=this.store.get<{triage_id:string}>('SELECT triage_id FROM analysis_requests WHERE batch_id=? AND revision=?',batchId,revision);
       if(old&&old.triage_id!==triageId)throw new Error('ANALYSIS_REVISION_CONFLICT');
@@ -35,6 +36,7 @@ export class DomainService {
     });
   }
   evidence(projectId:string,eventId:string):{event:NormalizedEventV1;text:string;title:string;originalText:string;current:boolean;deleted:boolean}|undefined {
+    if(isRestrictedProject(this.store,projectId))return undefined;
     const row=this.store.get<{payload_json:string}>('SELECT payload_json FROM source_events WHERE event_id=? AND project_id=?',eventId,projectId);if(!row)return undefined;
     const event=JSON.parse(row.payload_json) as NormalizedEventV1;if(event.type==='com.superagent.source.coverage.changed.v1')return undefined;
     const projection=this.store.get<{event_id:string;deleted:number}>('SELECT event_id,deleted FROM source_objects WHERE source_id=? AND external_id=?',event.data.sourceId,event.data.object.externalId);

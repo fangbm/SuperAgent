@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { InternalEventId, JSONValue, NormalizedEventV1, ReportNavigationEntryV1, ReportSectionV1, ReportV2, ReportWindowV1, SteamNegativeReviewSnapshotMemberV1, SuggestionStatusV1 } from '@superagent/contracts';
 import { parseContract } from '@superagent/contract-validation';
-import { canonicalJSON, SqliteStore, stableId, systemClock, timestamp } from '@superagent/persistence';
+import { canonicalJSON, SqliteStore, stableId, systemClock, timestamp, isRestrictedProject } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
 import { DomainService } from '@superagent/domain';
 import { DurableJobQueue } from '@superagent/job-queue';
@@ -24,6 +24,7 @@ export class ReportService {
   }
   async requestReport(window:ReportWindowV1):Promise<{reportId:string;revision:number}>{const report=this.generate(window);return{reportId:report.reportId,revision:report.revision};}
   generate(window: ReportWindowV1, options: { revise?: boolean; expectedRevision?: number } = {}): ReportV2 {
+    if(isRestrictedProject(this.store,window.projectId))throw new Error('PRIVATE_PROJECT_REPORT_NOT_AUTHORIZED');
     const valid = reportWindow(window.projectId, window.endExclusive);
     if (json(valid) !== json({ ...window, startInclusive: timestamp(window.startInclusive), endExclusive: timestamp(window.endExclusive) })) throw new Error('REPORT_WINDOW_MISMATCH');
     if (Date.parse(valid.endExclusive) + (this.options.graceSeconds ?? 180) * 1000 > Date.parse(this.now())) throw new Error('REPORT_WINDOW_NOT_DUE');
