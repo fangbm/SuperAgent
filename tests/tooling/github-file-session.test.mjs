@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {loadGitHubUploadSession} from '../../scripts/github-file-session.mjs';
+import {appFixture} from '../integration/application-helpers.mjs';
+import {parseApplicationConfig} from '../../scripts/application-config.mjs';
+test('file upload session config is resolved locally and rejects simultaneous plaintext-env and DPAPI sources',t=>{const f=appFixture(t),config=structuredClone(f.config);config.artifacts={enabled:true,root:path.join(f.directory,'files'),keyEnv:'KEY'};config.github={enabled:true,allowWrites:true,repository:'owner/repo',tokenEnv:'TOKEN',attachmentUploads:{enabled:true,allowWrites:true,sessionConfig:'secrets/upload.dpapi'}};assert.equal(parseApplicationConfig(config,f.directory).github.attachmentUploads.sessionConfig,path.join(f.directory,'secrets','upload.dpapi'));config.github.attachmentUploads.sessionEnv='SESSION';assert.throws(()=>parseApplicationConfig(config,f.directory),/INVALID_GITHUB_ATTACHMENT_CONFIG/);});
+test('missing session remains unconfigured; corrupt protected data fails with a redacted error',t=>{const dir=mkdtempSync(path.join(tmpdir(),'sa-file-session-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const file=path.join(dir,'session.dpapi');assert.equal(loadGitHubUploadSession(file),undefined);writeFileSync(file,'not DPAPI');assert.throws(()=>loadGitHubUploadSession(file),/GITHUB_UPLOAD_SESSION_(?:UNAVAILABLE|REQUIRES_WINDOWS)/);});

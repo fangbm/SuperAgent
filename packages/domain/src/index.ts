@@ -1,4 +1,6 @@
 import { parseContract } from '@superagent/contract-validation';
+import {AttachmentLinks} from './attachment-links.js';
+export {AttachmentLinks} from './attachment-links.js';
 export { P0Service, P0NotificationPolicy } from './p0.js';
 export type { P0Assessment, CriticalImpact } from './p0.js';
 import { SqliteStore, canonicalJSON, stableId, systemClock, timestamp, addMilliseconds, isRestrictedProject } from '@superagent/persistence';
@@ -16,9 +18,11 @@ export function itemFingerprint(item:FeedbackItemV2):string {
   return stableId('fingerprint',json(content));
 }
 export class DomainService {
+  readonly attachments:AttachmentLinks;
   constructor(readonly store:SqliteStore,readonly memory:HybridMemory,private readonly options:{clock?:Clock;automaticConfidence?:number;repositories?:Readonly<Record<string,string>>;authorizedActors?:readonly string[];syncDebounceMs?:number}={}){
     const threshold=options.automaticConfidence??0.8;
     if(!Number.isFinite(threshold)||threshold<0||threshold>1)throw new Error('INVALID_AUTOMATIC_CONFIDENCE');
+    this.attachments=new AttachmentLinks(store,this,()=>this.now());
   }
   private now():string{return timestamp((this.options.clock??systemClock)());}
   expectedWorkId(identity:AnalysisIdentity,index:number):string{return stableId('work',identity.triageId,String(index));}

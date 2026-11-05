@@ -22,6 +22,7 @@
     "worker:m3": "node scripts/m3-worker.mjs",
     "qq:source": "node scripts/qq-source.mjs",
     "qq:menu": "node scripts/qq-menu.mjs",
+    "github:session": "node scripts/github-file-session.mjs",
     "bench:qq-live": "node scripts/benchmark-qq-live.mjs",
     "qq:probe": "node scripts/qq-probe.mjs",
     "qq:send-test": "node scripts/qq-send-test.mjs",

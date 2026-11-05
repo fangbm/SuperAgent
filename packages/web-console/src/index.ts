@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { ControlError, ControlPlane } from '@superagent/control-plane';
-import type { CorrectionCommand, Principal, StatusCommand } from '@superagent/control-plane';
+import type { AttachmentReview, CorrectionCommand, Principal, StatusCommand } from '@superagent/control-plane';
 import type { ReportSectionV1 } from '@superagent/contracts';
 import { latestClosedWindow } from '@superagent/reporting';
 import { renderReportMarkdown } from './markdown.js';
@@ -34,6 +34,9 @@ export function createConsoleServer(control:ControlPlane,options:{demo?:boolean;
       if(url.pathname==='/api/session'&&method==='GET'){send(200,{principal,demo:Boolean(options.demo)});return;}
       if(url.pathname==='/api/logout'&&method==='POST'){control.auth.logout(cookies.sa_session??'');res.setHeader('Set-Cookie',['sa_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0','sa_csrf=; SameSite=Strict; Path=/; Max-Age=0']);send(200,{ok:true});return;}
       const projectId=url.searchParams.get('project')??'';control.auth.authorize(principal,projectId,method==='POST');
+      if(url.pathname==='/api/attachments'&&method==='GET'){send(200,control.attachments(principal,projectId,url.searchParams.get('cursor')??undefined));return;}
+      if(url.pathname==='/api/attachments/review-token'&&method==='POST'){send(200,{token:control.attachmentToken(principal,projectId,await readJSON(req) as unknown as AttachmentReview)});return;}
+      if(url.pathname==='/api/attachments/review'&&method==='POST'){const body=await readJSON(req);send(200,control.reviewAttachment(principal,projectId,body.request as AttachmentReview,String(body.token)));return;}
       const path=url.pathname;
       if(path.startsWith('/api/artifacts/')&&method==='GET'){
         const id=path.slice('/api/artifacts/'.length);if(!/^artifact-[a-f0-9]{64}$/.test(id))throw new ControlError('ARTIFACT_NOT_FOUND',404);

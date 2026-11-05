@@ -10,10 +10,12 @@ export function createM3Services(runtime,{projectId,analysis:config,model:provid
   const analysis=model?new AnalysisWorker(runtime.store,runtime.queue,domain,memory,model,{timeoutMs,leaseMs:timeoutMs+30000,
     ...(clock?{clock}:{}),...(config.maxCalls?{maxCalls:config.maxCalls}:{}),...(config.maxInputCharacters?{maxInputCharacters:config.maxInputCharacters}:{})}):null;
   const sync=github?new GitHubSyncManager(runtime.store,domain,github,{allowWrites:githubWrite,...(clock?{clock}:{}),...(reportBuilder?{reportBuilder}:{})}):null;
+  if(sync)domain.attachments.onChanged=(event,feedbackIds)=>sync.attachmentLinkChanged(event,feedbackIds);
   const urgent=p0Enabled&&model?new AnalysisWorker(runtime.store,runtime.queue,domain,memory,model,{urgentOnly:true,timeoutMs,leaseMs:timeoutMs+30000,...(clock?{clock}:{}),...(config.maxCalls?{maxCalls:config.maxCalls}:{}),...(config.maxInputCharacters?{maxInputCharacters:config.maxInputCharacters}:{})}):null;
   let lastStatus=0;
   return {analysis,sync,urgent,model,async tick(signal){
     const result=analysis?await analysis.tick(signal):{processed:false,status:'analysis_disabled'};
+    domain.attachments.refresh(projectId);
     const remote=sync?await sync.tick():{processed:false,state:'github_disabled'};
     if(sync&&Date.now()-lastStatus>=300000){
       for(const row of runtime.store.all('SELECT work_kind,work_id FROM external_work_links WHERE repository=? LIMIT 10',github.repository)){

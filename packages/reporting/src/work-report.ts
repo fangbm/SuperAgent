@@ -5,7 +5,7 @@ import {DomainService} from '@superagent/domain';
 
 export interface ReportFact {value:string;feedbackItemId:string;confidence:number;evidenceIds:string[];provenance:'ai_extracted'}
 export interface ReportEvidence {eventId:string;platform:string;occurredAt:string;role:'primary'|'context'|'corroboration';quote:string}
-export interface ReportAttachment {eventId:string;assetRef:string;mimeType:string;kind:string;state:string;contentAnalyzed:false;url?:string;sha256?:string;size?:number}
+export interface ReportAttachment {eventId:string;assetRef:string;mimeType:string;kind:string;state:string;contentAnalyzed:false;linkMethod?:string;url?:string;sha256?:string;size?:number}
 interface WorkReportBase {schemaVersion:1;projectId:string;workId:string;title:string;summary:string;status:string;workVersion:number;feedbackCount:number;priority:number;fields:Record<string,ReportFact[]>;missingFields:string[];evidence:ReportEvidence[];attachments:ReportAttachment[];verification:{current:boolean;records:{actor:string;at:string}[]};truncated:boolean}
 export interface BugReportV1 extends WorkReportBase {kind:'defect'}
 export interface SuggestionReportV1 extends WorkReportBase {kind:'suggestion'}
@@ -23,6 +23,7 @@ export class WorkReportBuilder {
   build(projectId:string,kind:'defect'|'suggestion',workId:string):WorkReport{
     return this.store.transaction(()=>{
       const work=this.domain.getWork(projectId,kind,workId);if(!work||work.reviewRequired||!work.feedbackCount)throw new Error('WORK_REPORT_NOT_AUTHORIZED');
+      this.domain.attachments.refresh(projectId);
       const rows=this.store.all<{feedback_item_id:string;item_json:string}>(`SELECT m.feedback_item_id,m.item_json FROM work_feedback_links l JOIN feedback_items f USING(feedback_item_id) JOIN feedback_item_metadata m USING(feedback_item_id) WHERE l.work_kind=? AND l.work_id=? AND m.project_id=? AND f.active=1 ORDER BY f.created_at,f.feedback_item_id LIMIT 101`,kind,workId,projectId);
       const names=kind==='defect'?bugFields:suggestionFields,fields:Record<string,ReportFact[]>={},evidence=new Map<string,ReportEvidence>(),attachments=new Map<string,ReportAttachment>();let visible=0,clipped=rows.length>100;
       for(const row of rows.slice(0,100)){
@@ -34,7 +35,6 @@ export class WorkReportBuilder {
           const key=`${a.eventId}:${a.role}`;if(evidence.size<100)evidence.set(key,{eventId:a.eventId,platform:stored.event.data.platform,occurredAt:stored.event.time,role:a.role,quote:clip(a.quote??stored.originalText,2000)});
           // Only attachments of an explicitly linked primary event belong here;
           // proximity, quoted context or similar filenames never make a link.
-          if(a.role==='primary')for(const file of stored.event.data.content?.attachments??[])if(file.assetRef&&attachments.size<100)attachments.set(`${a.eventId}:${file.assetRef}`,{eventId:a.eventId,assetRef:file.assetRef,mimeType:file.mimeType??'application/octet-stream',kind:file.kind,state:'metadata_only',contentAnalyzed:false});
         }
         for(const name of Object.keys(names)){
           const value=(item as unknown as Record<string,unknown>)[name],values=Array.isArray(value)?[value.slice(0,20).map((v,i)=>`${i+1}. ${v}`).join('\n')]:typeof value==='string'?[value]:[];
@@ -45,6 +45,10 @@ export class WorkReportBuilder {
         }
       }
       if(!visible)throw new Error('WORK_REPORT_NO_VISIBLE_EVIDENCE');
+      for(const linked of this.domain.attachments.forWork(projectId,kind,workId)){
+        const source=this.domain.evidence(projectId,linked.eventId),file=source?.event.type==='com.superagent.feedback.message.created.v1'?source.event.data.content?.attachments?.find(a=>a.assetRef===linked.assetRef):undefined;
+        if(file&&attachments.size<100)attachments.set(`${linked.eventId}:${linked.assetRef}`,{eventId:linked.eventId,assetRef:linked.assetRef,mimeType:file.mimeType??'application/octet-stream',kind:file.kind,state:`linked_${linked.method}`,linkMethod:linked.method,contentAnalyzed:false});
+      }
       for(const attachment of attachments.values()){
         const stored=this.options.artifacts?.(projectId,attachment.eventId,attachment.assetRef);if(!stored)continue;
         if(stored.url){const url=new URL(stored.url);if(stored.state!=='published'||url.protocol!=='https:'||url.hostname!=='github.com'||url.username||url.password||url.port||url.search||url.hash||!/^\/user-attachments\/(?:assets\/[a-f0-9-]{20,80}|files\/\d+\/[A-Za-z0-9._%-]+)$/i.test(url.pathname))throw new Error('WORK_REPORT_ATTACHMENT_URL_INVALID');attachment.url=url.href;}
@@ -68,9 +72,10 @@ export function renderWorkReport(report:WorkReport):string{
   lines.push('### 玩家原始陈述与出处');
   for(const e of report.evidence)lines.push(`- ${e.role==='primary'?'玩家报告':'引用上下文'} · ${literal(e.platform)} · ${literal(e.occurredAt)} · Event ${literal(e.eventId)}`,quote(e.quote));
   lines.push('','### 附件与关联');
-  if(!report.attachments.length)lines.push('没有与该工作项原始消息直接关联的附件。');
+  if(!report.attachments.length)lines.push('没有已确认归属于该工作项的附件。');
   for(const a of report.attachments){
-    lines.push(`- Event ${literal(a.eventId)} / ${literal(a.assetRef)}：${literal(a.mimeType)}；状态 ${literal(a.state)}；未分析图片内容，视觉关联未确认。`);
+    lines.push(`- Event ${literal(a.eventId)} / ${literal(a.assetRef)}：${literal(a.mimeType)}；状态 ${literal(a.state)}；${a.mimeType.startsWith('image/')?'未分析图片内容，视觉关联未确认。':'未解析文件内容，归属确认不代表内容已验证。'}`);
+    if(a.linkMethod)lines.push(`  归属依据：${a.linkMethod==='reply'?'引用回复':a.linkMethod==='manual'?'开发者人工确认':'同一条反馈消息'}；保留附件原消息身份，不新增独立反馈数。`);
     if(a.sha256)lines.push(`  SHA-256：${literal(a.sha256)}；大小：${a.size??'未确认'} 字节。`);
     if(a.url)lines.push(a.mimeType.startsWith('image/')?`![原消息附件，视觉关联未确认](${a.url})`:`[下载原消息文件，需仓库读取权限](${a.url})`);
   }

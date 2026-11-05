@@ -114,10 +114,14 @@ export class GitHubActionWorker {
 interface OperationRow {operation_id:string;kind:string;state:string;attempt:number;lease_owner:string|null;lease_until:string|null;project_id:string;work_kind:'defect'|'suggestion';work_id:string;repository:string;work_version:number;payload_json:string;reconcile_attempt:number;next_attempt_at:string}
 interface Payload {title:string;body:string;marker:string;authorId:string;issueNumber?:string;commentId?:string;expectedHash?:string}
 export class GitHubSyncManager {
-  constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly port:GitHubPort,private readonly options:{clock?:Clock;maxReconciliations?:number;maxPages?:number;leaseMs?:number;allowWrites?:boolean;titlePrefix?:string;reportBuilder?:WorkReportBuilder}={}){installIssueAssets(store);}
+  constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly port:GitHubPort,private readonly options:{clock?:Clock;maxReconciliations?:number;maxPages?:number;leaseMs?:number;allowWrites?:boolean;titlePrefix?:string;reportBuilder?:WorkReportBuilder}={}){installIssueAssets(store);domain.attachments.onChanged=(event,feedbackIds)=>this.attachmentLinkChanged(event,feedbackIds);}
   artifactChanged(eventId:string):void{
+    const ids=this.store.all<{feedback_item_id:string}>(`SELECT DISTINCT feedback_item_id FROM attachment_links WHERE event_id=? AND status='confirmed'`,eventId).map(r=>r.feedback_item_id);
+    this.attachmentLinkChanged(eventId,ids);
+  }
+  attachmentLinkChanged(eventId:string,feedbackIds:string[]):void{
     this.store.transaction(()=>{
-      const works=this.store.all<{work_kind:string;work_id:string}>(`SELECT DISTINCT l.work_kind,l.work_id FROM work_feedback_links l JOIN feedback_items f USING(feedback_item_id) JOIN feedback_item_evidence e USING(feedback_item_id) JOIN github_sync_outbox g ON g.work_kind=l.work_kind AND g.work_id=l.work_id AND g.repository=? WHERE f.active=1 AND e.event_id=? AND e.role='primary'`,this.port.repository,eventId);
+      const works=this.store.all<{work_kind:string;work_id:string}>(`SELECT DISTINCT l.work_kind,l.work_id FROM work_feedback_links l JOIN feedback_items f USING(feedback_item_id) JOIN github_sync_outbox g ON g.work_kind=l.work_kind AND g.work_id=l.work_id AND g.repository=? WHERE f.active=1 AND (f.feedback_item_id IN (SELECT feedback_item_id FROM feedback_item_evidence WHERE event_id=? AND role='primary') OR f.feedback_item_id IN (SELECT value FROM json_each(?)))`,this.port.repository,eventId,JSON.stringify(feedbackIds));
       for(const work of works){this.store.run('INSERT INTO github_report_revisions(work_kind,work_id,repository,revision) VALUES(?,?,?,1) ON CONFLICT(work_kind,work_id,repository) DO UPDATE SET revision=revision+1',work.work_kind,work.work_id,this.port.repository);this.store.run("UPDATE github_sync_outbox SET state=CASE WHEN state='held' THEN state ELSE 'pending' END,available_at=min(available_at,?) WHERE work_kind=? AND work_id=? AND repository=?",this.now(),work.work_kind,work.work_id,this.port.repository);}
     });
   }
@@ -140,7 +144,7 @@ export class GitHubSyncManager {
       const reportHash=workReportHash(report),revision=this.store.get<{revision:number}>('SELECT revision FROM github_report_revisions WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository)?.revision??0;
       this.store.run('INSERT INTO github_report_revisions(work_kind,work_id,repository) VALUES(?,?,?) ON CONFLICT DO NOTHING',work.kind,work.id,row.repository);
       if(kind==='github.issue.update'&&this.store.get<{synced_hash:string|null}>('SELECT synced_hash FROM github_report_revisions WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository)?.synced_hash===reportHash){this.store.run('UPDATE github_report_revisions SET synced_revision=revision WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);this.store.run("UPDATE github_sync_outbox SET state='idle' WHERE work_kind=? AND work_id=? AND repository=? AND desired_version<=?",work.kind,work.id,row.repository,work.version);return undefined;}
-      const key=`${kind}:${row.repository}:${work.kind}:${work.id}:${kind==='github.issue.update'?`${work.version}:${reportHash}`:'initial'}`;
+      const key=`${kind}:${row.repository}:${work.kind}:${work.id}:${kind==='github.issue.update'?`${work.version}:${reportHash}:r${revision}`:'initial'}`;
       const id=stableId('external',key);const existing=this.operation(id);if(existing){
         if(kind==='github.issue.update'&&existing.state==='succeeded'){this.store.run('UPDATE github_report_revisions SET synced_revision=revision WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);this.store.run("UPDATE github_sync_outbox SET state='idle' WHERE work_kind=? AND work_id=? AND repository=? AND desired_version<=?",work.kind,work.id,row.repository,work.version);return undefined;}
         return existing;

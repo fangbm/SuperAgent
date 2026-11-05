@@ -23,7 +23,7 @@ async function setup(t,options={}){
  artifacts.stage({projectId:binding.projectId,sourceId:binding.sourceId,sourceUri:binding.sourceUri,externalEventId:message.id,assetRef:'image-one',url:'https://gchat.qpic.cn/file?key=SECRET',mimeType:'image/png',filename:'a.png',ordinal:0});f.runtime.ingress.commitBatch(scope,[message]);f.runtime.tick();for(const s of f.runtime.store.all("SELECT segment_id FROM conversation_segments WHERE state='open'"))f.runtime.buffer.flushSync(s.segment_id,'replay');await f.worker.tick();
  const port=new FixtureGitHub(),assetsPort=new Assets(),builder=new WorkReportBuilder(f.runtime.store,f.domain,{artifacts:(p,e,r)=>publisher?.attachment(p,e,r)});
  manager=new GitHubSyncManager(f.runtime.store,f.domain,port,{allowWrites:true,clock:f.clock,reportBuilder:builder});
- const publisherOptions={allowWrites:true,clock:f.clock,authorize:p=>assert.equal(p,binding.projectId),onChanged:id=>manager.artifactChanged(id)};
+ const publisherOptions={links:f.domain.attachments,allowWrites:true,clock:f.clock,authorize:p=>assert.equal(p,binding.projectId),onChanged:id=>manager.artifactChanged(id)};
  publisher=new ArtifactPublisher(f.runtime.store,artifacts,assetsPort,publisherOptions);
  return{...f,artifacts,manager,publisher,assetsPort,publisherOptions,port,builder,workId:f.runtime.store.get('SELECT issue_id FROM issues').issue_id,eventId:f.runtime.store.get('SELECT event_id FROM source_events').event_id};
 }
@@ -54,15 +54,15 @@ test('manual report comment edits are not overwritten by a late asset',async t=>
  await f.artifacts.tick(signal());await f.publisher.tick(signal());assert.equal((await f.manager.tick()).state,'manual_review');assert.equal(f.port.patches,0);assert.match(f.port.commentsMap.get('1').body,/Developer investigation/);
 });
 test('GitHub native protocol sends binary bytes and repository id; authorized hash reads pass while anonymous reads fail',async()=>{
- const calls=[],hash=createHash('sha256').update(png).digest('hex');const port=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture-secret',fetch:async(input,init)=>{const u=new URL(input);calls.push({url:u,init});if(u.hostname==='api.github.com')return Response.json({id:99,private:true,permissions:{push:true}});if(u.hostname==='uploads.github.com'){assert.equal(u.pathname,'/user-attachments/assets');assert.equal(u.searchParams.get('repository_id'),'99');assert.equal(u.searchParams.get('content_type'),'image/png');assert.deepEqual(Buffer.from(init.body),png);return Response.json({url});}return init.headers.Authorization?new Response(png):new Response(null,{status:404});}});
+ const calls=[],hash=createHash('sha256').update(png).digest('hex');const port=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture-secret',session:'unused-expired-file-session',fetch:async(input,init)=>{const u=new URL(input);assert.equal(init.headers.Cookie,undefined);calls.push({url:u,init});if(u.hostname==='api.github.com')return Response.json({id:99,private:true,permissions:{push:true}});if(u.hostname==='uploads.github.com'){assert.equal(u.pathname,'/user-attachments/assets');assert.equal(u.searchParams.get('repository_id'),'99');assert.equal(u.searchParams.get('content_type'),'image/png');assert.deepEqual(Buffer.from(init.body),png);return Response.json({url});}return init.headers.Authorization?new Response(png):new Response(null,{status:404});}});
  assert.equal((await port.inspect()).private,true);assert.equal(await port.upload(png,'image/png','artifact-'+'a'.repeat(64)+'.png','99',signal()),url);assert.equal(await port.verify(url,hash,png.length,signal()),true);assert.equal(calls.filter(c=>c.init.method==='POST').length,1);
  for(const bad of ['http://github.com/user-attachments/assets/'+'a'.repeat(32),'https://evil.test/file','https://github.com/user-attachments/assets/'+'a'.repeat(32)+'?token=secret'])assert.throws(()=>issueAssetURL(bad));
  const publicPort=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture-secret',fetch:async()=>new Response(png)});await assert.rejects(publicPort.verify(url,hash,png.length,signal()),/NOT_PRIVATE/);
 });
-test('native file protocol supports text logs and strips bearer credentials on approved content redirects',async()=>{
+test('native files require explicit web session; verified reads strip bearer credentials on approved content redirects',async()=>{
  const log=Buffer.from('ERROR: network disconnected\n'),hash=createHash('sha256').update(log).digest('hex');let posts=0;
  const port=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture',fetch:async(input,init)=>{const u=new URL(input);if(u.hostname==='uploads.github.com'){posts++;assert.equal(u.searchParams.get('content_type'),'text/plain');assert.deepEqual(Buffer.from(init.body),log);return Response.json({url});}if(u.hostname==='github.com')return init.headers.Authorization?new Response(null,{status:302,headers:{Location:'https://private-user-images.githubusercontent.com/example?jwt=fixture'}}):new Response(null,{status:404});assert.equal(init.headers.Authorization,undefined);return new Response(log);}});
- await port.upload(log,'text/plain','artifact-'+'b'.repeat(64)+'.txt','99',signal());assert.equal(await port.verify(url,hash,log.length,signal()),true);assert.equal(posts,1);
+ assert.equal(port.canUpload('text/plain'),false);await assert.rejects(port.upload(log,'text/plain','artifact-'+'b'.repeat(64)+'.txt','99',signal()),/SESSION_REQUIRED/);assert.equal(await port.verify(url,hash,log.length,signal()),true);assert.equal(posts,0);
 });
 test('disabled publisher sends nothing and shutdown bounds a provider that ignores abort',async t=>{
  const f=await setup(t);await f.artifacts.tick(signal());const disabled=new ArtifactPublisher(f.runtime.store,f.artifacts,f.assetsPort,{...f.publisherOptions,allowWrites:false});await disabled.tick(signal());assert.equal(f.assetsPort.uploads,0);
@@ -85,4 +85,8 @@ test('unified entry assembles capture, report builder and native publication onl
 test('known rate-limit rejection is retried only after the provider interval, not on every tick',async t=>{
  const f=await setup(t);await f.artifacts.tick(signal());f.assetsPort.upload=async()=>{f.assetsPort.uploads++;throw new IssueAssetError('GITHUB_ASSET_HTTP_429','safe_retry',120000);};
  assert.equal((await f.publisher.tick(signal())).state,'safe_retry');assert.equal(f.assetsPort.uploads,1);f.advance(60001);await f.publisher.tick(signal());assert.equal(f.assetsPort.uploads,1);f.advance(60000);await f.publisher.tick(signal());assert.equal(f.assetsPort.uploads,2);
+});
+test('missing file configuration waits without network attempts and resumes when configuration becomes available',async t=>{
+ const f=await setup(t);await f.artifacts.tick(signal());f.assetsPort.canUpload=()=>false;assert.equal((await f.publisher.tick(signal())).state,'waiting_configuration');assert.equal(f.assetsPort.uploads,0);assert.equal(f.runtime.store.get('SELECT attempt FROM artifact_publications').attempt,0);
+ f.advance(60001);f.assetsPort.canUpload=()=>true;assert.equal((await new ArtifactPublisher(f.runtime.store,f.artifacts,f.assetsPort,f.publisherOptions).tick(signal())).state,'published');assert.equal(f.assetsPort.uploads,1);
 });

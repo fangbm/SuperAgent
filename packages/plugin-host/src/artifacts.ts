@@ -56,6 +56,9 @@ export function artifactType(bytes:Buffer,declared:string,filename:string):strin
   if(bytes.length>=24&&bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))&&bytes.subarray(12,16).toString()==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(20)>0)type='image/png';
   else if(bytes.length>=4&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255&&bytes.at(-2)===255&&bytes.at(-1)===217)type='image/jpeg';
   else if(bytes.length>=20&&bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP'&&['VP8 ','VP8L','VP8X'].includes(bytes.subarray(12,16).toString())&&bytes.readUInt32LE(4)===bytes.length-8)type='image/webp';
+  else if(/\.pdf$/i.test(filename)&&/^%PDF-\d\.\d/.test(bytes.subarray(0,8).toString())&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF')))type='application/pdf';
+  else if(/\.zip$/i.test(filename)&&bytes.length>=22&&[0x04034b50,0x06054b50].includes(bytes.readUInt32LE(0))&&bytes.subarray(Math.max(0,bytes.length-65557)).includes(Buffer.from('504b0506','hex')))type='application/zip';
+  else if(/\.dmp$/i.test(filename)&&bytes.length>=32&&bytes.subarray(0,4).toString()==='MDMP')type='application/octet-stream';
   else if(/\.(?:txt|log|json)$/i.test(filename)){
     let text:string;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new ArtifactError('ARTIFACT_TYPE_REJECTED');}
     if(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)||/^\s*<(?:!doctype|html|script|svg)/i.test(text))throw new ArtifactError('ARTIFACT_TYPE_REJECTED');type='text/plain';

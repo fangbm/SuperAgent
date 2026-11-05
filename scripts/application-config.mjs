@@ -55,7 +55,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   }
   const ids = new Set(), uris = new Set();
   c.github.attachmentUploads??={enabled:c.github.enabled&&c.artifacts.enabled,allowWrites:c.github.enabled&&c.github.allowWrites&&c.artifacts.enabled};
-  {const upload=c.github.attachmentUploads;if(!exact(upload,['enabled','allowWrites','tokenEnv'])||typeof upload.enabled!=='boolean'||typeof upload.allowWrites!=='boolean'||upload.allowWrites&&(!upload.enabled||!c.github.allowWrites)||upload.enabled&&(!c.github.enabled||!c.artifacts.enabled)||upload.tokenEnv!==undefined&&(!text(upload.tokenEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(upload.tokenEnv)))throw new Error('INVALID_GITHUB_ATTACHMENT_CONFIG');}
+  {const upload=c.github.attachmentUploads;if(!exact(upload,['enabled','allowWrites','tokenEnv','sessionEnv','sessionConfig'])||typeof upload.enabled!=='boolean'||typeof upload.allowWrites!=='boolean'||upload.allowWrites&&(!upload.enabled||!c.github.allowWrites)||upload.enabled&&(!c.github.enabled||!c.artifacts.enabled)||['tokenEnv','sessionEnv'].some(k=>upload[k]!==undefined&&(!text(upload[k])||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(upload[k])))||upload.sessionConfig!==undefined&&(!text(upload.sessionConfig)||upload.sessionEnv!==undefined))throw new Error('INVALID_GITHUB_ATTACHMENT_CONFIG');if(upload.sessionConfig)upload.sessionConfig=path.resolve(directory,upload.sessionConfig);else if(!upload.sessionEnv)upload.sessionConfig=path.join(path.dirname(c.database),'github-upload-session.dpapi');}
   for (const entry of [...c.sources,...c.deliveries]) {
     const source = c.sources.includes(entry);
     if (!exact(entry,['id','plugin','enabled','config','permissions','secrets','protectedConfig','port','allowWrites'])

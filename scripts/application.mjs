@@ -25,6 +25,7 @@ import { createM5 } from './m5-runtime.mjs';
 import {ArtifactStore} from '@superagent/plugin-host';
 import { loadM5Access } from './m5-local-access.mjs';
 import { readFileSync } from 'node:fs';
+import {loadGitHubUploadSession} from './github-file-session.mjs';
 import { prepareDiscordModules } from './discord-modules.mjs';
 
 const listen=async(server,port)=>{await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.removeListener('error',reject);resolve();});});};
@@ -126,7 +127,7 @@ export async function createApplication(input,options={}) {
     m5.control.p0Enabled=!!p0;
     m5.control.embeddingStatus=()=>({...embeddingState});
     if(artifacts)m5.control.artifactReader=(project,id,authorize)=>artifacts.read(project,id,authorize);
-    if(config.github.attachmentUploads?.enabled){const upload=config.github.attachmentUploads,port=options.assetPort??new GitHubIssueAssets({repository:config.github.repository,token:required(upload.tokenEnv??config.github.tokenEnv)});if(port.repository!==config.github.repository)throw new Error('GITHUB_ASSET_REPOSITORY_MISMATCH');artifactPublisher=new ArtifactPublisher(runtime.store,artifacts,port,{allowWrites:upload.allowWrites,authorize:p=>artifactAuthorization(p,true),clock,onChanged:id=>m3.sync.artifactChanged(id)});}
+    if(config.github.attachmentUploads?.enabled){const upload=config.github.attachmentUploads;let port=options.assetPort;if(!port){const session=upload.sessionEnv?required(upload.sessionEnv):loadGitHubUploadSession(upload.sessionConfig);port=new GitHubIssueAssets({repository:config.github.repository,token:required(upload.tokenEnv??config.github.tokenEnv),...(session?{session}:{})});}if(port.repository!==config.github.repository)throw new Error('GITHUB_ASSET_REPOSITORY_MISMATCH');artifactPublisher=new ArtifactPublisher(runtime.store,artifacts,port,{links:domain.attachments,allowWrites:upload.allowWrites,authorize:p=>artifactAuthorization(p,true),clock,onChanged:id=>m3.sync.artifactChanged(id)});}
     manager.runtime=runtime;manager.owner=owner;
     const tick=async()=>{
       if(processor)throw new Error('APPLICATION_MANAGED_WORKERS_RUNNING');
