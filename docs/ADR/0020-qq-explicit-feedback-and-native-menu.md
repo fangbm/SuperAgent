@@ -4,7 +4,7 @@
 
 ## 可信意图与事务
 
-QQ Source 只解析已认证、绑定群的 created 消息。开头完整 `/bug`、`/suggest` 大小写不敏感；仅允许 Unicode 空白和现场 `/users/@me` 验证的 Bot 原生 mention。代码块、引用、正文中间、其他人的 mention 和外来元数据都不会触发。群指令菜单填入的文本与手工文本共用解析器，不将菜单元数据当权限。
+QQ Source 只解析已认证、绑定群的 created 消息。开头完整 `/bug`、`/suggest` 大小写不敏感；仅允许 Unicode 空白和现场认证的 Bot 原生 mention。2026-11-05 真实验收确认：全量群消息的 mention 使用群成员 OpenID，群 Source 必须通过绑定群的 `GET /v2/groups/{group_openid}/bot_state` 获取 `member_openid`，不能拿频道 `/users/@me.id` 或 AppID 替代；不从昵称、任意 mentions.bot 或玩家内容推断自身身份。该可选接口明确返回 11253（未获白名单权限）时记录诊断，继续采集并支持不带 @ 的指令，未验证 mention 不获显式资格；其他认证/网络错误仍按原生命周期处理。代码块、引用、正文中间、其他人的 mention 和外来元数据都不会触发。群指令菜单填入的文本与手工文本共用解析器，不将菜单元数据当权限。
 
 Source 在现有允许的 attributes 中保存类型和 UTF-16 正文范围；仍归档完整规范化文本、匿名作者、群/来源、消息身份、附件引用和回复关系。既有 QQ 原生身份匿名化及 CDN Token/签名剥离不变。附件匿名引用改为原消息/序号/文件名/MIME 的稳定身份，避免临时签名轮换改变身份；可信 QQ 重复观察可兼容旧引用及已验证的 Bot 前缀呈现差异，但不覆盖第一份归档，正文/作者/时间/对象/附件类型等冲突仍拒绝。内部 Event ID 仍由 Ingress 分配。
 

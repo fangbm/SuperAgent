@@ -9,9 +9,9 @@ import {fileURLToPath} from 'node:url';
 import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {SqliteStore,bundledMigrations,ensureQQFeatures} from '@superagent/persistence';
-async function source(t,f,config={}){
+async function source(t,f,config={},botState={member_openid:'bot-authenticated'}){
   f.runtime.ingress.configureQQFeedback(scope,{enabled:true,...config});
-  const calls=[];const plugin=new QQSource({kind:'group',sourceUri:binding.sourceUri,feedbackCommands:{enabled:true,...config},now:()=>Date.parse(f.clock()),api:{fetch:async(url,init)=>{calls.push({url:String(url),method:init?.method??'GET'});if(String(url).endsWith('/app/getAppAccessToken'))return Response.json({access_token:'fixture',expires_in:7200});if(String(url).endsWith('/users/@me'))return Response.json({id:'bot-authenticated'});throw new Error('UNEXPECTED_PLATFORM_WRITE');}}});
+  const calls=[];const plugin=new QQSource({kind:'group',sourceUri:binding.sourceUri,feedbackCommands:{enabled:true,...config},now:()=>Date.parse(f.clock()),api:{fetch:async(url,init)=>{calls.push({url:String(url),method:init?.method??'GET'});if(String(url).endsWith('/app/getAppAccessToken'))return Response.json({access_token:'fixture',expires_in:7200});if(String(url).endsWith('/users/@me'))return Response.json({id:'channel-bot-authenticated'});if(String(url).endsWith('/bot_state'))return Response.json(botState,botState.code?{status:403}:undefined);throw new Error('UNEXPECTED_PLATFORM_WRITE');}}});
   const host=f.runtime.ingress.sourceHost(scope,{getSecret:readSecret,secretKeys:plugin.manifest.permissions.secretKeys});await plugin.start(host,new AbortController().signal);t.after(()=>plugin.stop());
   return{calls,plugin,receive:async(id,text,data={},type='GROUP_MESSAGE_CREATE')=>plugin.handleWebhook(...signed(qqEvent(id,{text,type,data}),f.clock))};
 }
@@ -19,6 +19,15 @@ test('QQ explicit parser: exact head, authenticated mention, Unicode whitespace,
   for(const text of ['/bug crash','/BUG\u3000中文\n多行','\u00a0/suggest add reconnect','<@!bot> /bug crash'])assert.ok(parseQQFeedback(text,'bot'));
   for(const text of ['/buggy a','/suggestion a','hello /bug a','```\n/bug a','> /bug quoted','@机器人 /bug a','<@fake> /bug a','<@!fake> /bug a'])assert.equal(parseQQFeedback(text,'bot'),undefined,text);
   assert.equal(parseQQFeedback('/bug').kind,'bug'); // Bare commands are parsed, then safely archived by M1.
+});
+test('native group menu uses authenticated group member OpenID rather than channel identity or names',async t=>{
+  const f=fixture(t),s=await source(t,f);await s.receive('native-menu','<@bot-authenticated> /bug native panel crash');await s.receive('wrong-namespace','<@channel-bot-authenticated> /bug wrong identity');f.runtime.tick();
+  assert.equal(count(f.runtime.store,'qq_explicit_feedback'),1);assert.equal(count(f.runtime.store,'feedback_batches'),1);assert.ok(s.calls.some(c=>new URL(c.url).pathname===`/v2/groups/${qqSecrets.QQ_SCOPE_ID}/bot_state`));
+  assert.ok(!s.calls.some(c=>new URL(c.url).pathname==='/users/@me'));
+});
+test('bot-state permission denied preserves collection and bare commands without trusting arbitrary mentions',async t=>{
+  const f=fixture(t),s=await source(t,f,{}, {code:11253});await s.receive('bare','/bug bare crash');await s.receive('mention','<@unverified-group-bot> /bug unverified');f.runtime.tick();
+  assert.equal(count(f.runtime.store,'source_events'),2);assert.equal(count(f.runtime.store,'qq_explicit_feedback'),1);assert.equal(count(f.runtime.store,'feedback_batches'),1);
 });
 test('signed full/at observations archive once; explicit candidates isolate from ordinary segments and carry exact original evidence',async t=>{
   const f=fixture(t),s=await source(t,f);await s.receive('normal','普通联机问题，连接出现错误');f.runtime.tick();

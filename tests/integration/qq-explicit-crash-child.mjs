@@ -7,7 +7,7 @@ import {binding,scope,defaultPolicy,initial} from './helpers.mjs';
 import {qqEvent,signed,readSecret} from './qq-helpers.mjs';
 const [filename,stage]=process.argv.slice(2),clock=()=>initial;
 const runtime=new M1Runtime(filename,{policy:{...defaultPolicy,auditSampleRate:0},clock});runtime.ingress.registerSource(binding);runtime.ingress.configureQQFeedback(scope,{enabled:true});
-const source=new QQSource({kind:'group',sourceUri:binding.sourceUri,now:()=>Date.parse(clock()),feedbackCommands:{enabled:true},api:{fetch:async url=>String(url).endsWith('/app/getAppAccessToken')?Response.json({access_token:'fixture',expires_in:7200}):Response.json({id:'bot'})}});
+const source=new QQSource({kind:'group',sourceUri:binding.sourceUri,now:()=>Date.parse(clock()),feedbackCommands:{enabled:true},api:{fetch:async url=>String(url).endsWith('/app/getAppAccessToken')?Response.json({access_token:'fixture',expires_in:7200}):Response.json(String(url).endsWith('/bot_state')?{member_openid:'bot'}:{id:'bot'})}});
 await source.start(runtime.ingress.sourceHost(scope,{secretKeys:source.manifest.permissions.secretKeys,getSecret:readSecret}),new AbortController().signal);
 await source.handleWebhook(...signed(qqEvent('crash-command',{text:'/bug Windows 1.2.0 联机载入90%时崩溃',type:'GROUP_MESSAGE_CREATE'}),clock));
 const wait=()=>{process.stdout.write('READY\n');setInterval(()=>{},1000);};

@@ -60,7 +60,18 @@ export class QQSource implements SourcePluginV1 {
     const activeSignal = AbortSignal.any([signal, this.gatewayController.signal]);
     this.active = { host, signal: activeSignal, appId, secret, scopeId, pseudonymKey, binding, api: new QQAPI(key => host.getSecret(key), this.options.api),...(this.options.operator?{operatorOpenid:text(await host.getSecret('QQ_OPERATOR_OPENID'),256)}:{}) };
     try {
-      if(this.options.feedbackCommands?.enabled)this.botId=await this.active.api.identity(activeSignal);
+      if(this.options.feedbackCommands?.enabled){
+        this.botId=undefined;
+        if(this.options.kind==='group'){
+          try{this.botId=await this.active.api.groupBotIdentity(scopeId,activeSignal);}
+          catch(error){
+            // This optional endpoint is allowlisted. Preserve bare commands and
+            // collection without guessing an alias from names or other bots.
+            if(!(error instanceof QQError)||error.code!=='QQ_API_11253')throw error;
+            host.logger.warn('QQ_FEEDBACK_MENTION_IDENTITY_UNAVAILABLE',{code:error.code});
+          }
+        }else this.botId=await this.active.api.identity(activeSignal);
+      }
       const cp = await host.getCheckpoint(); signal.throwIfAborted();
       if (cp !== null && (typeof cp !== 'object' || Array.isArray(cp) || cp.kind !== 'qq-webhook-v1' || cp.binding !== binding)) throw new QQError('QQ_SOURCE_BINDING_CHANGED', 'blocked');
       if (cp === null) await host.commitBatch([], { sourceId: host.sourceId, cursor: { kind: 'qq-webhook-v1', binding, observed: false } });

@@ -112,6 +112,11 @@ export class QQAPI {
     const data = await this.request(new URL('/users/@me', this.base), { headers: { Authorization: `QQBot ${token}` }, ...(signal ? { signal } : {}) }, true);
     return text(data.id);
   }
+  async groupBotIdentity(groupOpenid:string,signal?:AbortSignal):Promise<string>{
+    const token=await this.accessToken(signal);
+    const data=await this.request(new URL(`/v2/groups/${encodeURIComponent(text(groupOpenid,256))}/bot_state`,this.base),{headers:{Authorization:`QQBot ${token}`},...(signal?{signal}:{})},true);
+    return text(data.member_openid,256);
+  }
   async getMenu(signal?:AbortSignal):Promise<QQObject>{
     const token=await this.accessToken(signal);return this.request(new URL('/v2/menu',this.base),{headers:{Authorization:`QQBot ${token}`},...(signal?{signal}:{})},true);
   }
