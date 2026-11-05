@@ -21,6 +21,8 @@
     "demo:m3": "node scripts/m3-demo.mjs",
     "worker:m3": "node scripts/m3-worker.mjs",
     "qq:source": "node scripts/qq-source.mjs",
+    "qq:menu": "node scripts/qq-menu.mjs",
+    "bench:qq-live": "node scripts/benchmark-qq-live.mjs",
     "qq:probe": "node scripts/qq-probe.mjs",
     "qq:send-test": "node scripts/qq-send-test.mjs",
     "test:m6": "pnpm build && node --test tests/fault-injection/*.test.mjs tests/integration/qq-gateway.test.mjs tests/integration/qq-source.test.mjs tests/integration/qq-delivery.test.mjs tests/integration/qq-card-retirement.test.mjs tests/integration/m3-recovery.test.mjs tests/integration/crash-bulk.test.mjs tests/integration/m5-actions.test.mjs",

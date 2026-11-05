@@ -2,13 +2,15 @@ import type { DeliveryPluginHostV1, DeliveryPluginV1, DeliveryRequestV1, Deliver
 import type { P0AlertDeliveryPluginV1, P0AlertDeliveryRequestV1 } from '@superagent/plugin-sdk';
 import { QQAPI, QQError, text } from './protocol.js';
 import type { QQAPIOptions } from './protocol.js';
+import {qqMenuSchema} from './menu.js';
 
 export const deliveryManifest: PluginManifestV1 = {
   apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-c2c-delivery', version: '0.1.0', displayName: 'QQ Official C2C Delivery', kind: 'delivery', engine: { sdk: '^0.1.0' },
   permissions: { networkHosts: ['api.bot.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_RECIPIENT_OPENID'], deliverySend: true },
-  configSchema: { type: 'object', additionalProperties: false, properties: { projectId: { type: 'string' }, recipientRef: { type: 'string' }, format: { enum: ['markdown', 'text'] } }, required: ['projectId', 'recipientRef'] },
+  configSchema: { type: 'object', additionalProperties: false, properties: { operatorMenu:qqMenuSchema, projectId: { type: 'string' }, recipientRef: { type: 'string' }, format: { enum: ['markdown', 'text'] } }, required: ['projectId', 'recipientRef'] },
 };
 export interface QQDeliveryOptions {
+  operatorMenu?:{enabled:boolean;autoDeploy?:false;defaultRecentHours?:number;webURL?:string};
   projectId: string;
   recipientRef: string;
   format?: 'markdown' | 'text';
@@ -53,6 +55,11 @@ export class QQC2CDelivery implements P0AlertDeliveryPluginV1 {
   async recallMessage(messageId:string,host:DeliveryPluginHostV1):Promise<{status:'accepted'|'blocked'|'unknown';errorCode?:string}>{
     try{await this.client(host).recallC2C(await host.getSecret('QQ_RECIPIENT_OPENID'),messageId);return{status:'accepted'};}
     catch(error){return{status:error instanceof QQError&&['blocked','rejected','retryable'].includes(error.outcome)?'blocked':'unknown',errorCode:error instanceof QQError?error.code:'QQ_RECALL_UNKNOWN'};}
+  }
+  /** Host-authorized denial only: fixed public text, passive context, no internal data or active fallback. */
+  async denyMenuAccess(openid:string,reply:{messageId?:string;eventId?:string},host:DeliveryPluginHostV1):Promise<void>{
+    text(openid,256);if(!reply.messageId&&!reply.eventId)throw new QQError('QQ_REPLY_CONTEXT_REQUIRED','blocked');
+    await this.client(host).sendC2C(openid,{msg_type:0,content:'当前账号没有访问权限。',...(reply.messageId?{msg_id:text(reply.messageId,480)}:{event_id:text(reply.eventId,512)}),msg_seq:1});
   }
   async send(request: DeliveryRequestV1, host: DeliveryPluginHostV1): Promise<DeliveryResultV1> {
     if (request.projectId !== this.options.projectId || request.recipientRef !== this.options.recipientRef) return { status: 'blocked', errorCode: 'QQ_RECIPIENT_NOT_AUTHORIZED' };

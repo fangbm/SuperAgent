@@ -13,6 +13,7 @@ const json = (v: unknown) => canonicalJSON(v as JSONValue);
 const digest = (v: string) => createHash('sha256').update(v).digest('hex');
 const title = (v: string) => v.replace(/[\r\n]/g,' ').replace(/[<>\[\]()]/g,'').slice(0,160);
 interface EventRow { event_id: InternalEventId; source_id: string; received_at: string; payload_json: string }
+export interface ReportHistoryKey {windowEnd:string;reportId:string;revision:number}
 export class ReportService {
   constructor(readonly store: SqliteStore, readonly domain: DomainService, readonly queue: DurableJobQueue, private readonly options: { clock?: Clock; recipients?: readonly string[]; graceSeconds?: number } = {}) {}
   private now(): string { return timestamp((this.options.clock ?? systemClock)()); }
@@ -113,6 +114,22 @@ export class ReportService {
     const report=parseContract('report-v2',JSON.parse(row.report_json));if(this.snapshotHash(report)!==row.content_hash)throw new Error('REPORT_SEAL_MISMATCH');this.validateMembers(report);return report;
   }
   list(projectId:string,limit=30):ReportV2[]{return this.store.all<{report_id:string;revision:number}>('SELECT r.report_id,r.revision FROM report_revisions r JOIN report_revision_seals s USING(report_id,revision) WHERE r.project_id=? ORDER BY window_end DESC,r.revision DESC LIMIT ?',projectId,Math.max(1,Math.min(100,limit))).map(r=>this.getExact(projectId,r.report_id,r.revision)!);}
+  /** Internal read API, independent of ReportV2. A seal high-water mark freezes
+   * membership even if new reports/revisions share the same wall-clock time. */
+  historyPage(projectId:string,options:{limit?:number;cutoff?:number;after?:ReportHistoryKey;before?:ReportHistoryKey}={}):{items:ReportHistoryKey[];cutoff:number;hasPrevious:boolean;hasNext:boolean}{
+    const limit=options.limit??3,cursor=options.after??options.before;
+    if(!projectId||!Number.isInteger(limit)||limit<1||limit>50||options.after&&options.before||cursor&&options.cutoff===undefined||options.cutoff!==undefined&&(!Number.isSafeInteger(options.cutoff)||options.cutoff<0))throw new Error('INVALID_REPORT_HISTORY_PAGE');
+    if(cursor&&(typeof cursor.reportId!=='string'||!cursor.reportId||cursor.reportId.length>512||!Number.isSafeInteger(cursor.revision)||cursor.revision<1||typeof cursor.windowEnd!=='string'||!Number.isFinite(Date.parse(cursor.windowEnd))||new Date(cursor.windowEnd).toISOString()!==cursor.windowEnd))throw new Error('INVALID_REPORT_HISTORY_CURSOR');
+    return this.store.transaction(()=>{
+      const cutoff=options.cutoff??this.store.get<{cutoff:number}>('SELECT coalesce(max(s.rowid),0) cutoff FROM report_revisions r JOIN report_revision_seals s USING(report_id,revision) WHERE r.project_id=?',projectId)!.cutoff;
+      const from='FROM report_revisions r JOIN report_revision_seals s USING(report_id,revision) WHERE r.project_id=? AND s.rowid<=?';
+      const direction=options.before?'ASC':'DESC';
+      const rows=this.store.all<ReportHistoryKey>(`SELECT r.window_end windowEnd,r.report_id reportId,r.revision ${from}${cursor?` AND (r.window_end,r.report_id,r.revision)${options.before?'>':'<'}(?,?,?)`:''} ORDER BY r.window_end ${direction},r.report_id ${direction},r.revision ${direction} LIMIT ?`,projectId,cutoff,...(cursor?[cursor.windowEnd,cursor.reportId,cursor.revision]:[]),limit);
+      const items=options.before?rows.reverse():rows;
+      const exists=(key:ReportHistoryKey|undefined,comparison:'<'|'>')=>!!key&&!!this.store.get(`SELECT 1 ${from} AND (r.window_end,r.report_id,r.revision)${comparison}(?,?,?) LIMIT 1`,projectId,cutoff,key.windowEnd,key.reportId,key.revision);
+      return{items,cutoff,hasPrevious:exists(items[0],'>'),hasNext:exists(items.at(-1),'<')};
+    });
+  }
   section(projectId:string,id:string,revision:number,section:ReportSectionV1,offset=0,limit=3):{entries:ReportNavigationEntryV1[];total:number;nextOffset?:number}{
     const report=this.getExact(projectId,id,revision);if(!report)throw new Error('REPORT_NOT_FOUND');if(!['bugs','suggestions','steam_negative_reviews'].includes(section)||!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>50)throw new Error('INVALID_REPORT_PAGE');
     let entries:ReportNavigationEntryV1[];

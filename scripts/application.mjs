@@ -14,6 +14,7 @@ import { parseApplicationConfig } from './application-config.mjs';
 import { ApplicationPlugins } from './application-plugins.mjs';
 import { builtinSources } from './source-registry.mjs';
 import { createDelivery,validateDelivery } from './qq-delivery.mjs';
+import {qqMenuDenial} from './qq-menu-denial.mjs';
 import { secretReader } from './application-plugin-host.mjs';
 import { bounded } from './plugin-validation.mjs';
 import { acquireApplicationOwner } from './application-owner.mjs';
@@ -48,7 +49,7 @@ export async function createApplication(input,options={}) {
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
   let runtime,owner,m5,manager,m3,webServer,processor,closePromise,started=false,ticking=false;
-  const servers=[];
+  const servers=[];let menuDenial=async()=>{};
   const close=()=>closePromise??=(async()=>{
     controller.abort();
     // First stop accepting callbacks, then drain plugins/workers before closing their shared store.
@@ -87,7 +88,7 @@ export async function createApplication(input,options={}) {
     const delivery=config.deliveries.find(e=>e.enabled);
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
     manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,
-      ...(delivery?{operator:{receive:request=>m5.qq.receive(request)}}:{})});
+      ...(delivery?{operator:{receive:request=>m5.qq.receive(request),reject:request=>menuDenial(request)}}:{})});
     const discordTokens=new Set();
     for(const entry of config.sources.filter(e=>e.enabled&&e.plugin==='discord')){
       let token;try{token=await secretReader(entry,env)(entry.config.tokenSecret??'DISCORD_BOT_TOKEN');}catch{continue;}
@@ -111,9 +112,10 @@ export async function createApplication(input,options={}) {
     let deliveryState={state:'disabled'};
     m5=await createM5({database:config.database,project:config.projectId,'qq-configured':!!delivery,'qq-write':delivery?.allowWrites===true,
       'qq-readonly':!config.github.allowWrites,'github-write':config.github.allowWrites},signal,
-      {runtime,memory,domain,clock,access,repository:config.github.repository??'',github,tickIngress:false,scheduleReports:config.reports.enabled,
+      {runtime,memory,domain,clock,access,repository:config.github.repository??'',github,tickIngress:false,scheduleReports:config.reports.enabled,operatorMenu:delivery?.config.operatorMenu,
         ...(delivery?{readSecret:secretReader(delivery,env),deliveryFactory:callbacks=>validateDelivery((options.deliveryFactory??createDelivery)({...delivery.config,...callbacks}),delivery),
           deliveryHostFactory:(plugin,read)=>deliveryHost(plugin,read)}:{})});
+    if(delivery&&m5.delivery)menuDenial=qqMenuDenial({runtime,plugin:m5.delivery.plugin,host:m5.qqHost,enabled:delivery.config.operatorMenu?.enabled===true,allowWrites:delivery.allowWrites,clock});
     const p0=config.notifications.p0Enabled?createP0Services(runtime,{projectId:config.projectId,domain,model:m3.model,delivery:m5.p0Delivery,clock,timeoutMs:config.notifications.evaluationTimeoutMs??10000}):null;
     m5.control.p0Enabled=!!p0;
     m5.control.embeddingStatus=()=>({...embeddingState});

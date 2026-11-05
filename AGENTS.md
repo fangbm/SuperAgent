@@ -15,4 +15,6 @@
 - 默认 auditSampleRate=0.02；少量普通消息会成为 audit_sample，在启用 M3 后仍可能调用模型。不能承诺所有无关消息零模型调用。统一正式入口目前使用 FTS5/BM25；SA_EMBED_* 的自动装配仅在调试 worker:m3 中实现。
 - 修改后运行适合变更范围的检查；完整入口为 `pnpm check`。验证后创建仅包含本次改动的本地 Git 提交，保留无关改动。
 - 验收说明应区分类型检查、内存 SQLite、模拟测试、真实平台联调和实际送达。
+
+- QQ 显式反馈与常驻菜单扩展默认关闭；只通过可信 QQ Source/Ingress 认领立即单候选批次，复用 M3。全局菜单只由受控工具在具体计划获批后更新，应用启动不得调用 PUT；真实平台验收以 docs/QQ-FEEDBACK-MENU.md 为准。
 - Discord 模块化系列从 main d9937a9 开始，Source/Ticket/Voice 为三个叠加 Draft PR，均不自动合并。Source 仅在配置父频道发现公共 Thread；私人工单通过同库 Host 原子归档到独立 staff-only Project，不进入公开 M3/报告；Voice 仅使用占用元数据，不录音、不提交反馈。所有新模块和写入默认关闭，同 Bot 凭据不建立重复 Gateway。迁移使用同库命名特性账本，未改既有主迁移或 M0。当前只做受控 Gateway/REST、真实本机 SQLite 和进程崩溃测试；真实 Discord 权限与副作用尚未验收，见 docs/DISCORD-MODULAR-INTEGRATION.md。

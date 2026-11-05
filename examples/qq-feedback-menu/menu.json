@@ -1,0 +1,15 @@
+{
+  "menu": {
+    "items": [
+      {"name":"待办","type":"send_message","send_message":"/pending"},
+      {"name":"新增","type":"send_message","send_message":"/recent"},
+      {"name":"报告","type":"send_message","send_message":"/reports"},
+      {"name":"更多","type":"menu","sub_menu_items":[
+        {"name":"全部 Bug","type":"send_message","send_message":"/all-bugs"},
+        {"name":"全部建议","type":"send_message","send_message":"/all-suggestions"},
+        {"name":"Steam差评","type":"send_message","send_message":"/steam-negative"},
+        {"name":"Web工作台","type":"send_message","send_message":"/web"}
+      ]}
+    ]
+  }
+}

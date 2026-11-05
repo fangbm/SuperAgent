@@ -107,10 +107,21 @@ export class QQAPI {
     })();
     try { return await this.pending; } finally { this.pending = undefined; }
   }
-  async identity(signal?: AbortSignal): Promise<void> {
+  async identity(signal?: AbortSignal): Promise<string> {
     const token = await this.accessToken(signal);
     const data = await this.request(new URL('/users/@me', this.base), { headers: { Authorization: `QQBot ${token}` }, ...(signal ? { signal } : {}) }, true);
-    text(data.id);
+    return text(data.id);
+  }
+  async groupBotIdentity(groupOpenid:string,signal?:AbortSignal):Promise<string>{
+    const token=await this.accessToken(signal);
+    const data=await this.request(new URL(`/v2/groups/${encodeURIComponent(text(groupOpenid,256))}/bot_state`,this.base),{headers:{Authorization:`QQBot ${token}`},...(signal?{signal}:{})},true);
+    return text(data.member_openid,256);
+  }
+  async getMenu(signal?:AbortSignal):Promise<QQObject>{
+    const token=await this.accessToken(signal);return this.request(new URL('/v2/menu',this.base),{headers:{Authorization:`QQBot ${token}`},...(signal?{signal}:{})},true);
+  }
+  async putMenu(menu:unknown,signal?:AbortSignal):Promise<QQObject>{
+    const token=await this.accessToken(signal);return this.request(new URL('/v2/menu',this.base),{method:'PUT',headers:{Authorization:`QQBot ${token}`,'Content-Type':'application/json'},body:JSON.stringify({menu}),...(signal?{signal}:{})},false);
   }
   async gateway(signal?: AbortSignal): Promise<string> {
     const token = await this.accessToken(signal);

@@ -70,7 +70,7 @@ test('channel reclamation pages a full history and unknown delete never issues a
 });
 test('namespaced Discord migration coexists with a later global migration without rewriting either ledger',async t=>{
   const f=ticketFixture(t);await f.handle(interaction());const before=f.runtime.store.all('SELECT * FROM schema_migrations ORDER BY name');f.runtime.close();
-  const store=new SqliteStore(f.filename,{migrations:[...bundledMigrations(),{name:'013_future_parallel.sql',sql:'CREATE TABLE future_parallel_feature(id TEXT PRIMARY KEY);'}]});
+  const store=new SqliteStore(f.filename,{migrations:[...bundledMigrations(),{name:'014_future_parallel.sql',sql:'CREATE TABLE future_parallel_feature(id TEXT PRIMARY KEY);'}]});
   try{assert.deepEqual(store.all('SELECT * FROM schema_migrations ORDER BY name').slice(0,before.length),before);assert.equal(store.get('SELECT count(*) n FROM discord_feature_migrations').n,1);assert.equal(store.get("SELECT count(*) n FROM discord_module_state WHERE state_key LIKE 'ticket:%'").n,1);}finally{store.close();}
 });
 test('actual process death inside/after the archive transaction recovers without relying on Gateway replay',async t=>{

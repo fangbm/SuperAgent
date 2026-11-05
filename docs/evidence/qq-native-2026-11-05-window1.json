@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-1793852714865",
+  "closedAt": "2026-11-05T05:07:23.392Z",
+  "phase": "first-approved-window",
+  "menu": {
+    "putSucceeded": true,
+    "version": 1,
+    "clientConfirmed": true,
+    "retained": true
+  },
+  "group": {
+    "archived": 3,
+    "nativeTypes": [
+      "GROUP_MESSAGE_CREATE"
+    ],
+    "nativeMentionReceived": true,
+    "groupIdentityMatchesVerified": true,
+    "fixLiveRetestCaptured": false,
+    "replyReferenceVerified": false,
+    "imageMetadataArchived": true,
+    "explicitRows": 0
+  },
+  "private": {
+    "attempts": 6,
+    "accepted": 6,
+    "unknown": false,
+    "immediateMessageReplies": 5,
+    "immediateEventReplies": 1,
+    "clientConfirmed": true,
+    "delayedValidCommandCaptured": false,
+    "delayInvalidCommand": {
+      "received": "/resent",
+      "delayMs": 310000,
+      "result": "ignored-without-send"
+    },
+    "remainingAttemptBudget": 6
+  },
+  "pipeline": {
+    "admission": [
+      {
+        "rationale_code": "ATTACHMENT_REQUIRES_REVIEW",
+        "n": 1
+      },
+      {
+        "rationale_code": "FEEDBACK_SIGNAL",
+        "n": 2
+      }
+    ],
+    "batches": [
+      {
+        "reason": "quiet_timeout",
+        "n": 3
+      }
+    ],
+    "jobs": [
+      {
+        "kind": "feedback.admit",
+        "status": "completed",
+        "n": 3
+      },
+      {
+        "kind": "feedback.batch.triage",
+        "status": "pending",
+        "n": 3
+      }
+    ],
+    "modelCalls": 0,
+    "externalOperations": [
+      {
+        "kind": "qq.c2c.send",
+        "state": "succeeded",
+        "n": 6
+      }
+    ],
+    "pendingInbox": 0
+  },
+  "integrity": {
+    "quickCheck": [
+      {
+        "quick_check": "ok"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "limits": {
+    "noGroupMessagesSent": true,
+    "githubWrites": 0,
+    "modelsDisabled": true,
+    "historyAndEditCoverage": "partial"
+  },
+  "checks": {
+    "command": "pnpm check",
+    "nodeTests": 420,
+    "referenceSuites": 6,
+    "result": "passed"
+  },
+  "commits": [
+    "95a4f2997eec3fe618168b07b07416a09fe05b1e",
+    "bd7b2c21f8e5c013917cadcb3f6ae30da2f4c0d5"
+  ],
+  "acceptance": "incomplete: fixed native commands/reference and valid delayed passive reply require a new coordinated window"
+}

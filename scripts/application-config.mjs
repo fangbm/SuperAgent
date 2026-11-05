@@ -73,6 +73,11 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
       if(!text(platform.sourceUri)||!URL.canParse(platform.sourceUri)||uris.has(platform.sourceUri))throw new Error('INVALID_SOURCE_URI');
       uris.add(platform.sourceUri);
     }else if(platform.projectId!==c.projectId||platform.recipientRef!=='qq-developer')throw new Error('DELIVERY_BINDING_MISMATCH');
+    if(!source&&platform.operatorMenu!==undefined){
+      const menu=platform.operatorMenu;
+      if(!exact(menu,['enabled','autoDeploy','defaultRecentHours','webURL'])||typeof menu.enabled!=='boolean'||menu.autoDeploy!==undefined&&menu.autoDeploy!==false||menu.defaultRecentHours!==undefined&&!integer(menu.defaultRecentHours,1,168)||menu.webURL!==undefined&&!text(menu.webURL))throw new Error('QQ_MENU_CONFIG_INVALID');
+      if(menu.webURL){const url=new URL(menu.webURL);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('QQ_MENU_INVALID_WEB_URL');}
+    }
     entry.config=platform;
   }
   // Existing M5 supports one approved developer C2C binding per application project.
