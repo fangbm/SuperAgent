@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseContract } from '@superagent/contract-validation';
-import { SqliteStore, canonicalJSON, systemClock, timestamp, addMilliseconds, stableId } from '@superagent/persistence';
+import { SqliteStore, canonicalJSON, systemClock, timestamp, addMilliseconds, stableId, isRestrictedProject } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
 import { DurableJobQueue } from '@superagent/job-queue';
 import type { AdmissionDecisionV1, AdmissionKindV1, BatchingPolicyV1, BatchFlushReasonV1, FeedbackBatchV1, FeedbackBufferV1, InternalEventId, JSONValue, NormalizedEventV1 } from '@superagent/contracts';
@@ -87,6 +87,11 @@ export class PersistentFeedbackBuffer implements FeedbackBufferV1 {
       }
       const stored = this.store.get<EventRow>('SELECT * FROM source_events WHERE event_id=?', eventId);
       if (!stored) throw new Error('EVENT_NOT_FOUND');
+      if(isRestrictedProject(this.store,stored.project_id)){
+        if(forced)throw new Error('PRIVATE_PROJECT_PROCESSING_NOT_AUTHORIZED');
+        const now=timestamp(this.clock());this.store.run('INSERT INTO admission_decisions VALUES(?,?,?,?,?)',eventId,policy.policyVersion,'archive_only','STAFF_ONLY_PROJECT',now);
+        return {schemaVersion:'1.0',eventId,policyVersion:policy.policyVersion,decision:'archive_only',rationaleCode:'STAFF_ONLY_PROJECT',decidedAt:now};
+      }
       const event = JSON.parse(stored.payload_json) as NormalizedEventV1;
       const now = timestamp(this.clock());
       const explicit=this.store.get<{intent_json:string;config_json:string}>('SELECT intent_json,config_json FROM qq_explicit_feedback WHERE event_id=?',eventId);

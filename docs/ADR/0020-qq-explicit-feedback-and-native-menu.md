@@ -36,6 +36,8 @@ M3 复用原 Worker/模型预算/提取/匹配/Domain/Evidence 校验，使用�
 
 ## 菜单运维与迁移
 
+2026-11-05 与主线 P0/Embedding/Discord 集成：队列 claim 保留主线第五个 minimumPriority 参数，QQ 公平开关独立放在第六个参数。紧急候选 >=100 优先于公平配额，不改变普通配额；普通 Worker 保留 3:1，urgentOnly 仍只领取 >=100，使用同一队列/并发/租约。M5 的 qqHost 与 p0Delivery 同时保留并共用已授权绑定，不更改冻结 Host API。组合验证见 [主线集成记录](../QQ-MAIN-INTEGRATION-2026-11-05.md)。
+
 应用启动不调用菜单 API。独立工具 GET 30 QPM；PUT 本地限制最多 4 QPM、至少 15 秒。计划含旧版本/完整配置、新配置、Diff、十分钟有效期及审批哈希；只有对应审批才能 PUT。写前记录旧快照及 in_flight，成功/未知/拒绝持久化。相同计划不会重复 PUT，未知仅 GET 核对；恢复旧菜单也要新计划和审批。官方无条件 PUT，GET 到 PUT 间的外部修改竞态无法消除，需要维护窗口与人工核对。
 
 同一主 SQLite 增加 `qq_feature_migrations` 独立哈希账本和版本 SQL，不占用并行 #10 的主 Migration 013，也不改历史迁移或 M0 冻结文件。仅增加内部索引/状态，旧配置可直接启动；禁用后已归档指令及工作项保留。账本不匹配拒绝启动，不静默重写。

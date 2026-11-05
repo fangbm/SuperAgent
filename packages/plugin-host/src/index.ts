@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+export { DiscordModuleHost, installDiscordState, discordPacketKey } from './discord-state.js';
 import type { DeliveryPluginHostV1, DeliveryPluginV1, DeliveryRequestV1, DeliveryResultV1, PluginLogger } from '@superagent/plugin-sdk';
 import type { JSONValue } from '@superagent/contracts';
 import { parseContract } from '@superagent/contract-validation';

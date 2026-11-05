@@ -108,8 +108,8 @@ test('QQ native message index unifies transport IDs but separates reused message
 });
 test('durable weighted priority gives ordinary analysis a slot after three explicit jobs, including after reopen',t=>{
   const f=fixture(t),q=f.runtime.queue;for(let n=0;n<5;n++)q.create(binding.projectId,'feedback.batch.triage',{batchId:String(n)},`high-${n}`,50);q.create(binding.projectId,'feedback.batch.triage',{batchId:'ordinary'},'ordinary',0);
-  for(let n=0;n<3;n++){const j=q.claim('worker','full_agent',30000,undefined,true);assert.notEqual(j.payload.batchId,'ordinary');q.complete(j.jobId,j.leaseToken);}
-  const reopened=f.open(),next=reopened.queue.claim('worker','full_agent',30000,undefined,true);assert.equal(next.payload.batchId,'ordinary');
+  for(let n=0;n<3;n++){const j=q.claim('worker','full_agent',30000,undefined,undefined,true);assert.notEqual(j.payload.batchId,'ordinary');q.complete(j.jobId,j.leaseToken);}
+  const reopened=f.open(),next=reopened.queue.claim('worker','full_agent',30000,undefined,undefined,true);assert.equal(next.payload.batchId,'ordinary');
 });
 test('actual SIGKILL preserves explicit archive and reclaims admission/batch/queued/running states exactly once',async t=>{
   for(const stage of ['archive','admission','batch','queued','worker'])await t.test(stage,async t=>{
@@ -142,6 +142,6 @@ test('bug command may become only a suggestion and fabricated evidence cannot cr
 });
 test('QQ feature migrations are idempotent and coexist with a later main migration without rewriting either ledger',t=>{
   const f=fixture(t),prefix=f.runtime.store.all('SELECT * FROM schema_migrations ORDER BY name');
-  const store=new SqliteStore(f.filename,{migrations:[...bundledMigrations(),{name:'013_parallel_feature.sql',sql:'CREATE TABLE parallel_013_fixture(id TEXT PRIMARY KEY);'}]});
-  try{ensureQQFeatures(store);ensureQQFeatures(store);assert.deepEqual(store.all('SELECT * FROM schema_migrations ORDER BY name').slice(0,prefix.length),prefix);assert.equal(store.get('SELECT count(*) n FROM qq_feature_migrations').n,2);assert.ok(store.get("SELECT 1 FROM sqlite_master WHERE name='parallel_013_fixture'"));}finally{store.close();}
+  const store=new SqliteStore(f.filename,{migrations:[...bundledMigrations(),{name:'014_parallel_feature.sql',sql:'CREATE TABLE parallel_014_fixture(id TEXT PRIMARY KEY);'}]});
+  try{ensureQQFeatures(store);ensureQQFeatures(store);assert.deepEqual(store.all('SELECT * FROM schema_migrations ORDER BY name').slice(0,prefix.length),prefix);assert.equal(store.get('SELECT count(*) n FROM qq_feature_migrations').n,2);assert.ok(store.get("SELECT 1 FROM sqlite_master WHERE name='parallel_014_fixture'"));}finally{store.close();}
 });

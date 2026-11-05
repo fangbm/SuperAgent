@@ -6,10 +6,12 @@ import {appFixture,eventually} from './application-helpers.mjs';
 import {modelServer} from './m3-helpers.mjs';
 import {qqSecrets,qqEvent,signed} from './qq-helpers.mjs';
 test('unified QQ signed HTTP ingress → isolated M1 → real HTTP model → Domain → passive C2C live menu, no group/menu writes',async t=>{
-  for(const withDelivery of [false,true])await t.test(withDelivery?'Source and Delivery':'Source only',async t=>{
+  for(const mode of ['source','delivery','p0'])await t.test(mode==='p0'?'Source, menu and P0 share the authorized Delivery Host':mode==='delivery'?'Source and Delivery':'Source only',async t=>{
+    const withDelivery=mode!=='source';
     const f=appFixture(t),clock=()=> '2026-11-02T00:00:00.000Z',server=await modelServer({after:f.after}),calls=[];
     for(const entry of f.config.sources)entry.enabled=false;const entry=f.config.sources.find(e=>e.plugin==='qq-official');entry.enabled=true;entry.port=0;entry.config={...entry.config,transport:'webhook',feedbackCommands:{enabled:true}};
     const delivery=f.config.deliveries[0];delivery.enabled=withDelivery;delivery.allowWrites=withDelivery;delivery.config.operatorMenu={enabled:true,autoDeploy:false};
+    f.config.notifications.p0Enabled=mode==='p0';
     f.config.analysis={enabled:true,allowExternalCalls:true,baseURL:server.baseURL,model:'fixture-model',allowLoopbackHTTP:true};f.config.runtime.probeIntervalMs=50;f.config.runtime.stopTimeoutMs=2000;
     const secrets={...qqSecrets,QQ_OPERATOR_OPENID:qqSecrets.QQ_RECIPIENT_OPENID},env={};for(const p of [entry,...(withDelivery?[delivery]:[])])for(const [key,name]of Object.entries(p.secrets))if(withDelivery||key!=='QQ_OPERATOR_OPENID')env[name]=secrets[key];
     const api=async(url,init)=>{const path=new URL(url).pathname;if(path==='/app/getAppAccessToken')return Response.json({access_token:'fixture',expires_in:7200});if(path==='/users/@me')return Response.json({id:'fixture-bot'});if(path.endsWith('/bot_state'))return Response.json({member_openid:'fixture-bot'});calls.push({path,method:init?.method??'GET',body:init?.body?JSON.parse(init.body):null});assert.ok(!path.includes('/groups/')&&!path.includes('/menu'));return Response.json({id:`message-${calls.length}`});};
@@ -19,6 +21,11 @@ test('unified QQ signed HTTP ingress → isolated M1 → real HTTP model → Dom
     const command=qqEvent('explicit',{text:'/bug Windows 1.2.0 联机载入90%时崩溃',type:'GROUP_MESSAGE_CREATE'});await receive(command);await receive({...command,t:'GROUP_AT_MESSAGE_CREATE'});await app.tick();
     assert.equal(app.runtime.store.get('SELECT count(*) n FROM feedback_batches').n,1);assert.equal(app.runtime.store.get('SELECT count(*) n FROM issues').n,1);assert.equal(server.requests.length,1);assert.equal(app.runtime.store.get("SELECT count(*) n FROM conversation_segments WHERE state='open'").n,1);assert.equal(calls.length,0);
     if(withDelivery){await receive({op:0,t:'C2C_MESSAGE_CREATE',d:{id:'native-menu-message',content:'/pending',author:{user_openid:qqSecrets.QQ_RECIPIENT_OPENID}}});await app.tick();assert.equal(calls.length,1);assert.equal(calls[0].body.msg_id,'native-menu-message');assert.match(calls[0].body.markdown.content,/实时待办/);assert.ok(calls[0].body.keyboard);assert.equal(app.runtime.store.get('SELECT count(*) n FROM operator_inbox').n,1);}
+    if(mode==='p0'){
+      assert.equal(app.status().p0,'enabled');assert.ok(app.p0);assert.equal(app.m5.p0Delivery.host,app.m5.qqHost);assert.equal(app.m5.p0Delivery.plugin,app.m5.delivery.plugin);
+      await receive({op:0,t:'C2C_MESSAGE_CREATE',d:{id:'unbound-menu-message',content:'/pending',author:{user_openid:'not-the-developer'}}});
+      assert.equal(calls.length,2);assert.equal(calls[1].body.content,'当前账号没有访问权限。');assert.equal(app.runtime.store.get('SELECT count(*) n FROM operator_inbox').n,1);
+    }
     assert.equal(app.signal.aborted,false);
   });
 });

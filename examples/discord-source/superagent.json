@@ -1,0 +1,15 @@
+{
+  "schemaVersion":1,
+  "database":"../../.artifacts/discord-source/state.sqlite",
+  "projectId":"discord-public",
+  "sources":[{
+    "id":"discord-public","plugin":"discord","enabled":false,
+    "config":{"sourceUri":"urn:superagent:source:discord-public","guildId":"100","channelIds":["200"],"discoverThreads":true,"threadPagesPerSync":2,"historyPagesPerSync":2,"historyRequestBudget":20},
+    "permissions":{"networkHosts":["discord.com","gateway.discord.gg","*.discord.gg"],"secretKeys":["DISCORD_BOT_TOKEN"]},
+    "secrets":{"DISCORD_BOT_TOKEN":"SA_DISCORD_BOT_TOKEN"}
+  }],
+  "deliveries":[],
+  "analysis":{"enabled":false,"allowExternalCalls":false},
+  "github":{"enabled":false,"allowWrites":false},
+  "reports":{"enabled":false},"web":{"enabled":false},"notifications":{"p0Enabled":false}
+}

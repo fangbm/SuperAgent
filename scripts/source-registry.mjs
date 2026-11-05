@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DiscordConnector } from '@superagent/connector-discord';
+import { DiscordPlatform } from '@superagent/connector-discord';
 import { SteamReviewsConnector, SteamReviewCommentsConnector } from '@superagent/connector-steam-reviews';
 import { SteamDiscussionsConnector } from '@superagent/connector-steam-discussions';
 import { QQSource } from '@superagent/qq-official';
@@ -27,7 +27,8 @@ export const builtinSources=createSourceRegistry({
     normalize:(config,{entry})=>{if(config.feedbackCommands!==undefined)qqFeedbackConfig(config.feedbackCommands);if((config.transport??'webhook')==='webhook'&&entry.enabled&&entry.port===undefined)throw new Error('QQ_WEBHOOK_PORT_REQUIRED');return config;},
     stability:(config,health)=>({confirmed:config.transport==='websocket'&&/^QQ_GATEWAY_(?:CONNECTED|HEARTBEAT_ACK)/.test(health.reason??''),interrupted:health.coverage==='unavailable',maxGapMs:300000}),
   },
-  discord:{factory:c=>new DiscordConnector(c),id:'superagent.discord',platform:'discord',mode:'blocking',
+  discord:{factory:c=>new DiscordPlatform(c),id:'superagent.discord',platform:'discord',mode:'blocking',
+    initialize:({entry,plugin,context})=>context.discord?.bind(entry,plugin),
     stability:(_config,health)=>({confirmed:/^DISCORD_GATEWAY_(?:CONNECTED|HEARTBEAT_ACK)$/.test(health.reason??''),interrupted:health.coverage==='unavailable'||/^(?:Gateway (?:disconnected|session lost)|DISCORD_POLL_INTERRUPTED)/.test(health.reason??''),maxGapMs:300000})},
   'steam-reviews':{factory:c=>new SteamReviewsConnector(c),id:'superagent.steam-reviews',platform:'steam-reviews',mode:'blocking',
     stability:(config,health)=>({confirmed:health.coverage==='partial'&&/^Review scan (?:completed|incomplete)/.test(health.reason??''),interrupted:health.coverage==='unavailable'||/^STEAM_REVIEWS_POLL_INTERRUPTED/.test(health.reason??''),maxGapMs:Math.max(60000,3*(config.pollIntervalMs??60000))})},

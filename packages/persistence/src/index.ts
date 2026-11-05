@@ -36,6 +36,10 @@ export function canonicalJSON(value: JSONValue): string {
 }
 
 export interface Migration { name: string; sql: string }
+/** Trusted project quarantine; absence preserves existing public behavior. */
+export function isRestrictedProject(store:SqliteStore,projectId:string):boolean{
+  return Boolean(store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='restricted_projects'")&&store.get('SELECT 1 FROM restricted_projects WHERE project_id=?',projectId));
+}
 export function bundledMigrations(): Migration[] {
   const directory = fileURLToPath(new URL('../migrations/', import.meta.url));
   return readdirSync(directory).filter(name => /^\d{3}_.+\.sql$/.test(name)).sort()

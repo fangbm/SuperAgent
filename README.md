@@ -1,8 +1,12 @@
 # SuperAgent
 
+Discord 的公开采集、私人工单与临时语音房已按三个 Draft PR 模块化集成，复用统一入口和共享 Gateway；所有新增模块与写入默认关闭。配置、命令、隔离、迁移及尚待真实平台验收的边界见 [Discord 模块化说明](docs/DISCORD-MODULAR-INTEGRATION.md)。
+
 跨平台游戏社区反馈系统。已实现 **M0 契约、M1 持久化、M3 分析/GitHub 主链路和 M5 报告/Web/操作入口**，基于用户提供的 v0.9 设计包。QQ 官方 Source/开发者 C2C Delivery 与 M5 按钮/原文查询的真实验收边界见下文。M4 包含 Discord、Steam Reviews、评价评论和可选的公开 Discussions 采集；平台原文先通过主程序 Host 留档，再由既有管道处理，真实覆盖边界见下文。
 
 代码由用户授权托管到 GitHub 私有仓库 [fangbm/SuperAgent](https://github.com/fangbm/SuperAgent)，远端为 `origin`，所有 workspace 包均为 `private`。没有发布包或部署服务；后续托管继续保持私有。各里程碑验收记录中的“本地维护”描述保留当时的验收状态。
+
+当前功能、配置默认值、合并状态和验证范围统一见 [项目状态](docs/PROJECT-STATUS.md)。原始设计包与历史验收记录按各自日期阅读，不能代替当前运行说明。
 
 ## 本地验证
 
@@ -32,7 +36,7 @@ pnpm start --config config/superagent.json
 
 统一入口负责 M1、M3、M5、Web、Source 与 Delivery 的组装和生命周期；无需另开 Worker。配置内启用的 QQ、Discord、Steam Reviews、Steam review comments 和 Steam Discussions 自动加载、探测、运行和停止。默认关闭所有平台实例、模型调用、GitHub 与 QQ 写入；启用模型必须同时显式授权外部调用。仅设置环境变量不会启用服务。Steam 专用示例为 `examples/steam-public/superagent.json`，运行及 partial 覆盖说明见 [Steam 运行说明](docs/STEAM-PUBLIC-FEEDBACK.md)。
 
-连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。P0 即时调度未交付，不能启用。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
+连接文件位于 `config/plugins/`，凭据仅引用环境变量或现有 DPAPI 文件。既有 M0 默认策略与 45 个冻结文件保持原样。本分支新增默认关闭的 [P0 即时告警与 Embedding](docs/P0-AND-EMBEDDING.md)，均需显式授权。完整配置、运行顺序和证据边界见 [统一主程序](docs/UNIFIED-APPLICATION.md) 与 [验收](docs/UNIFIED-APPLICATION-ACCEPTANCE.md)。下方分里程碑命令保留为开发和调试工具，不是整套系统运行的必要步骤。
 
 ## 工程结构
 
@@ -53,8 +57,8 @@ pnpm start --config config/superagent.json
 | `packages/issue-tracker` | 私有 GitHub 校验、外部操作记录、对账及机器人统计评论 |
 | `packages/connectors/qq-official` | 官方 WebSocket/签名回调 Source 与独立开发者私聊 Delivery |
 | `packages/connectors/discord` | 指定频道/线程 Gateway 采集与有限历史恢复 |
-| `packages/connectors/steam-reviews` | 评价分页、差评修订与更新回扫 |
-| `packages/connectors/steam-discussions` | 默认 unavailable 与显式本地快照降级 |
+| `packages/connectors/steam-reviews` | 负评/全评价分页与修订、独立评价评论 Source |
+| `packages/connectors/steam-discussions` | 默认 unavailable，可选 public 远端页面或 snapshot 本地文件 |
 | `packages/plugin-host` | 批准收件人、私聊持久操作与 unknown 屏障 |
 | `packages/reporting` | 固定窗口、封存修订、Steam 成员与补报调度 |
 | `packages/control-plane` | 项目/角色权限、QQ 查询、状态操作、关联纠错与审计 |
@@ -75,7 +79,7 @@ pnpm worker:m1 --database .artifacts/local.sqlite
 
 demo 使用新建数据库和合成消息，演示提交、幂等重放、关闭/重新打开，以及注入时钟推进后的 batch 恢复；不会访问平台。worker 只处理已有的 outbox/admission 和超时分段；无消息来源时保持空闲，Ctrl+C 关闭连接。示例数据库放在 Git 忽略的 `.artifacts` 中。
 
-Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务，由显式配置的 `worker:m3` 消费。
+Source 接入由可信 Host 先 `registerSource`，再取得绑定项目/来源的 `sourceHost` 交给插件。平台 SDK 不获得数据库或队列访问权。`worker:m1` 只生成 `feedback.batch.triage` 任务；正式入口在启用模型后由受管理的 M3 消费，独立调试才使用 `worker:m3`。
 
 Node 24 的 SQLite 内置模块仍会显示实验性 API 提示；当前运行和测试固定在 Node 24 系列。生产迁移前须备份数据库；参考设计时代的非托管数据库不会被自动接管。见 [M1 设计](docs/M1-PERSISTENCE.md) 和 [M1 验收](docs/M1-ACCEPTANCE.md)。
 
@@ -130,13 +134,13 @@ demo 使用独立数据库和合成数据，终端输出本机地址与演示访
 
 M5 基础范围已完成验收：QQ 导航按轮次完成有限真实验收，GitHub 与 QQ 状态按钮完成真实关闭/重新打开与读回，Web 在 Markdown 修复后获得用户人工确认。后续支持成功后回发同一状态卡，并在平台两分钟窗口内撤回旧交互消息；半日报始终保留。状态卡刷新和两次撤回已获客户端确认，扩展到其他交互的覆盖范围见验收记录。测试监听不是常驻服务，自动浏览器视觉与其他未覆盖项仍单列。
 
-M5 不安装模型 worker；pending 任务仍须由配置后的 M3 消费。P0 即时通知调度尚未实现；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
+独立 `start:m5` 不安装模型 worker；正式统一入口可同时运行已配置的 M3、M5、P0 与 Embedding。P0 只对证据确认的严重 Bug 告警，仍计入半日报；发送结果 `unknown` 保持未知，不能作为普通重试依据。详情见 [API 契约](docs/API-CONTRACTS.md)、[架构边界](docs/ARCHITECTURE.md)、[插件开发](docs/PLUGIN-DEVELOPMENT.md) 和 [M0 验收记录](docs/M0-ACCEPTANCE.md)。
 
 2026-11-03 的 [QQ 主链路实测](docs/QQ-MAINFLOW-ACCEPTANCE.md) 已覆盖真实用户群普通消息、120 秒自动合批和真实模型，以及验收群三条明确反馈与 60 秒静默合批。修订独立反馈证据及建议匹配字段说明后，保存的真实 QQ 样例已通过真实模型复测：Bug 独立反馈数 2、建议有效反馈数 1，建议关联原条目，无重复或误触发人工复核。旧复核副本保留，真实群与验收群配置分开保存，临时监听均已关闭。
 
 ## M6 故障与安全检查
 
-运行 `pnpm test:m6` 可构建并执行 73 项故障专项；M6 新增 17 项测试，完整入口 `pnpm check` 在后续 QQ 主链路修订后总计 219 项。已修复网关积压无上限、投递绑定复核、GitHub 恢复范围隔离和密钥轮换后的 Web 会话撤销。生产及开发依赖在本次审计中均无已知漏洞。
+2026-11-04 的 main 基线验证：完整 `pnpm check` 为 355 项 Node 测试与 6 组参考验证，`pnpm test:m6` 为 76 项专项测试，均通过。数字随代码变动，当前汇总见 [项目状态](docs/PROJECT-STATUS.md)。M6 最初新增 17 项测试的历史结果保留在原验收记录中。已修复网关积压无上限、投递绑定复核、GitHub 恢复范围隔离和密钥轮换后的 Web 会话撤销；历史依赖审计结论不代表持续有效的漏洞状态。
 
 本地验收覆盖重连、限流、超时、重复事件、权限丢失与实际进程终止恢复；不代表在真实平台完成故障注入或长期压测。范围、复现命令和证据见 [M6 验收](docs/M6-ACCEPTANCE.md)。
 

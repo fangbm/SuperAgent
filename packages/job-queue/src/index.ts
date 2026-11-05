@@ -64,27 +64,30 @@ export class DurableJobQueue {
       available_at=?,lease_owner=NULL,lease_token=NULL,lease_until=NULL
       WHERE status IN ('leased','running') AND lease_until<=?`, now, now).changes);
   }
-  claim(worker: string, lane: QueueLane, leaseMs = 30_000, kinds?: readonly AgentTaskV1['kind'][],fairPriority=false): JobView | undefined {
+  claim(worker: string, lane: QueueLane, leaseMs = 30_000, kinds?: readonly AgentTaskV1['kind'][], minimumPriority?: number,fairPriority=false): JobView | undefined {
     if (!worker || !Number.isInteger(leaseMs) || leaseMs < 1) throw new Error('INVALID_LEASE');
     const now = timestamp(this.clock());
     if (kinds?.length === 0) return undefined;
-    const filter = kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : '';
+    if(minimumPriority!==undefined&&!Number.isSafeInteger(minimumPriority))throw new Error('INVALID_PRIORITY_FILTER');
+    if(typeof fairPriority!=='boolean')throw new Error('INVALID_FAIR_PRIORITY');
+    const filter = (kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : '')+(minimumPriority!==undefined?' AND priority>=?':'');
     if(fairPriority)ensureQQFeatures(this.store);
     return this.store.transaction(() => {
       this.recoverExpired(now);
       const active = this.store.get<{ n: number }>("SELECT count(*) n FROM jobs WHERE lane=? AND status IN ('leased','running') AND lease_until>?", lane, now)!.n;
       if (active >= (this.concurrency[lane] ?? 1)) return undefined;
       const candidates = ['pending', 'retry_wait'].flatMap(status => {
-        const row = this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status=? AND available_at<=?${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`, lane, status, now, ...(kinds ?? []));
+        const row = this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status=? AND available_at<=?${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`, lane, status, now, ...(kinds ?? []),...(minimumPriority!==undefined?[minimumPriority]:[]));
         return row ? [row] : [];
       }).sort((a, b) => b.priority - a.priority || a.created_at.localeCompare(b.created_at) || a.queue_sequence - b.queue_sequence);
       let candidate = candidates[0];
-      if(fairPriority&&(this.store.get<{burst:number}>('SELECT burst FROM queue_fairness WHERE lane=?',lane)?.burst??0)>=3){
-        const ordinary=this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status IN ('pending','retry_wait') AND available_at<=? AND priority<50${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`,lane,now,...(kinds??[]));
+      // Urgent candidates never yield to the QQ/ordinary fairness quota.
+      if(fairPriority&&candidate&&candidate.priority<100&&(this.store.get<{burst:number}>('SELECT burst FROM queue_fairness WHERE lane=?',lane)?.burst??0)>=3){
+        const ordinary=this.store.get<JobRow>(`SELECT *,rowid AS queue_sequence FROM jobs WHERE lane=? AND status IN ('pending','retry_wait') AND available_at<=? AND priority<50${filter} ORDER BY priority DESC,created_at,rowid LIMIT 1`,lane,now,...(kinds??[]),...(minimumPriority!==undefined?[minimumPriority]:[]));
         if(ordinary)candidate=ordinary;
       }
       if (!candidate) return undefined;
-      if(fairPriority)this.store.run('INSERT INTO queue_fairness VALUES(?,?) ON CONFLICT(lane) DO UPDATE SET burst=excluded.burst',lane,candidate.priority>=50?Math.min(3,1+(this.store.get<{burst:number}>('SELECT burst FROM queue_fairness WHERE lane=?',lane)?.burst??0)):0);
+      if(fairPriority&&candidate.priority<100)this.store.run('INSERT INTO queue_fairness VALUES(?,?) ON CONFLICT(lane) DO UPDATE SET burst=excluded.burst',lane,candidate.priority>=50?Math.min(3,1+(this.store.get<{burst:number}>('SELECT burst FROM queue_fairness WHERE lane=?',lane)?.burst??0)):0);
       this.store.run("UPDATE jobs SET status='leased',attempt=attempt+1,lease_owner=?,lease_token=?,lease_until=? WHERE job_id=?", worker, randomUUID(), addMilliseconds(now, leaseMs), candidate.job_id);
       return this.get(candidate.job_id);
     });

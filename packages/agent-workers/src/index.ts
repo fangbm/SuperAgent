@@ -25,7 +25,7 @@ function matchSchema(kind:FeedbackItemV2['kind'],candidate:WorkSnapshot,ids:stri
 export class AnalysisWorker {
   private readonly clock:Clock;
   constructor(readonly store:SqliteStore,readonly queue:DurableJobQueue,readonly domain:DomainService,readonly memory:HybridMemory,readonly model:StructuredModel,
-    private readonly options:{clock?:Clock;pipelineVersion?:string;timeoutMs?:number;leaseMs?:number;maxCalls?:number;maxItems?:number;maxInputCharacters?:number}={}){
+    private readonly options:{clock?:Clock;pipelineVersion?:string;timeoutMs?:number;leaseMs?:number;maxCalls?:number;maxItems?:number;maxInputCharacters?:number;urgentOnly?:boolean}={}){
     this.clock=options.clock??systemClock;
     if((options.timeoutMs??30_000)<1||(options.leaseMs??60_000)<(options.timeoutMs??30_000)+1_000)throw new Error('MODEL_TIMEOUT_MUST_FIT_LEASE');
   }
@@ -40,7 +40,7 @@ export class AnalysisWorker {
     if(signal.aborted)return {processed:false};
     this.store.run("UPDATE agent_runs SET status='failed',ended_at=?,error_code='WORKER_LEASE_EXPIRED' WHERE status='running' AND EXISTS(SELECT 1 FROM jobs j WHERE j.job_id=agent_runs.job_id AND (j.attempt<>agent_runs.attempt OR j.status NOT IN ('leased','running') OR j.lease_until<=?))",this.now(),this.now());
     this.store.run("UPDATE model_calls SET status='interrupted',ended_at=?,error_code='WORKER_LEASE_EXPIRED' WHERE status='running' AND EXISTS(SELECT 1 FROM agent_runs r WHERE r.run_id=model_calls.run_id AND r.error_code='WORKER_LEASE_EXPIRED')",this.now());
-    const job=this.queue.claim('m3-analysis','full_agent',this.options.leaseMs??60_000,['feedback.batch.triage','feedback.extract.v2'],true);if(!job)return {processed:false};
+    const job=this.queue.claim(this.options.urgentOnly?'m3-urgent-analysis':'m3-analysis','full_agent',this.options.leaseMs??60_000,['feedback.batch.triage','feedback.extract.v2'],this.options.urgentOnly?100:undefined,!this.options.urgentOnly);if(!job)return {processed:false};
     this.queue.start(job.jobId,job.leaseToken!);
     let runId:string|undefined;
     try{
