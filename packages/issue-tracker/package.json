@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "migrations"
   ],
   "exports": {
     ".": {
@@ -16,6 +17,7 @@
     "@superagent/contracts": "workspace:*",
     "@superagent/persistence": "workspace:*",
     "@superagent/domain": "workspace:*",
-    "@superagent/reporting": "workspace:*"
+    "@superagent/reporting": "workspace:*",
+    "@superagent/plugin-host": "workspace:*"
   }
 }

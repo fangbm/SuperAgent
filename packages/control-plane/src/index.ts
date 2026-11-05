@@ -15,7 +15,19 @@ export type { QQOperatorRequest, QQReplyOptions, QQButton } from './qq.js';
 const json=(v:unknown)=>canonicalJSON(v as JSONValue);
 export interface StatusCommand {kind:WorkKind;id:string;action:string;expectedVersion:number;rationale?:string}
 export interface CorrectionCommand {kind:WorkKind;id:string;action:'move'|'split'|'merge';expectedVersion:number;feedbackItemId?:string;targetId?:string;targetVersion?:number;reason:string}
+export interface AttachmentReview {eventId:string;assetRef:string;feedbackItemId:string|null;expectedVersion:number;reason:string}
 export class ControlPlane {
+  attachments(principal:Principal,projectId:string,cursor?:string){
+    this.auth.authorize(principal,projectId);if(cursor&&cursor.length>2048)throw new ControlError('ATTACHMENT_CURSOR_INVALID');
+    const page=this.domain.attachments.list(projectId,30,cursor),hasFiles=!!this.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifacts'"),hasPublications=!!this.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifact_publications'");
+    return{...page,items:page.items.map(row=>{const file=hasFiles?this.store.get<{artifact_id:string;mime_type:string;size:number|null;state:string}>('SELECT artifact_id,mime_type,size,state FROM artifacts WHERE project_id=? AND source_event_id=? AND asset_ref=?',projectId,row.event_id,row.asset_ref)??null:null;return{...row,file,publications:file&&hasPublications?this.store.all('SELECT repository,state,error_code FROM artifact_publications WHERE project_id=? AND artifact_id=?',projectId,file.artifact_id):[]};})};
+  }
+  private validateAttachmentReview(request:AttachmentReview){if(!request||Object.keys(request).some(k=>!['eventId','assetRef','feedbackItemId','expectedVersion','reason'].includes(k))||typeof request.eventId!=='string'||request.eventId.length>512||!request.eventId||typeof request.assetRef!=='string'||request.assetRef.length>512||!request.assetRef||request.feedbackItemId!==null&&(typeof request.feedbackItemId!=='string'||!request.feedbackItemId||request.feedbackItemId.length>512)||!Number.isSafeInteger(request.expectedVersion)||request.expectedVersion<1||typeof request.reason!=='string'||!request.reason.trim()||request.reason.length>2000)throw new ControlError('ATTACHMENT_REVIEW_INVALID');}
+  attachmentToken(principal:Principal,projectId:string,request:AttachmentReview){this.auth.authorize(principal,projectId,true);this.validateAttachmentReview(request);return this.tokens.issue(principal,projectId,'attachment_review',request as unknown as JSONValue);}
+  reviewAttachment(principal:Principal,projectId:string,request:AttachmentReview,token:string){
+    this.auth.authorize(principal,projectId,true);this.validateAttachmentReview(request);
+    return this.store.transaction(()=>{if(json(this.tokens.read(principal,projectId,'attachment_review',token,true))!==json(request))throw new ControlError('TOKEN_ACTION_MISMATCH',403);try{this.domain.attachments.review(projectId,request.eventId,request.assetRef,request.feedbackItemId,request.expectedVersion,request.reason,principal.actorRef,()=>this.auth.authorize(principal,projectId,true));}catch(e){throw new ControlError(e instanceof Error&&/^[A-Z_]+$/.test(e.message)?e.message:'ATTACHMENT_REVIEW_FAILED',e instanceof Error&&e.message==='ATTACHMENT_LINK_VERSION_CONFLICT'?409:400);}return{state:'succeeded'};});
+  }
   artifactReader?: (projectId:string,id:string,authorize:()=>void)=>{bytes:Uint8Array;mimeType:string;sha256:string};
   artifact(principal:Principal,projectId:string,id:string){
     this.auth.authorize(principal,projectId);if(!this.artifactReader)throw new ControlError('ARTIFACT_NOT_FOUND',404);

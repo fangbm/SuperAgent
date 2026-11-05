@@ -21,7 +21,7 @@
           "perProjectRateLimit": 60,
           "maxModelCallsPerWindow": 120
         },
-        "captureAttachments": false
+        "captureAttachments": true
       },
       "permissions": {
         "networkHosts": [
@@ -95,13 +95,14 @@
     "p0Enabled": false
   },
   "artifacts": {
-    "enabled": false,
+    "enabled": true,
     "root": "../../.artifacts/qq-artifacts/files",
     "keyEnv": "SA_ARTIFACT_KEY",
     "maxBytes": 5242880,
     "maxFilesPerMessage": 5,
     "maxTotalBytes": 104857600,
     "ticketTtlMs": 120000,
-    "timeoutMs": 10000
+    "timeoutMs": 10000,
+    "dnsMode": "aliyun-doh"
   }
 }

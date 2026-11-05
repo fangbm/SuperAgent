@@ -253,6 +253,9 @@ importers:
       '@superagent/persistence':
         specifier: workspace:*
         version: link:../persistence
+      '@superagent/plugin-host':
+        specifier: workspace:*
+        version: link:../plugin-host
       '@superagent/reporting':
         specifier: workspace:*
         version: link:../reporting

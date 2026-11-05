@@ -1,0 +1,4 @@
+CREATE TABLE github_report_revisions(work_kind TEXT NOT NULL,work_id TEXT NOT NULL,repository TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0,synced_revision INTEGER NOT NULL DEFAULT 0,synced_hash TEXT,PRIMARY KEY(work_kind,work_id,repository));
+CREATE TABLE github_report_operations(operation_id TEXT PRIMARY KEY REFERENCES external_operations(operation_id),report_hash TEXT NOT NULL,revision INTEGER NOT NULL);
+CREATE TABLE artifact_publications(artifact_id TEXT NOT NULL,project_id TEXT NOT NULL,repository TEXT NOT NULL,repository_id TEXT,state TEXT NOT NULL,attempt INTEGER NOT NULL DEFAULT 0,verify_attempt INTEGER NOT NULL DEFAULT 0,attempt_at TEXT,asset_url TEXT,sha256 TEXT NOT NULL,error_code TEXT,lease_token TEXT,lease_until TEXT,next_attempt_at TEXT NOT NULL,PRIMARY KEY(artifact_id,repository));
+CREATE INDEX artifact_publication_pending ON artifact_publications(repository,state,next_attempt_at);

@@ -22,10 +22,24 @@ export function publicArtifactAddress(address:string):boolean{
   if(isIP(address)===4){const [a,b,c]=address.split('.').map(Number);return !(a===0||a===10||a===127||a===169&&b===254||a===172&&b!>=16&&b!<=31||a===192&&(b===168||b===0||b===2)||a===100&&b!>=64&&b!<=127||a===198&&(b===18||b===19||b===51&&c===100)||a===203&&b===0&&c===113||a!>=224);}
   return isIP(address)===6&&/^[23][0-9a-f]{3}:/i.test(address)&&!/^2001:(?:db8|0):/i.test(address);
 }
+async function dohAddresses(hostname:string,signal:AbortSignal,fetcher:typeof fetch):Promise<{address:string;family:number}[]>{
+  const endpoint=new URL('https://dns.alidns.com/resolve');endpoint.searchParams.set('name',hostname);endpoint.searchParams.set('type','A');
+  let response:Response;try{response=await fetcher(endpoint,{headers:{Accept:'application/dns-json'},redirect:'error',signal});}catch{throw new ArtifactError('ARTIFACT_DNS_UNAVAILABLE',true);}
+  if(!response.ok||!response.body){await response.body?.cancel();throw new ArtifactError('ARTIFACT_DNS_UNAVAILABLE',response.status===429||response.status>=500);}
+  const reader=response.body.getReader(),parts:Uint8Array[]=[];let size=0;
+  try{
+    for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>16384)throw new ArtifactError('ARTIFACT_DNS_RESPONSE_LIMIT');parts.push(part.value);}
+    const result=JSON.parse(Buffer.concat(parts).toString('utf8')) as {Status?:unknown;Answer?:{type?:unknown;data?:unknown}[]};
+    if(result.Status!==0||!Array.isArray(result.Answer)||result.Answer.length>64)throw new ArtifactError('ARTIFACT_DNS_RESPONSE_INVALID');
+    const answers=result.Answer.filter(a=>a.type===1);if(!answers.length||answers.some(a=>typeof a.data!=='string'||isIP(a.data)!==4))throw new ArtifactError('ARTIFACT_DNS_RESPONSE_INVALID');
+    return answers.map(a=>({address:a.data as string,family:4}));
+  }catch(error){if(error instanceof ArtifactError)throw error;throw new ArtifactError('ARTIFACT_DNS_RESPONSE_INVALID');}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
+}
 /** Resolve once, reject private/reserved addresses, then pin that address to TLS. No redirects or credentials. */
-export async function downloadArtifact(url:URL,maxBytes:number,signal:AbortSignal,transport:{resolve?:(host:string)=>Promise<{address:string;family:number}[]>;request?:typeof httpsRequest}={}):Promise<Buffer>{
+export async function downloadArtifact(url:URL,maxBytes:number,signal:AbortSignal,transport:{resolve?:(host:string)=>Promise<{address:string;family:number}[]>;request?:typeof httpsRequest;dnsMode?:'system'|'aliyun-doh';fetch?:typeof fetch}={}):Promise<Buffer>{
   validateArtifactURL(url.href);
-  const addresses=await Promise.race([(transport.resolve??(host=>lookup(host,{all:true})))(url.hostname),new Promise<never>((_,reject)=>{if(signal.aborted)reject(new ArtifactError('ARTIFACT_ABORTED',true));else signal.addEventListener('abort',()=>reject(new ArtifactError('ARTIFACT_ABORTED',true)),{once:true});})]);
+  let removeAbort=()=>{};let addresses:{address:string;family:number}[];
+  try{addresses=await Promise.race([(transport.resolve??(host=>transport.dnsMode==='aliyun-doh'?dohAddresses(host,signal,transport.fetch??fetch):lookup(host,{all:true})))(url.hostname),new Promise<never>((_,reject)=>{const abort=()=>reject(new ArtifactError('ARTIFACT_ABORTED',true));removeAbort=()=>signal.removeEventListener('abort',abort);if(signal.aborted)abort();else signal.addEventListener('abort',abort,{once:true});})]);}finally{removeAbort();}
   signal.throwIfAborted();if(!addresses.length||addresses.some(a=>!publicArtifactAddress(a.address)))throw new ArtifactError('ARTIFACT_ADDRESS_NOT_PUBLIC');
   const address=addresses[0]!;
   return new Promise((resolve,reject)=>{
@@ -42,6 +56,9 @@ export function artifactType(bytes:Buffer,declared:string,filename:string):strin
   if(bytes.length>=24&&bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))&&bytes.subarray(12,16).toString()==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(20)>0)type='image/png';
   else if(bytes.length>=4&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255&&bytes.at(-2)===255&&bytes.at(-1)===217)type='image/jpeg';
   else if(bytes.length>=20&&bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP'&&['VP8 ','VP8L','VP8X'].includes(bytes.subarray(12,16).toString())&&bytes.readUInt32LE(4)===bytes.length-8)type='image/webp';
+  else if(/\.pdf$/i.test(filename)&&/^%PDF-\d\.\d/.test(bytes.subarray(0,8).toString())&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF')))type='application/pdf';
+  else if(/\.zip$/i.test(filename)&&bytes.length>=22&&[0x04034b50,0x06054b50].includes(bytes.readUInt32LE(0))&&bytes.subarray(Math.max(0,bytes.length-65557)).includes(Buffer.from('504b0506','hex')))type='application/zip';
+  else if(/\.dmp$/i.test(filename)&&bytes.length>=32&&bytes.subarray(0,4).toString()==='MDMP')type='application/octet-stream';
   else if(/\.(?:txt|log|json)$/i.test(filename)){
     let text:string;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new ArtifactError('ARTIFACT_TYPE_REJECTED');}
     if(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)||/^\s*<(?:!doctype|html|script|svg)/i.test(text))throw new ArtifactError('ARTIFACT_TYPE_REJECTED');type='text/plain';
@@ -53,7 +70,7 @@ const view=(r:Row):StoredArtifact=>({artifactId:r.artifact_id,projectId:r.projec
 /** Private Host capability, outside frozen Source/Delivery APIs. Raw signed URLs are encrypted tickets only. */
 export class ArtifactStore {
   private readonly root:string;private readonly key:Buffer;
-  constructor(readonly store:SqliteStore,private readonly options:{root:string;key:Buffer;clock?:()=>string;assertOwner?:()=>void;maxBytes?:number;maxFilesPerMessage?:number;maxTotalBytes?:number;ticketTtlMs?:number;timeoutMs?:number;download?:(url:URL,maxBytes:number,signal:AbortSignal)=>Promise<Buffer>}){
+  constructor(readonly store:SqliteStore,private readonly options:{root:string;key:Buffer;clock?:()=>string;assertOwner?:()=>void;maxBytes?:number;maxFilesPerMessage?:number;maxTotalBytes?:number;ticketTtlMs?:number;timeoutMs?:number;dnsMode?:'system'|'aliyun-doh';download?:(url:URL,maxBytes:number,signal:AbortSignal)=>Promise<Buffer>;onChanged?:(eventId:string)=>void}){
     if(options.key.length!==32)throw new Error('ARTIFACT_KEY_REQUIRED');this.key=Buffer.from(options.key);mkdirSync(options.root,{recursive:true,mode:0o700});this.root=realpathSync(options.root);
     const sql=readFileSync(new URL('../migrations/artifacts-v1.sql',import.meta.url),'utf8'),hash=digest(sql);
     store.transaction(()=>{
@@ -81,18 +98,18 @@ export class ArtifactStore {
     const event=this.store.get<{event_id:string;payload_json:string}>('SELECT event_id,payload_json FROM source_events WHERE project_id=? AND source_id=? AND source_uri=? AND external_event_id=?',row.project_id,row.source_id,row.source_uri,row.external_event_id);if(!event)return false;
     const value=JSON.parse(event.payload_json) as NormalizedEventV1;
     if(value.type!=='com.superagent.feedback.message.created.v1'||!value.data.content?.attachments?.some(a=>a.assetRef===row.asset_ref))throw new ArtifactError('ARTIFACT_SOURCE_MISMATCH');
-    row.source_event_id=event.event_id;this.store.run('UPDATE artifacts SET source_event_id=? WHERE artifact_id=?',event.event_id,row.artifact_id);return true;
+    const changed=row.source_event_id!==event.event_id;row.source_event_id=event.event_id;this.store.run('UPDATE artifacts SET source_event_id=? WHERE artifact_id=?',event.event_id,row.artifact_id);if(changed)this.options.onChanged?.(event.event_id);return true;
   }
   private visible(row:Row):boolean{return !!row.source_event_id&&!!this.store.get('SELECT 1 FROM source_objects WHERE event_id=? AND deleted=0',row.source_event_id);}
   private saved(row:Row):Buffer{if(!row.storage_key||!row.sha256)throw new Error('ARTIFACT_NOT_STORED');const bytes=this.open(readFileSync(this.file(row.storage_key)),`content:${row.artifact_id}`);if(digest(bytes)!==row.sha256||bytes.length!==row.size)throw new Error('ARTIFACT_INTEGRITY');return bytes;}
-  private finish(id:string,state:string,code:string|null=null,token?:string){this.store.run('UPDATE artifacts SET state=?,error_code=?,ticket_cipher=NULL,lease_token=NULL,lease_until=NULL,captured_at=CASE WHEN ?=\'stored\' THEN ? ELSE captured_at END WHERE artifact_id=?'+(token?' AND lease_token=?':''),state,code,state,this.now(),id,...(token?[token]:[]));}
+  private finish(id:string,state:string,code:string|null=null,token?:string){const result=this.store.run('UPDATE artifacts SET state=?,error_code=?,ticket_cipher=NULL,lease_token=NULL,lease_until=NULL,captured_at=CASE WHEN ?=\'stored\' THEN ? ELSE captured_at END WHERE artifact_id=?'+(token?' AND lease_token=?':''),state,code,state,this.now(),id,...(token?[token]:[]));if(result.changes){const row=this.store.get<{source_event_id:string|null}>('SELECT source_event_id FROM artifacts WHERE artifact_id=?',id);if(row?.source_event_id)this.options.onChanged?.(row.source_event_id);}}
   async tick(signal:AbortSignal):Promise<{processed:boolean;state?:string}>{
     this.options.assertOwner?.();signal.throwIfAborted();
     const bindings=this.store.all<Row>(`SELECT a.* FROM artifacts a JOIN source_events e ON e.project_id=a.project_id AND e.source_id=a.source_id AND e.source_uri=a.source_uri AND e.external_event_id=a.external_event_id WHERE a.source_event_id IS NULL AND coalesce(a.error_code,'')<>'ARTIFACT_SOURCE_MISMATCH' LIMIT 100`);
     for(const row of bindings)try{this.bind(row);}catch{this.finish(row.artifact_id,'rejected','ARTIFACT_SOURCE_MISMATCH');}
     const expired=this.store.all<Row>("SELECT * FROM artifacts WHERE state='capturing' AND lease_until<=?",this.now());
     for(const row of expired){try{if(row.storage_key){this.saved(row);this.finish(row.artifact_id,'stored');continue;}}catch{/* An incomplete file never becomes stored. */}this.store.run("UPDATE artifacts SET state='pending',lease_token=NULL,lease_until=NULL WHERE artifact_id=?",row.artifact_id);}
-    this.store.run("UPDATE artifacts SET state='unavailable',error_code='ARTIFACT_URL_EXPIRED',ticket_cipher=NULL WHERE state='pending' AND ticket_expires_at<=?",this.now());
+    for(const row of this.store.all<Row>("SELECT * FROM artifacts WHERE state='pending' AND ticket_expires_at<=? LIMIT 100",this.now()))this.finish(row.artifact_id,'unavailable','ARTIFACT_URL_EXPIRED');
     const row=this.store.get<Row>("SELECT * FROM artifacts WHERE state='pending' AND source_event_id IS NOT NULL AND next_attempt_at<=? ORDER BY created_at,artifact_id LIMIT 1",this.now());if(!row)return{processed:false};
     if(row.attempt>=3){this.finish(row.artifact_id,'unavailable','ARTIFACT_RETRY_BUDGET');return{processed:true,state:'unavailable'};}
     try{if(!this.bind(row))return{processed:false};if(!this.visible(row)){this.finish(row.artifact_id,'unavailable','ARTIFACT_SOURCE_NOT_VISIBLE');return{processed:true,state:'unavailable'};}}catch(e){this.finish(row.artifact_id,'rejected',e instanceof ArtifactError?e.code:'ARTIFACT_SOURCE_INVALID');return{processed:true,state:'rejected'};}
@@ -102,7 +119,7 @@ export class ArtifactStore {
       const ticket=JSON.parse(this.open(Buffer.from(row.ticket_cipher!,'base64'),`ticket:${row.artifact_id}`).toString()) as {url:string;filename:string};
       const deadline=AbortSignal.any([signal,AbortSignal.timeout(timeout)]);
       let remove=()=>{};const aborted=new Promise<never>((_,reject)=>{const abort=()=>reject(new ArtifactError('ARTIFACT_ABORTED',true));remove=()=>deadline.removeEventListener('abort',abort);if(deadline.aborted)abort();else deadline.addEventListener('abort',abort,{once:true});});
-      let bytes:Buffer;try{bytes=await Promise.race([Promise.resolve().then(()=>(this.options.download??downloadArtifact)(validateArtifactURL(ticket.url),this.options.maxBytes??5*1024*1024,deadline)),aborted]);}finally{remove();}
+      let bytes:Buffer;try{bytes=await Promise.race([Promise.resolve().then(()=>(this.options.download??((url,max,stop)=>downloadArtifact(url,max,stop,{dnsMode:this.options.dnsMode??'system'})))(validateArtifactURL(ticket.url),this.options.maxBytes??5*1024*1024,deadline)),aborted]);}finally{remove();}
       signal.throwIfAborted();this.options.assertOwner?.();if(bytes.length>(this.options.maxBytes??5*1024*1024))throw new ArtifactError('ARTIFACT_TOO_LARGE');const mime=artifactType(bytes,row.mime_type,ticket.filename);
       if(!this.store.get('SELECT 1 FROM artifacts WHERE artifact_id=? AND lease_token=? AND lease_until>?',row.artifact_id,token,this.now()))throw new ArtifactError('ARTIFACT_LEASE_LOST');if(!this.visible(row))throw new ArtifactError('ARTIFACT_SOURCE_NOT_VISIBLE');
       const used=this.store.get<{n:number}>('SELECT coalesce(sum(size),0) n FROM artifacts WHERE project_id=? AND state IN (\'stored\',\'capturing\')',row.project_id)!.n;if(used+bytes.length>(this.options.maxTotalBytes??100*1024*1024))throw new ArtifactError('ARTIFACT_STORAGE_LIMIT');
