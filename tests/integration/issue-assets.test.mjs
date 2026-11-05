@@ -68,6 +68,15 @@ test('disabled publisher sends nothing and shutdown bounds a provider that ignor
  const f=await setup(t);await f.artifacts.tick(signal());const disabled=new ArtifactPublisher(f.runtime.store,f.artifacts,f.assetsPort,{...f.publisherOptions,allowWrites:false});await disabled.tick(signal());assert.equal(f.assetsPort.uploads,0);
  f.assetsPort.inspect=()=>new Promise(()=>{});const controller=new AbortController(),pending=f.publisher.tick(controller.signal);setTimeout(()=>controller.abort(),10);await pending;assert.equal(f.assetsPort.uploads,0);
 });
+
+test('private native assets follow the observed GitHub S3 redirect without forwarding credentials or persisting signed URLs',async()=>{
+ const hash=createHash('sha256').update(png).digest('hex'),cdn='https://github-production-user-asset-6210df.s3.amazonaws.com/owner/image.png?X-Amz-Signature=fixture';
+ const calls=[];const port=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture',fetch:async(input,init)=>{const u=new URL(input);calls.push({u,init});if(u.hostname==='github.com')return init.headers.Authorization?new Response(null,{status:302,headers:{Location:cdn}}):new Response(null,{status:404});assert.equal(u.href,cdn);assert.equal(init.headers.Authorization,undefined);return new Response(png);}});
+ assert.equal(await port.verify(url,hash,png.length,signal()),true);assert.equal(calls.length,3);assert.equal(issueAssetURL(url),url);
+ for(const location of ['https://attacker.s3.amazonaws.com/file','https://github-production-user-asset-6210df.s3.amazonaws.com.evil.test/file','http://github-production-user-asset-6210df.s3.amazonaws.com/file']){
+  const bad=new GitHubIssueAssets({repository:'owner/private-test',token:'fixture',fetch:async()=>new Response(null,{status:302,headers:{Location:location}})});await assert.rejects(bad.verify(url,hash,png.length,signal()),/REDIRECT_INVALID/);
+ }
+});
 test('unified entry assembles capture, report builder and native publication only with separate explicit write flags',async t=>{
  const f=appFixture(t);for(const s of f.config.sources)s.enabled=false;for(const d of f.config.deliveries)d.enabled=false;f.config.analysis={enabled:false,allowExternalCalls:false};f.config.artifacts={enabled:true,root:path.join(f.directory,'files'),keyEnv:'TEST_KEY'};f.config.github={enabled:true,allowWrites:true,repository:'owner/private-test',tokenEnv:'TEST_GH',attachmentUploads:{enabled:true,allowWrites:true}};
  const port=new FixtureGitHub(),assets=new Assets(),app=await createApplication(f.config,{access:f.access,env:{TEST_KEY:key.toString('hex'),TEST_GH:'fixture'},github:port,assetPort:assets,artifactDownload:async()=>png});f.after(()=>app.close());assert.ok(app.artifacts);assert.ok(app.artifactPublisher);await app.tick();assert.equal(assets.uploads,0);assert.equal(port.posts,0);

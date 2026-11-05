@@ -21,7 +21,7 @@
           "perProjectRateLimit": 60,
           "maxModelCallsPerWindow": 120
         },
-        "captureAttachments": false
+        "captureAttachments": true
       },
       "permissions": {
         "networkHosts": [
@@ -85,12 +85,7 @@
     "enabled": false,
     "allowWrites": false,
     "repository": "owner/private-repo",
-    "tokenEnv": "SA_GITHUB_TOKEN",
-    "attachmentUploads": {
-      "enabled": false,
-      "allowWrites": false,
-      "tokenEnv": "SA_GITHUB_ASSET_TOKEN"
-    }
+    "tokenEnv": "SA_GITHUB_TOKEN"
   },
   "reports": {
     "enabled": false
@@ -102,7 +97,7 @@
     "p0Enabled": false
   },
   "artifacts": {
-    "enabled": false,
+    "enabled": true,
     "root": "../../.artifacts/qq-artifacts/files",
     "keyEnv": "SA_ARTIFACT_KEY",
     "maxBytes": 5242880,

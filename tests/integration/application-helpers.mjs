@@ -23,6 +23,8 @@ export function appFixture(t) {
   });
   const config=loadApplicationConfig(fileURLToPath(new URL('../../config/superagent.json',import.meta.url)));
   config.database=path.join(directory,'state.sqlite');config.reports.enabled=false;
+  // Existing lifecycle fixtures opt out of attachment IO; dedicated artifact tests exercise its defaults.
+  config.artifacts={enabled:false};for(const entry of config.sources)if(entry.plugin==='qq-official')entry.config.captureAttachments=false;
   config.runtime={pollMs:10,probeIntervalMs:10,healthGraceMs:10,maxRestarts:1,backoffMs:5,maxBackoffMs:20,stopTimeoutMs:100};
   return {directory,config,policy:{...defaultPolicy,auditSampleRate:0,maxCandidateMessages:1},access,after};
 }

@@ -20,7 +20,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   c.github ??= { enabled:false, allowWrites:false };
   c.reports ??= { enabled:true }; c.web ??= { enabled:false };
   c.notifications ??= { p0Enabled:false };
-  c.artifacts??={enabled:false};
+  c.artifacts??={enabled:true,root:path.join(path.dirname(c.database),'artifacts'),keyEnv:'SA_ARTIFACT_KEY'};
   if(!exact(c.artifacts,['enabled','root','keyEnv','maxBytes','maxFilesPerMessage','maxTotalBytes','ticketTtlMs','timeoutMs'])||typeof c.artifacts.enabled!=='boolean'||c.artifacts.enabled&&(!text(c.artifacts.root)||!text(c.artifacts.keyEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.artifacts.keyEnv)))throw new Error('INVALID_ARTIFACT_CONFIG');
   for(const [key,min,max] of [['maxBytes',1,10485760],['maxFilesPerMessage',1,20],['maxTotalBytes',1,1073741824],['ticketTtlMs',1000,300000],['timeoutMs',100,30000]])if(c.artifacts[key]!==undefined&&!integer(c.artifacts[key],min,max))throw new Error('INVALID_ARTIFACT_CONFIG');
   if(c.artifacts.root)c.artifacts.root=path.resolve(directory,c.artifacts.root);
@@ -54,7 +54,8 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
     if(c.analysis[key]!==undefined&&!integer(c.analysis[key],a,b))throw new Error('INVALID_ANALYSIS_PARAMETERS');
   }
   const ids = new Set(), uris = new Set();
-  if(c.github.attachmentUploads!==undefined){const upload=c.github.attachmentUploads;if(!exact(upload,['enabled','allowWrites','tokenEnv'])||typeof upload.enabled!=='boolean'||typeof upload.allowWrites!=='boolean'||upload.allowWrites&&(!upload.enabled||!c.github.allowWrites)||upload.enabled&&(!c.github.enabled||!c.artifacts.enabled)||upload.tokenEnv!==undefined&&(!text(upload.tokenEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(upload.tokenEnv)))throw new Error('INVALID_GITHUB_ATTACHMENT_CONFIG');}
+  c.github.attachmentUploads??={enabled:c.github.enabled&&c.artifacts.enabled,allowWrites:c.github.enabled&&c.github.allowWrites&&c.artifacts.enabled};
+  {const upload=c.github.attachmentUploads;if(!exact(upload,['enabled','allowWrites','tokenEnv'])||typeof upload.enabled!=='boolean'||typeof upload.allowWrites!=='boolean'||upload.allowWrites&&(!upload.enabled||!c.github.allowWrites)||upload.enabled&&(!c.github.enabled||!c.artifacts.enabled)||upload.tokenEnv!==undefined&&(!text(upload.tokenEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(upload.tokenEnv)))throw new Error('INVALID_GITHUB_ATTACHMENT_CONFIG');}
   for (const entry of [...c.sources,...c.deliveries]) {
     const source = c.sources.includes(entry);
     if (!exact(entry,['id','plugin','enabled','config','permissions','secrets','protectedConfig','port','allowWrites'])
@@ -73,6 +74,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
     let platform=configFile?readJSON(configFile):entry.config;
     if(!object(platform))throw new Error('INVALID_PLATFORM_CONFIG');
     if(source){
+      if(entry.plugin==='qq-official'&&platform.captureAttachments===undefined)platform={...platform,captureAttachments:c.artifacts.enabled};
       const definition=registry.get(entry.plugin);
       if(definition.normalize)platform=definition.normalize(platform,{entry,directory:configFile?path.dirname(configFile):directory});
       if(!text(platform.sourceUri)||!URL.canParse(platform.sourceUri)||uris.has(platform.sourceUri))throw new Error('INVALID_SOURCE_URI');
@@ -84,7 +86,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
       if(menu.webURL){const url=new URL(menu.webURL);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('QQ_MENU_INVALID_WEB_URL');}
     }
     entry.config=platform;
-    if(source&&platform.captureAttachments===true&&!c.artifacts.enabled)throw new Error('ARTIFACT_STORE_REQUIRED');
+    if(source&&entry.enabled&&platform.captureAttachments===true&&!c.artifacts.enabled)throw new Error('ARTIFACT_STORE_REQUIRED');
   }
   // Existing M5 supports one approved developer C2C binding per application project.
   if(c.deliveries.filter(e=>e.enabled).length>1)throw new Error('MULTIPLE_DELIVERY_BINDINGS_NOT_SUPPORTED');

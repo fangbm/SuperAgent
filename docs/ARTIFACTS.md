@@ -1,8 +1,8 @@
 # 私有附件捕获与读取
 
-PR B 依赖结构化报告 PR A。参考 `examples/qq-artifacts/superagent.json`，默认所有来源、下载和外部写入关闭。
+PR B 依赖结构化报告 PR A。B 单独提交时默认关闭；用户后续要求在 PR C 默认开启附件能力，参考 `examples/qq-artifacts/superagent.json`。来源与 GitHub/Web 父开关仍须配置启用。
 
-要启用捕获，需要同时设置 QQ Source 的 `config.captureAttachments=true`、根 `artifacts.enabled=true`，并通过 `artifacts.keyEnv` 指定一个保存妥当的 64 位十六进制（32 字节）密钥环境变量。root 为私有加密文件目录，不能每次启动重新生成密钥。错误密钥/目录会明确拒绝，不能靠覆盖文件恢复。此配置不自动启用模型、QQ Delivery 或 GitHub 上传。
+捕获需要 QQ Source 的 `config.captureAttachments=true` 和根 `artifacts.enabled=true`，当前缺省均为开启；显式 false 可关闭。通过 `artifacts.keyEnv` 指定保存妥当的 64 位十六进制（32 字节）密钥环境变量，默认 SA_ARTIFACT_KEY。未配置 artifacts 时 root 默认为 SQLite 同目录下 artifacts；主配置显式提供固定路径。全部相关平台关闭时无需附件密钥；使用附件存储时缺失密钥拒绝启动。root 为私有加密文件目录，不能每次启动重新生成密钥。错误密钥/目录会明确拒绝，不能靠覆盖文件恢复。此配置不自动启用模型或 QQ Delivery；GitHub 发布默认跟随已批准的 GitHub 父写入开关，详见 GITHUB-ISSUE-ASSETS.md。
 
 默认每消息最多 5 文件、单文件 5 MiB、项目已保存文件 100 MiB、同时待捕获最多 100 条、下载票据 120 秒、下载 10 秒、最多 3 次尝试。配置上限见 application-config。PNG/JPEG/WebP 和常见 UTF-8 txt/log/json 可捕获；原生事件附件只存元信息，真实字节经受控下载、类型/大小检查与 SHA-256 后加密保存。过期、失败、拒绝有状态与错误码，不猜测已保存或已看图。
 

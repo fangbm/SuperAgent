@@ -48,6 +48,7 @@ const safeError=error=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.me
 export async function createApplication(input,options={}) {
   const registry=options.sourceRegistry??builtinSources;
   const config=parseApplicationConfig(input,options.directory,registry),env=options.env??process.env,clock=options.clock,log=options.log??(()=>{});
+  const artifactActive=config.artifacts.enabled&&(config.web.enabled||config.github.enabled||config.sources.some(e=>e.enabled&&e.plugin==='qq-official'&&e.config.captureAttachments));
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
   let runtime,owner,m5,manager,m3,artifacts,artifactPublisher,webServer,processor,closePromise,started=false,ticking=false;
@@ -89,7 +90,7 @@ export async function createApplication(input,options={}) {
     }}:undefined;
     const delivery=config.deliveries.find(e=>e.enabled);
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
-    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,...(config.artifacts.enabled?{artifacts:{stage:request=>artifacts.stage(request)}}:{}),
+    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,...(artifactActive?{artifacts:{stage:request=>artifacts.stage(request)}}:{}),
       ...(delivery?{operator:{receive:request=>m5.qq.receive(request),reject:request=>menuDenial(request)}}:{})});
     const discordTokens=new Set();
     for(const entry of config.sources.filter(e=>e.enabled&&e.plugin==='discord')){
@@ -98,7 +99,7 @@ export async function createApplication(input,options={}) {
     }
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
-    if(config.artifacts.enabled){const key=required(config.artifacts.keyEnv);if(!/^[a-f0-9]{64}$/i.test(key))throw new Error('ARTIFACT_KEY_REQUIRED');artifacts=new ArtifactStore(runtime.store,{...config.artifacts,key:Buffer.from(key,'hex'),clock,assertOwner:()=>owner.assert(),onChanged:id=>m3?.sync?.artifactChanged(id),...(options.artifactDownload?{download:options.artifactDownload}:{})});}
+    if(artifactActive){const key=required(config.artifacts.keyEnv);if(!/^[a-f0-9]{64}$/i.test(key))throw new Error('ARTIFACT_KEY_REQUIRED');artifacts=new ArtifactStore(runtime.store,{...config.artifacts,key:Buffer.from(key,'hex'),clock,assertOwner:()=>owner.assert(),onChanged:id=>m3?.sync?.artifactChanged(id),...(options.artifactDownload?{download:options.artifactDownload}:{})});}
     manager.context.discord=prepareDiscordModules(runtime,config,owner);
     const restricted=runtime.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='restricted_projects'");
     if(runtime.store.get(`SELECT 1 FROM projects WHERE project_id<>? ${restricted?'AND project_id NOT IN (SELECT project_id FROM restricted_projects WHERE owner_project_id=?)':''} LIMIT 1`,config.projectId,...(restricted?[config.projectId]:[])))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');

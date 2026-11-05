@@ -39,7 +39,7 @@ export class GitHubIssueAssets implements IssueAssetPort {
       if([401,403,404].includes(response.status)){await response.body?.cancel();return null;}
       if([301,302,303,307,308].includes(response.status)){
         const location=response.headers.get('location');await response.body?.cancel();if(!location)throw new IssueAssetError('GITHUB_ASSET_REDIRECT_INVALID','blocked');
-        const next=new URL(location,current);if(!authorized&&next.origin==='https://github.com'&&next.pathname==='/login')return null;if(next.protocol!=='https:'||next.username||next.password||next.port||next.hash||!(next.hostname==='github.com'&&next.pathname.startsWith('/user-attachments/')||next.hostname.endsWith('.githubusercontent.com')))throw new IssueAssetError('GITHUB_ASSET_REDIRECT_INVALID','blocked');current=next.href;continue;
+        const next=new URL(location,current);if(!authorized&&next.origin==='https://github.com'&&next.pathname==='/login')return null;if(next.protocol!=='https:'||next.username||next.password||next.port||next.hash||!(next.hostname==='github.com'&&next.pathname.startsWith('/user-attachments/')||next.hostname.endsWith('.githubusercontent.com')||next.hostname==='github-production-user-asset-6210df.s3.amazonaws.com'))throw new IssueAssetError('GITHUB_ASSET_REDIRECT_INVALID','blocked');current=next.href;continue;
       }
       if(!response.ok||!response.body){await response.body?.cancel();throw new IssueAssetError('GITHUB_ASSET_READ_UNAVAILABLE');}
       const reader=response.body.getReader(),parts:Uint8Array[]=[];let size=0;
