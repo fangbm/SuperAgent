@@ -22,7 +22,7 @@ export function createSourceRegistry(definitions) {
 export const builtinSources=createSourceRegistry({
   'qq-official':{
     factory:c=>new QQSource(c),id:'qq-official-source',platform:'qq-official',mode:'background',
-    configure:(config,{operator})=>({...config,...(operator?{operator}:{})}),
+    configure:(config,{operator,artifacts})=>({...config,...(operator?{operator}:{}),...(config.captureAttachments&&artifacts?{artifacts}:{})}),
     initialize:({runtime,entry,binding})=>runtime.ingress.configureQQFeedback(binding,entry.config.feedbackCommands??{enabled:false}),
     normalize:(config,{entry})=>{if(config.feedbackCommands!==undefined)qqFeedbackConfig(config.feedbackCommands);if((config.transport??'webhook')==='webhook'&&entry.enabled&&entry.port===undefined)throw new Error('QQ_WEBHOOK_PORT_REQUIRED');return config;},
     stability:(config,health)=>({confirmed:config.transport==='websocket'&&/^QQ_GATEWAY_(?:CONNECTED|HEARTBEAT_ACK)/.test(health.reason??''),interrupted:health.coverage==='unavailable',maxGapMs:300000}),

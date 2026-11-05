@@ -10,9 +10,11 @@ import type { QQGatewayOptions, QQSession } from './gateway.js';
 export const sourceManifest: PluginManifestV1 = {
   apiVersion: 'superagent.io/plugin/v1', id: 'qq-official-source', version: '0.1.0', displayName: 'QQ Official Source', kind: 'source', engine: { sdk: '^0.1.0' },
   permissions: { networkHosts: ['api.bot.qq.com', 'api.sgroup.qq.com'], secretKeys: ['QQ_APP_ID', 'QQ_APP_SECRET', 'QQ_SCOPE_ID', 'QQ_PSEUDONYM_KEY', 'QQ_OPERATOR_OPENID'], eventPublish: true },
-  configSchema: { type: 'object', additionalProperties: false, properties: { feedbackCommands:qqFeedbackSchema, kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] },channelMessages:{enum:['mentions','all']} }, required: ['kind', 'sourceUri'] },
+  configSchema: { type: 'object', additionalProperties: false, properties: { captureAttachments:{type:'boolean'},feedbackCommands:qqFeedbackSchema, kind: { enum: ['group', 'channel', 'c2c'] }, sourceUri: { type: 'string', format: 'uri' }, transport: { enum: ['webhook', 'websocket'] },channelMessages:{enum:['mentions','all']} }, required: ['kind', 'sourceUri'] },
 };
 export interface QQSourceOptions {
+  captureAttachments?:boolean;
+  artifacts?:{stage:(request:{projectId:string;sourceId:string;sourceUri:string;externalEventId:string;assetRef:string;url:string;mimeType:string;filename:string;ordinal:number})=>Promise<void>|void};
   kind: 'group' | 'channel' | 'c2c';
   sourceUri: string;
   transport?: 'webhook' | 'websocket';
@@ -172,6 +174,14 @@ export class QQSource implements SourcePluginV1 {
     if (!state || state.signal.aborted) throw new QQError('QQ_SOURCE_UNAVAILABLE');
     const handled = await this.operatorDispatch(payload);
     const event = handled ? null : this.normalize(String(payload.t), payload.d);
+    if(event?.type==='com.superagent.feedback.message.created.v1'&&this.options.captureAttachments){
+      if(!this.options.artifacts)throw new QQError('QQ_ARTIFACT_HOST_REQUIRED','blocked');
+      const data=object(payload.d),attachments=Array.isArray(data.attachments)?data.attachments:[];
+      for(const [ordinal,file] of (event.data.content?.attachments??[]).entries()){
+        state.signal.throwIfAborted();const raw=object(attachments[ordinal]);
+        await this.options.artifacts.stage({projectId:state.host.projectId,sourceId:state.host.sourceId,sourceUri:this.options.sourceUri,externalEventId:event.id,assetRef:file.assetRef!,url:typeof raw.url==='string'?raw.url:'',mimeType:file.mimeType??'application/octet-stream',filename:typeof raw.filename==='string'?raw.filename:'',ordinal});
+      }
+    }
     const old = await state.host.getCheckpoint();
     const previous = old && typeof old === 'object' && !Array.isArray(old) ? old : {};
     state.signal.throwIfAborted();

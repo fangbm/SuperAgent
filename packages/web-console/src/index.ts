@@ -35,6 +35,11 @@ export function createConsoleServer(control:ControlPlane,options:{demo?:boolean;
       if(url.pathname==='/api/logout'&&method==='POST'){control.auth.logout(cookies.sa_session??'');res.setHeader('Set-Cookie',['sa_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0','sa_csrf=; SameSite=Strict; Path=/; Max-Age=0']);send(200,{ok:true});return;}
       const projectId=url.searchParams.get('project')??'';control.auth.authorize(principal,projectId,method==='POST');
       const path=url.pathname;
+      if(path.startsWith('/api/artifacts/')&&method==='GET'){
+        const id=path.slice('/api/artifacts/'.length);if(!/^artifact-[a-f0-9]{64}$/.test(id))throw new ControlError('ARTIFACT_NOT_FOUND',404);
+        const file=control.artifact(principal,projectId,id),extension=file.mimeType==='image/png'?'png':file.mimeType==='image/jpeg'?'jpg':file.mimeType==='image/webp'?'webp':'txt';
+        res.writeHead(200,{'Content-Type':file.mimeType,'Content-Length':file.bytes.length,'Content-Disposition':`attachment; filename="${id}.${extension}"`});res.end(file.bytes);return;
+      }
       if(path==='/api/metrics'&&method==='GET'){send(200,control.metrics(principal,projectId));return;}
       if(path==='/api/p0'&&method==='GET'){send(200,control.p0Alerts(principal,projectId));return;}
       if(path==='/api/p0/token'&&method==='POST'){const body=await readJSON(req);send(200,{token:control.p0Token(principal,projectId,body as unknown as Parameters<ControlPlane['p0Token']>[2])});return;}
