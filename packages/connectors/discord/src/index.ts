@@ -1,18 +1,22 @@
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ConnectorCapabilityV1, FeedbackEventV1, JSONValue, PluginManifestV1, SourcePluginHostV1, SourcePluginV1 } from '@superagent/plugin-sdk';
+import { DiscordREST } from './transport.js';
+import type { DiscordAPI, DiscordDispatch } from './transport.js';
+export { DiscordREST } from './transport.js';
+export type { DiscordAPI, DiscordDispatch, DiscordMethod } from './transport.js';
 
 export interface DiscordConfig {
   sourceUri: string; guildId: string; channelIds: string[]; threadIds?: string[];
-  tokenSecret?: string; historyPagesPerSync?: number; historyPollMs?: number;
+  tokenSecret?: string; historyPagesPerSync?: number; historyPollMs?: number; discoverThreads?:boolean; threadPagesPerSync?:number; sourceEnabled?:boolean;historyRequestBudget?:number;
 }
 export const discordConfigSchema = {
   type: 'object', additionalProperties: false, required: ['sourceUri', 'guildId', 'channelIds'],
   properties: { sourceUri: { type: 'string', format: 'uri' }, guildId: { type: 'string', pattern: '^[0-9]+$' },
-    channelIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, minItems: 1, uniqueItems: true },
+    channelIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, uniqueItems: true },
     threadIds: { type: 'array', items: { type: 'string', pattern: '^[0-9]+$' }, uniqueItems: true },
     tokenSecret: { type: 'string', minLength: 1 }, historyPagesPerSync: { type: 'integer', minimum: 1, maximum: 10000 },
-    historyPollMs: { type: 'integer', minimum: 1000, maximum: 86400000 } },
+    historyPollMs: { type: 'integer', minimum: 1000, maximum: 86400000 },discoverThreads:{type:'boolean'},sourceEnabled:{type:'boolean'},threadPagesPerSync:{type:'integer',minimum:1,maximum:20},historyRequestBudget:{type:'integer',minimum:1,maximum:1000} },
 };
 type Native = Record<string, JSONValue>;
 const object = (input: unknown): input is Record<string, unknown> => !!input && typeof input === 'object' && !Array.isArray(input);
@@ -71,11 +75,13 @@ export function discordPermissions(guildId: string, userId: string, roleIds: str
   apply(overwrites.filter(item => item.type === 1 && item.id === userId));
   return bits;
 }
-interface Channel { id: string; guild_id: string; type: number; parent_id?: string; permission_overwrites?: Overwrite[] }
+interface Channel { id: string; guild_id: string; type: number; parent_id?: string; permission_overwrites?: Overwrite[]; thread_metadata?:{archive_timestamp?:string} }
 interface History { after: string; before: string | null; high: string }
 interface Gateway { sessionId: string; resumeUrl: string; sequence: number }
-interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean; observedMessages?: Record<string, Record<string, string>> }
-export interface DiscordOptions { fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void> }
+interface State { version: 1; signature: string; gateway: Gateway | null; history: Record<string, History>; gap: boolean; observedMessages?: Record<string, Record<string, string>>;
+  scope?:{guildId:string;sourceUri:string;channelIds:string[];threadIds:string[]};knownThreads?:Record<string,string>;archives?:Record<string,{before:string|null;complete:boolean}>;gaps?:Record<string,string>;historyCursor?:string;archiveCursor?:number;pendingDispatch?:{sessionId:string;sequence:number;receivedAt:string} }
+export interface DiscordOptions { fetch?: typeof fetch; webSocket?: (url: string) => WebSocket; sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  api?:DiscordAPI;additionalIntents?:number;onDispatch?:(packet:DiscordDispatch,signal:AbortSignal)=>Promise<void>;onImmediate?:(packet:DiscordDispatch)=>Promise<void>;excludeChannel?:(id:string,parentId?:string)=>Promise<boolean> }
 export class DiscordConnector implements SourcePluginV1 {
   readonly manifest: PluginManifestV1;
   private readonly ids: string[];
@@ -83,6 +89,7 @@ export class DiscordConnector implements SourcePluginV1 {
   private readonly fetcher: typeof fetch;
   private readonly socketFactory: (url: string) => WebSocket;
   private readonly pause: (ms: number, signal: AbortSignal) => Promise<void>;
+  readonly api:DiscordAPI;
   private readonly controller = new AbortController();
   private host: SourcePluginHostV1 | undefined;
   private token: string | undefined;
@@ -91,12 +98,16 @@ export class DiscordConnector implements SourcePluginV1 {
   private socket: WebSocket | undefined;
   private running: Promise<void> | undefined;
   private lastIdentifyAt = 0;
-  constructor(private readonly config: DiscordConfig, options: DiscordOptions = {}) {
+  constructor(private readonly config: DiscordConfig, private readonly options: DiscordOptions = {}) {
     new URL(config.sourceUri);
     if (Object.keys(config).some(key => !Object.hasOwn(discordConfigSchema.properties, key)) || !snowflake(config.guildId)
-      || !Array.isArray(config.channelIds) || !config.channelIds.length || config.channelIds.some(id => !snowflake(id))
+      || !Array.isArray(config.channelIds) || config.sourceEnabled!==false&&!config.channelIds.length || config.channelIds.some(id => !snowflake(id))
       || (config.threadIds !== undefined && (!Array.isArray(config.threadIds) || config.threadIds.some(id => !snowflake(id))))
-      || (config.tokenSecret !== undefined && (typeof config.tokenSecret !== 'string' || !config.tokenSecret.trim()))) throw new Error('INVALID_CONFIG');
+      || (config.tokenSecret !== undefined && (typeof config.tokenSecret !== 'string' || !config.tokenSecret.trim()))
+      ||config.sourceEnabled!==undefined&&typeof config.sourceEnabled!=='boolean'||config.discoverThreads!==undefined&&typeof config.discoverThreads!=='boolean'
+      ||config.threadPagesPerSync!==undefined&&(!Number.isInteger(config.threadPagesPerSync)||config.threadPagesPerSync<1||config.threadPagesPerSync>20)
+      ||config.historyRequestBudget!==undefined&&(!Number.isInteger(config.historyRequestBudget)||config.historyRequestBudget<1||config.historyRequestBudget>1000)
+      ||options.additionalIntents!==undefined&&(!Number.isSafeInteger(options.additionalIntents)||options.additionalIntents<0||options.additionalIntents>0x7fffffff)) throw new Error('INVALID_CONFIG');
     this.ids = [...config.channelIds, ...(config.threadIds ?? [])];
     if (new Set(this.ids).size !== this.ids.length) throw new Error('INVALID_CONFIG: duplicate channel');
     for (const [value, max] of [[config.historyPagesPerSync ?? 10, 10000], [config.historyPollMs ?? 60000, 86400000]]) if (!Number.isInteger(value) || value! < 1 || value! > max!) throw new Error('INVALID_CONFIG');
@@ -105,6 +116,7 @@ export class DiscordConnector implements SourcePluginV1 {
     this.fetcher = options.fetch ?? fetch;
     this.socketFactory = options.webSocket ?? (url => new WebSocket(url));
     this.pause = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); });
+    this.api=options.api??new DiscordREST(async()=>{if(!this.token)throw new Error('UNAUTHORIZED');return this.token;},{fetch:this.fetcher,sleep:this.pause,onFailure:async code=>{await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:'+code,checkedAt:new Date().toISOString()});}});
     this.manifest = { apiVersion: 'superagent.io/plugin/v1', id: 'superagent.discord', version: '0.1.0', displayName: 'Discord Gateway', kind: 'source', engine: { sdk: '^0.1.0' },
       permissions: { networkHosts: ['discord.com', 'gateway.discord.gg', '*.discord.gg'], secretKeys: [config.tokenSecret ?? 'DISCORD_BOT_TOKEN'], eventPublish: true }, configSchema: discordConfigSchema };
   }
@@ -114,19 +126,24 @@ export class DiscordConnector implements SourcePluginV1 {
     this.token = await host.getSecret(this.config.tokenSecret ?? 'DISCORD_BOT_TOKEN');
     if (!this.token.trim()) throw new Error('UNAUTHORIZED');
   }
-  private serial(work: () => Promise<void>): Promise<void> {
-    const job = this.tail.then(work); this.tail = job.catch(() => {}); return job;
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const job = this.tail.then(work); this.tail = job.then(()=>{},()=>{}); return job;
   }
   private async state(host: SourcePluginHostV1): Promise<State> {
     const input = await host.getCheckpoint();
-    if (input === null) return { version: 1, signature: this.signature, gateway: null, history: {}, gap: true, observedMessages: {} };
-    if (!object(input) || input.version !== 1 || input.signature !== this.signature || typeof input.gap !== 'boolean' || !object(input.history)
+    if (input === null) return { version: 1, signature: this.signature, gateway: null, history: {}, gap: true, observedMessages: {},scope:{guildId:this.config.guildId,sourceUri:this.config.sourceUri,channelIds:[...this.config.channelIds],threadIds:[...(this.config.threadIds??[])]} };
+    const sameBinding=object(input)&&object(input.scope)&&input.scope.guildId===this.config.guildId&&input.scope.sourceUri===this.config.sourceUri;
+    if (!object(input) || input.version !== 1 || input.signature !== this.signature&&!sameBinding || typeof input.gap !== 'boolean' || !object(input.history)
       || (input.gateway !== null && (!object(input.gateway) || typeof input.gateway.sessionId !== 'string' || !Number.isSafeInteger(input.gateway.sequence) || Number(input.gateway.sequence) < 0 || typeof input.gateway.resumeUrl !== 'string'))
-      || Object.entries(input.history).some(([id, item]) => !this.ids.includes(id) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))
-      || (input.observedMessages !== undefined && (!object(input.observedMessages) || Object.entries(input.observedMessages).some(([channelId, messages]) => !this.ids.includes(channelId)
+      || Object.entries(input.history).some(([id, item]) => !(sameBinding?snowflake(id):this.ids.includes(id)) || !object(item) || !snowflake(item.after) || !snowflake(item.high) || (item.before !== null && !snowflake(item.before)))
+      ||input.knownThreads!==undefined&&(!object(input.knownThreads)||Object.entries(input.knownThreads).some(([id,parent])=>!snowflake(id)||!snowflake(parent)))
+      ||input.archives!==undefined&&(!object(input.archives)||Object.entries(input.archives).some(([id,scan])=>!snowflake(id)||!object(scan)||typeof scan.complete!=='boolean'||scan.before!==null&&!iso(scan.before)))
+      ||input.pendingDispatch!==undefined&&(!object(input.pendingDispatch)||typeof input.pendingDispatch.sessionId!=='string'||!Number.isSafeInteger(input.pendingDispatch.sequence)||!iso(input.pendingDispatch.receivedAt))
+      || (input.observedMessages !== undefined && (!object(input.observedMessages) || Object.entries(input.observedMessages).some(([channelId, messages]) => !(sameBinding?snowflake(channelId):this.ids.includes(channelId))
         || !object(messages) || Object.entries(messages).some(([messageId, revision]) => !snowflake(messageId) || typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)))))) throw new Error('INVALID_CHECKPOINT');
     const state = structuredClone(input) as unknown as State;
     state.observedMessages ??= {};
+    state.signature=this.signature;state.scope={guildId:this.config.guildId,sourceUri:this.config.sourceUri,channelIds:[...this.config.channelIds],threadIds:[...(this.config.threadIds??[])]};
     return state;
   }
   private fullMessageRevision(input: unknown): string | undefined {
@@ -158,54 +175,77 @@ export class DiscordConnector implements SourcePluginV1 {
     for (const id of Object.keys(messages).sort((a, b) => BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0).slice(100)) delete messages[id];
   }
   private async get(route: string, signal: AbortSignal): Promise<unknown> {
-    for (let attempt = 0; ; attempt++) {
-      signal.throwIfAborted();
-      let response: Response;
-      try { response = await this.fetcher('https://discord.com/api/v10' + route, { headers: { Authorization: 'Bot ' + this.token }, redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]) }); }
-      catch { signal.throwIfAborted(); if (attempt === 3) throw new Error('TRANSIENT_NETWORK'); await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:TRANSIENT_NETWORK',checkedAt:new Date().toISOString()});await this.pause(1000 * 2 ** attempt, signal); continue; }
-      if (response.status === 429) {
-        const body: unknown = await response.json().catch(() => null);
-        if (attempt === 3) throw new Error('RATE_LIMITED');
-        await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:RATE_LIMITED',checkedAt:new Date().toISOString()});
-        const seconds = object(body) && typeof body.retry_after === 'number' ? body.retry_after : Number(response.headers.get('retry-after'));
-        await this.pause(Math.max(1000, Number.isFinite(seconds) ? seconds * 1000 : 1000 * 2 ** attempt), signal); continue;
-      }
-      if (response.status >= 500) { await response.body?.cancel(); if (attempt === 3) throw new Error('PLATFORM_UNAVAILABLE');await this.host?.reportHealth({coverage:'partial',reason:'DISCORD_POLL_INTERRUPTED:PLATFORM_UNAVAILABLE',checkedAt:new Date().toISOString()}); await this.pause(1000 * 2 ** attempt, signal); continue; }
-      if (!response.ok) { await response.body?.cancel(); throw new Error(response.status === 401 ? 'UNAUTHORIZED' : response.status === 403 || response.status === 404 ? 'PERMISSION_DENIED' : 'PLATFORM_UNAVAILABLE'); }
-      try { return await response.json(); } catch { throw new Error('INVALID_EVENT: discord JSON'); }
-    }
+    return this.api.request('GET',route,undefined,signal);
   }
-  private async inspect(signal: AbortSignal): Promise<ConnectorCapabilityV1> {
+  private async inspect(signal: AbortSignal,saved?:State): Promise<ConnectorCapabilityV1> {
     const application = await this.get('/oauth2/applications/@me', signal);
     if (!object(application) || typeof application.flags !== 'number') throw new Error('INVALID_EVENT: application');
-    if ((application.flags & ((1 << 18) | (1 << 19))) === 0) throw new Error('PERMISSION_DENIED: Message Content Intent not enabled/approved');
+    if (this.config.sourceEnabled!==false&&(application.flags & ((1 << 18) | (1 << 19))) === 0) throw new Error('PERMISSION_DENIED: Message Content Intent not enabled/approved');
     const user = await this.get('/users/@me', signal);
     if (!object(user) || !snowflake(user.id)) throw new Error('INVALID_EVENT: current bot');
     const member = await this.get('/guilds/' + this.config.guildId + '/members/' + user.id, signal);
     const roles = await this.get('/guilds/' + this.config.guildId + '/roles', signal);
     if (!object(member) || !object(member.user) || !snowflake(member.user.id) || !Array.isArray(member.roles) || member.roles.some(id => !snowflake(id))
       || !Array.isArray(roles) || roles.some(role => !object(role) || !snowflake(role.id) || !snowflake(role.permissions))) throw new Error('INVALID_EVENT: permissions');
+    const botId=member.user.id;
     const channels = new Map<string, Channel>();
-    for (const id of this.ids) {
-      const data = await this.get('/channels/' + id, signal);
-      if (!object(data) || data.id !== id || data.guild_id !== this.config.guildId || ![0, 5, 10, 11, 12].includes(Number(data.type))) throw new Error('PERMISSION_DENIED: channel identity/type');
+    const parents=new Map<string,Channel>();
+    const state=saved??(this.host?await this.state(this.host):undefined);
+    const gaps=state?(state.gaps??={}):{};
+    const inspectChannel=async(id:string):Promise<Channel>=>{
+      const data=await this.get('/channels/'+id,signal);
+      if (!object(data) || data.id !== id || data.guild_id !== this.config.guildId || ![0, 5, 10, 11, 15,16].includes(Number(data.type))) throw new Error('PERMISSION_DENIED: public channel identity/type');
       const channel = data as unknown as Channel;
       if (this.config.threadIds?.includes(id) && ![10, 11, 12].includes(channel.type)) throw new Error('INVALID_CONFIG: threadIds');
       const permissionChannel = [10, 11, 12].includes(channel.type) ? await this.get('/channels/' + channel.parent_id, signal) : data;
       if (!object(permissionChannel) || permissionChannel.guild_id !== this.config.guildId || !Array.isArray(permissionChannel.permission_overwrites)
         || permissionChannel.permission_overwrites.some(item => !object(item) || !snowflake(item.id) || ![0, 1].includes(Number(item.type)) || !snowflake(item.allow) || !snowflake(item.deny))) throw new Error('INVALID_EVENT: channel permissions');
-      const bits = discordPermissions(this.config.guildId, member.user.id, member.roles as string[], roles as Role[], permissionChannel.permission_overwrites as Overwrite[]);
+      const bits = discordPermissions(this.config.guildId, botId, member.roles as string[], roles as Role[], permissionChannel.permission_overwrites as Overwrite[]);
       if ((bits & 1024n) === 0n || (bits & 65536n) === 0n) throw new Error('PERMISSION_DENIED: VIEW_CHANNEL/READ_MESSAGE_HISTORY');
-      if (channel.type === 12 && (bits & (1n << 34n)) === 0n) await this.get('/channels/' + id + '/thread-members/@me', signal);
-      channels.set(id, channel);
+      if((discordPermissions(this.config.guildId,this.config.guildId,[],roles as Role[],permissionChannel.permission_overwrites as Overwrite[])&1024n)===0n)throw new Error('PERMISSION_DENIED: private channel excluded');
+      if(await this.options.excludeChannel?.(id,channel.parent_id))throw new Error('PERMISSION_DENIED: owned by private module');
+      if([10,11].includes(channel.type)&&!this.config.threadIds?.includes(id)&&!this.config.channelIds.includes(channel.parent_id??''))throw new Error('PERMISSION_DENIED: thread outside configured parents');
+      return channel;
+    };
+    for(const id of this.config.sourceEnabled===false?[]:[...this.config.channelIds,...(this.config.threadIds??[])]){
+      try{const channel=await inspectChannel(id);if(this.config.channelIds.includes(id))parents.set(id,channel);if([0,5,10,11].includes(channel.type))channels.set(id,channel);delete gaps[id];}
+      catch(error){if(!(error instanceof Error&&/^(PERMISSION_DENIED|NOT_FOUND)/.test(error.message)))throw error;gaps[id]=error.message.split(':')[0]!;}
+    }
+    if(this.config.discoverThreads&&this.config.sourceEnabled!==false&&state){
+      state.knownThreads??={};state.archives??={};
+      const active=await this.get('/guilds/'+this.config.guildId+'/threads/active',signal);
+      if(!object(active)||!Array.isArray(active.threads))throw new Error('INVALID_EVENT: active threads');
+      for(const t of active.threads)if(object(t)&&snowflake(t.id)&&snowflake(t.parent_id)&&t.guild_id===this.config.guildId&&[10,11].includes(Number(t.type))&&parents.has(t.parent_id))state.knownThreads[t.id]=t.parent_id;
+      const parentIds=[...parents.keys()].sort();
+      for(let n=0;n<Math.min(parentIds.length,this.config.threadPagesPerSync??2);n++){
+        const id=parentIds[(state.archiveCursor??0)%parentIds.length]!;state.archiveCursor=((state.archiveCursor??0)+1)%parentIds.length;
+        const scan=state.archives[id]??{before:null,complete:false};
+        const route='/channels/'+id+'/threads/archived/public?limit=100'+(scan.before?'&before='+encodeURIComponent(scan.before):'');
+        let archived:unknown;
+        try{archived=await this.get(route,signal);}catch(error){if(error instanceof Error&&/^(PERMISSION_DENIED|NOT_FOUND)/.test(error.message)){gaps['archive:'+id]=error.message;continue;}throw error;}
+        if(!object(archived)||!Array.isArray(archived.threads)||typeof archived.has_more!=='boolean')throw new Error('INVALID_EVENT: archived threads');
+        let oldest:string|null=null;
+        for(const t of archived.threads){if(!object(t)||!snowflake(t.id)||t.guild_id!==this.config.guildId||t.parent_id!==id||![10,11].includes(Number(t.type))||!object(t.thread_metadata)||!iso(t.thread_metadata.archive_timestamp))throw new Error('INVALID_EVENT: archived thread scope');
+          const at=t.thread_metadata.archive_timestamp;if(scan.before&&Date.parse(at)>=Date.parse(scan.before))throw new Error('INVALID_EVENT: non-advancing archived page');
+          if(!oldest||Date.parse(at)<Date.parse(oldest))oldest=at;state.knownThreads[t.id]=id;
+        }
+        if(archived.has_more&&!oldest)throw new Error('INVALID_EVENT: empty archived page');
+        state.archives[id]={before:archived.has_more?oldest:null,complete:!archived.has_more};delete gaps['archive:'+id];
+      }
+      for(const [id,parent] of Object.entries(state.knownThreads))if(parents.has(parent)){
+        try{const t=await inspectChannel(id);if(t.parent_id!==parent)throw new Error('PERMISSION_DENIED');channels.set(id,t);delete gaps[id];}
+        catch(error){if(!(error instanceof Error&&/^(PERMISSION_DENIED|NOT_FOUND)/.test(error.message)))throw error;gaps[id]=error.message.split(':')[0]!;}
+      }
     }
     this.channels = channels;
-    return { connection: 'hybrid', coverage: 'partial', readMessages: true, readHistory: true, readEdits: true, readAttachments: true,
-      reason: 'Configured channels/threads only; REST cannot recover offline deletes or intermediate/old edits after an unresumable session; no automatic thread discovery' };
+    this.ids.splice(0,this.ids.length,...channels.keys());
+    if(this.config.sourceEnabled!==false&&!parents.size&&!channels.size)throw new Error('PERMISSION_DENIED: no authorized channels');
+    return { connection: 'hybrid', coverage: 'partial', readMessages: this.config.sourceEnabled!==false, readHistory: this.config.sourceEnabled!==false, readEdits: this.config.sourceEnabled!==false, readAttachments: this.config.sourceEnabled!==false,
+      reason: 'Configured parents and public threads only; bounded resumable discovery/history; permission gaps, offline deletes and old edits remain partial' };
   }
   async probe(): Promise<ConnectorCapabilityV1> {
     if (!this.host) return { connection: 'hybrid', coverage: 'unknown', readMessages: false, readHistory: false, readEdits: false, readAttachments: false, reason: 'Host not bound; bot credentials and permissions have not been checked' };
-    try { return await this.inspect(AbortSignal.any([this.controller.signal, AbortSignal.timeout(30000)])); }
+    try { return await this.serial(()=>this.inspect(AbortSignal.any([this.controller.signal, AbortSignal.timeout(30000)]))); }
     catch (error) { return { connection: 'hybrid', coverage: 'unavailable', readMessages: false, readHistory: false, readEdits: false, readAttachments: false,
       reason: error instanceof Error && /^(PERMISSION_DENIED|UNAUTHORIZED|INVALID_EVENT|RATE_LIMITED|TRANSIENT_NETWORK|PLATFORM_UNAVAILABLE)/.test(error.message) ? error.message : 'PLATFORM_UNAVAILABLE' }; }
   }
@@ -213,10 +253,15 @@ export class DiscordConnector implements SourcePluginV1 {
     return this.serial(async () => {
       const combined = AbortSignal.any([signal, this.controller.signal]);
       try {
-        await this.bind(host); await this.inspect(combined);
-        let state = await this.state(host);
-        for (const channelId of this.ids) {
-          for (let page = 0; page < (this.config.historyPagesPerSync ?? 10); page++) {
+        await this.bind(host);
+        let state = await this.state(host);await this.inspect(combined,state);
+        await host.commitBatch([],{sourceId:host.sourceId,cursor:state as unknown as JSONValue});
+        let budget=this.config.historyRequestBudget??100;
+        const start=state.historyCursor?this.ids.indexOf(state.historyCursor)+1:0;
+        const ids=[...this.ids.slice(start),...this.ids.slice(0,start)];
+        for (const channelId of ids) {
+          if(budget<=0)break;
+          for (let page = 0; page<(this.config.historyPagesPerSync??10)&&budget>0; page++,budget--) {
             combined.throwIfAborted();
             const progress = state.history[channelId] ?? { after: '0', before: null, high: '0' };
             const result = await this.get('/channels/' + channelId + '/messages?limit=100' + (progress.before ? '&before=' + progress.before : ''), combined);
@@ -229,6 +274,7 @@ export class DiscordConnector implements SourcePluginV1 {
             const selected = progress.before === null ? messages : newer;
             const complete = messages.length < 100 || newer.length !== messages.length;
             const next = structuredClone(state);
+            next.historyCursor=channelId;
             const oldest = messages.reduce((a, item) => a === '0' || BigInt(String(item.id)) < BigInt(a) ? String(item.id) : a, '0');
             next.history[channelId] = complete ? { after: high, before: null, high } : { after: progress.after, before: oldest, high };
             const events: FeedbackEventV1[] = [];
@@ -247,7 +293,7 @@ export class DiscordConnector implements SourcePluginV1 {
             }
             if (complete) this.trimObservedMessages(next, channelId);
             await host.commitBatch(events, { sourceId: host.sourceId, cursor: next as unknown as JSONValue }); state = next;
-            if (complete) break;
+            if (complete){budget--;break;}
           }
         }
         await host.reportHealth({ coverage: 'partial', checkedAt: new Date().toISOString(), reason: 'Configured channel history synced/resumable; offline deletions and old edits are not reconstructible; unfinished pages remain in checkpoint' });
@@ -314,7 +360,7 @@ export class DiscordConnector implements SourcePluginV1 {
               const interval = Number(packet.d.heartbeat_interval);
               heartbeat = setTimeout(() => beat(interval), interval * Math.random());
               if (gateway) send(6, { token: this.token, session_id: gateway.sessionId, seq: gateway.sequence });
-              else { this.lastIdentifyAt = Date.now(); send(2, { token: this.token, intents: 1 | 512 | 32768, properties: { os: process.platform, browser: 'superagent', device: 'superagent' } }); }
+              else { this.lastIdentifyAt = Date.now(); send(2, { token: this.token, intents: 1 | (this.config.sourceEnabled===false?0:512|32768) | (this.options.additionalIntents??0), properties: { os: process.platform, browser: 'superagent', device: 'superagent' } }); }
             } else if (packet.op === 11) { const confirmed = !acked; acked = true; if (confirmed) heartbeatHealth(); }
             else if (packet.op === 1) send(1, receivedSequence);
             else if (packet.op === 7) socket.close(4000, 'Reconnect');
@@ -327,6 +373,9 @@ export class DiscordConnector implements SourcePluginV1 {
               const sequence = Number(packet.s);
               const type = packet.t;
               const receivedAt = new Date().toISOString();
+              if(type==='INTERACTION_CREATE'&&this.options.onImmediate){
+                void Promise.resolve().then(()=>this.options.onImmediate!({type,data:payload,sequence,sessionId:session?.sessionId??'connecting',receivedAt})).catch(()=>host.logger.warn('Discord interaction acknowledgement failed',{code:'DISCORD_ACK_FAILED'}));
+              }
               void this.serial(async () => {
                 if (failure) throw failure;
                 const state = await this.state(host);
@@ -337,10 +386,22 @@ export class DiscordConnector implements SourcePluginV1 {
                 }
                 if (!session) throw new Error('INVALID_EVENT: dispatch before READY');
                 if (type !== 'READY' && state.gateway?.sessionId === session.sessionId && sequence <= state.gateway.sequence) return;
+                const pending=state.pendingDispatch;
+                const stableTime=pending?.sessionId===session.sessionId&&pending.sequence===sequence?pending.receivedAt:receivedAt;
+                state.pendingDispatch={sessionId:session.sessionId,sequence,receivedAt:stableTime};
+                await host.commitBatch([],{sourceId:host.sourceId,cursor:state as unknown as JSONValue});
+                // The trusted sink persists its own module inbox before sequence advancement.
+                // It must not perform business REST work inside this critical path.
+                if(this.options.onDispatch)await this.options.onDispatch({type,data:payload,sequence,sessionId:session.sessionId,receivedAt:stableTime},signal);
+                if(this.config.sourceEnabled!==false&&(['CHANNEL_CREATE','CHANNEL_UPDATE','CHANNEL_DELETE','THREAD_CREATE','THREAD_UPDATE','THREAD_DELETE','THREAD_LIST_SYNC','GUILD_ROLE_CREATE','GUILD_ROLE_UPDATE','GUILD_ROLE_DELETE'].includes(type))){
+                  if(this.config.discoverThreads&&['THREAD_CREATE','THREAD_UPDATE'].includes(type)&&payload.guild_id===this.config.guildId&&snowflake(payload.id)&&snowflake(payload.parent_id)&&this.config.channelIds.includes(payload.parent_id)&&[10,11].includes(Number(payload.type))){state.knownThreads??={};state.knownThreads[payload.id]=payload.parent_id;}
+                  await this.inspect(signal,state);
+                }
+                if(this.config.discoverThreads&&type==='MESSAGE_CREATE'&&payload.guild_id===this.config.guildId&&snowflake(payload.channel_id)&&!this.channels.has(payload.channel_id))await this.inspect(signal,state);
                 const events: FeedbackEventV1[] = [];
                 if (['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE', 'MESSAGE_DELETE_BULK'].includes(type)
                   && payload.guild_id === this.config.guildId && typeof payload.channel_id === 'string' && this.channels.has(payload.channel_id)) {
-                  const context = { eventKey: session.sessionId + ':' + sequence, receivedAt,
+                  const context = { eventKey: session.sessionId + ':' + sequence, receivedAt:stableTime,
                     ...([10, 11, 12].includes(this.channels.get(payload.channel_id)!.type) ? { threadId: payload.channel_id } : {}) };
                   if (type === 'MESSAGE_DELETE_BULK') {
                     if (!Array.isArray(payload.ids) || payload.ids.some(id => !snowflake(id))) throw new Error('INVALID_EVENT: bulk delete');
@@ -350,7 +411,7 @@ export class DiscordConnector implements SourcePluginV1 {
                     if (type === 'MESSAGE_CREATE' || type === 'MESSAGE_UPDATE') this.rememberMessage(state, payload);
                   }
                 }
-                state.gateway = { ...session, sequence };
+                state.gateway = { ...session, sequence };delete state.pendingDispatch;
                 await host.commitBatch(events, { sourceId: host.sourceId, cursor: state as unknown as JSONValue });
                 if ((type === 'READY' || type === 'RESUMED') && socket.readyState === 1 && !signal.aborted) {
                   connected = true;
