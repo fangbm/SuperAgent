@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-1793864028311",
+  "phase": "coordinated-second-window",
+  "startedAt": "2026-11-05T07:33:50.072Z",
+  "deadline": "2026-11-05T07:53:47.208Z",
+  "closedAt": "2026-11-05T07:40:54.647Z",
+  "group": {
+    "archived": 3,
+    "nativeMessageTypes": [
+      0,
+      0,
+      103
+    ],
+    "commandKinds": [
+      "bug",
+      "bug",
+      "suggestion"
+    ],
+    "trustedIntents": 3,
+    "admissions": [
+      {
+        "rationale_code": "QQ_EXPLICIT_IMMEDIATE",
+        "n": 3
+      }
+    ],
+    "candidatesPerBatch": [
+      1,
+      1,
+      1
+    ],
+    "batchCount": 3,
+    "referenceMatches": true,
+    "originalIsContext": true,
+    "manualReceived": true,
+    "panelReceived": true,
+    "replyReceived": true,
+    "transportTypes": [
+      "GROUP_MESSAGE_CREATE"
+    ]
+  },
+  "passive": {
+    "delayInjectedMs": 310000,
+    "delayScope": "acceptance callback deferral before Operator receive; real clock and unmodified native context",
+    "attempts": [
+      {
+        "at": "2026-11-05T07:39:46.759Z",
+        "attempt": 7,
+        "context": "message",
+        "ageMs": 310297,
+        "sequence": 1,
+        "msgType": 2
+      }
+    ],
+    "results": [
+      {
+        "at": "2026-11-05T07:39:47.957Z",
+        "attempt": 7,
+        "state": "accepted",
+        "http": 200
+      }
+    ],
+    "clientReceiptConfirmed": true,
+    "fiveMinuteBoundaryOnly": true,
+    "sixtyMinuteMaximumVerified": false
+  },
+  "integrity": {
+    "quickCheck": [
+      {
+        "quick_check": "ok"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "pipeline": {
+    "modelCalls": 0,
+    "jobs": [
+      {
+        "kind": "feedback.admit",
+        "status": "completed",
+        "n": 3
+      },
+      {
+        "kind": "feedback.batch.triage",
+        "status": "pending",
+        "n": 3
+      }
+    ],
+    "externalOperations": [
+      {
+        "kind": "qq.c2c.send",
+        "state": "succeeded",
+        "n": 1
+      }
+    ]
+  },
+  "limits": {
+    "totalAttemptBudget": 12,
+    "previousWindowAttempts": 6,
+    "currentWindowAttempts": 1,
+    "noGroupSends": true,
+    "noGitHubWrites": true,
+    "noModelCalls": true,
+    "coverage": "partial",
+    "noHistoryOrEditReconciliation": true
+  },
+  "checks": {
+    "command": "pnpm check",
+    "nodeTests": 420,
+    "referenceSuites": 6,
+    "result": "passed"
+  }
+}
