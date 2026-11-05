@@ -40,6 +40,6 @@ PR 顺序：A [#15](https://github.com/fangbm/SuperAgent/pull/15) 结构化报�
 
 2026-11-05 已在私有测试仓库 fangbm/sa-test 做真实原生上传：1 张 68 字节合成 PNG 上传一次，授权读取 SHA-256 一致，匿名稳定地址返回 404，附到 [测试 Issue #5](https://github.com/fangbm/sa-test/issues/5) 并读回正文。1 份 110 字节合成日志上传一次被 HTTP 422 拒绝。共 2 次上传 POST，无自动重传、无玩家数据、无模型调用、无 QQ 群发送。图片初次读取发现 GitHub 实际重定向至 github-production-user-asset-6210df.s3.amazonaws.com；补入精确域名允许列表后只读复核成功，Bearer 不转发给 S3，签名 URL 不持久化。本机 S3 直连 TLS 失败，验证子进程显式使用已有本机代理与 NODE_USE_ENV_PROXY=1；未改系统代理。生产网络同样须可达 GitHub 内容域名。
 
-本轮 QQ CDN 下载验收见 QQ-ARTIFACT-ACCEPTANCE.md，不能将原生上传与受控 Source 测试当作真实 QQ 下载已通过；Claude Code 实际读取也未运行。官方 CLI 文档目前只承诺图片/媒体，纯文本文件拒绝是实际平台限制，不是成功验收。
+真实 QQ 下载已于 20:01:49 完成：98,552 字节 JPEG 精确绑定原消息，私有加密保存、授权解密哈希、跨项目/撤权拒绝与重开不重复下载均通过；本轮没有将这张图上传 GitHub，详情见 QQ-ARTIFACT-ACCEPTANCE.md。GitHub 原生上传使用另一张合成 PNG；这两轮独立实测不能冒充同一张图的全链路或 Claude Code 实际读取。官方 CLI 文档目前只承诺图片/媒体，纯文本文件拒绝是实际平台限制，不是成功验收。
 
 第一次完整回归遇 Windows spawn EBUSY（子进程未启动），未因此放宽断言或跳过用例；后续完整检查通过。GitHub Actions 账户计费限制仍与这些本地结果分开，不把未启动的远端任务写成通过。协议来源与迁移/信任决策见 ADR 0023。

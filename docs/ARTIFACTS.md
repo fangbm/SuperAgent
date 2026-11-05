@@ -17,3 +17,5 @@ PR B 依赖结构化报告 PR A。B 单独提交时默认关闭；用户后续�
 已登录的工作台用户可通过 `GET /api/artifacts/ARTIFACT_ID?project=PROJECT_ID` 下载本人当前有权读取的附件。未知 ID、跨项目、失效会话、撤权、已删除/陈旧来源均拒绝；响应强制下载、no-store、nosniff。这里只是同一受保护 Web 控制台的读取接口，未开放公网服务。
 
 完整 `pnpm check`：513 项 Node + 6 组参考验证通过。新增八项真实本机 SQLite/文件与受控传输测试：先归档、加密及去重、恢复/过期/有限重试、精确来源、类型/大小/数量限制、DNS 固定与重定向拒绝、QQ 签名接入、Web 会话/项目/撤权和关闭。没有真实 QQ CDN 下载、GitHub 文件上传或图片视觉分析；PR C 将直接接 GitHub Issue 附件与迟到更新。
+
+上述为 B 单独提交时的验收边界。C 后续完整检查为 531 项 Node + 6 组参考验证，并于 2026-11-05 20:01 完成真实验收群 JPEG 下载、加密落盘、来源映射和授权读取；见 QQ-ARTIFACT-ACCEPTANCE.md。GitHub 原生合成 PNG 已独立验收，普通日志上传遭平台 422 拒绝，未做图片视觉分析或 Claude Code 联调。
