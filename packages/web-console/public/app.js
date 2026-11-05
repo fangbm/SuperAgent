@@ -1,8 +1,8 @@
 const app = document.getElementById('app');
-let principal, project, demo = false, view = 'overview', reports = [], defects = [], suggestions = [], metrics = {};
+let principal, project, demo = false, view = 'overview', reports = [], defects = [], suggestions = [], metrics = {}, p0 = {enabled:false,alerts:[],assessments:[]};
 const names = { candidate: '待复核', open: '待处理', investigating: '调查中', fixed: '已修复', verified: '已验证', dismissed: '已忽略', merged: '已合并', reviewing: '评审中', accepted: '已接受', planned: '已计划', in_progress: '进行中', implemented: '已实现', declined: '已拒绝', archived: '已归档', pending_remote: '等待 GitHub', succeeded: '已完成', unknown: '结果未知', blocked: '权限阻塞', prepared: '等待发送', safe_retry: '等待安全重试' };
 const actions = { investigate: '开始调查', fix: '标记修复', verify: '验证完成', reopen: '重新打开', dismiss: '忽略', review: '开始评审', accept: '接受建议', plan: '加入计划', start: '开始实现', implement: '标记已实现', decline: '拒绝建议', archive: '归档' };
-const navItems = [['overview', '◈', '总览'], ['reports', '▤', '报告归档'], ['defect', '◇', 'Bug'], ['suggestion', '✧', '建议'], ['sources', '⌁', '来源与投递']];
+const navItems = [['overview', '◈', '总览'], ['reports', '▤', '报告归档'], ['defect', '◇', 'Bug'], ['suggestion', '✧', '建议'], ['p0','!','P0 告警'], ['sources', '⌁', '来源与投递']];
 function el(tag, attrs = {}, ...children) { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) {
     if (k.startsWith('on'))
         n.addEventListener(k.slice(2).toLowerCase(), v);
@@ -42,7 +42,7 @@ function login() { principal = null; app.replaceChildren(el('div', { class: 'log
         error.textContent = e.message;
     } } }, el('div', { class: 'brand' }, el('span', { class: 'mark' }, 'S'), 'SuperAgent'), el('h1', {}, '回到反馈发生的地方'), el('p', { class: 'subtitle' }, '将社区声音，变成清晰的产品行动。'), el('label', { for: 'access-key' }, '工作空间访问密钥'), el('input', { id: 'access-key', type: 'password', autocomplete: 'off', required: '', placeholder: '输入访问密钥' }), el('button', { class: 'primary', type: 'submit' }, '进入工作台 →'), el('p', { id: 'login-error', class: 'error', role: 'alert' }), el('p', { class: 'login-foot' }, '私有工作空间 · 仅授权成员可访问')))); }
 async function load() { try {
-    [reports, defects, suggestions, metrics] = await Promise.all([api('/api/reports'), api('/api/works/defect'), api('/api/works/suggestion'), api('/api/metrics')]);
+    [reports, defects, suggestions, metrics, p0] = await Promise.all([api('/api/reports'), api('/api/works/defect'), api('/api/works/suggestion'), api('/api/metrics'), api('/api/p0')]);
     render();
 }
 catch (e) {
@@ -58,8 +58,16 @@ else if (view === 'reports')
     reportList();
 else if (view === 'defect' || view === 'suggestion')
     workList(view);
+else if(view === 'p0')
+    p0List();
 else
-    sources(); }
+    sources();
+if(view==='sources'){
+  const state=metrics.embeddings??{state:'disabled',consecutiveFailures:0};
+  document.querySelector('.main').append(panel('语义检索',el('div',{class:'panel-body'},
+    el('p',{},({disabled:'未启用，使用词法检索',idle:'等待索引',available:'接口可用',unavailable:'接口暂不可用，已退回词法检索'})[state.state]??state.state),
+    el('p',{class:'muted'},`连续失败 ${state.consecutiveFailures??0}`,state.lastSuccessAt?` · 最近成功 ${localTime(state.lastSuccessAt)}`:'',state.retryAt?` · 下次尝试 ${localTime(state.retryAt)}`:''))));
+} }
 function overview() { const pending = (metrics.queue ?? []).filter(j => ['pending', 'leased', 'running', 'retry_wait', 'dead_letter'].includes(j.status) && j.kind.includes('triage')).reduce((n, j) => n + j.count, 0); const latest = reports[0]; const cards = [['待处理 Bug', defects.filter(w => ['open', 'candidate', 'investigating'].includes(w.status)).length, '保留证据，持续跟进', '◇'], ['产品建议', suggestions.length, '从玩家诉求到产品决策', '✧'], ['等待分析', pending, '任务状态独立展示', '⌁'], ['报告快照', reports.length, '每一版均可回溯', '▤']]; shell([head('社区反馈总览', '让每一条有价值的反馈，都有清晰的去向。', button('↻ 刷新数据', load)), el('div', { class: 'stats' }, cards.map(([label, value, note, icon]) => el('div', { class: 'stat' }, el('span', { class: 'stat-icon' }, icon), el('div', { class: 'stat-label' }, label), el('div', { class: 'stat-value' }, value), el('div', { class: 'stat-note' }, note)))), el('div', { class: 'cols' }, el('div', {}, panel('最近一期报告', el('div', { class: 'panel-body' }, latest ? el('div', { class: 'report-cover' }, el('div', { class: 'report-label' }, 'COMMUNITY FEEDBACK DIGEST'), el('h2', {}, `${localTime(latest.window.endExclusive)} 半日报`), el('div', { class: 'report-meta' }, `${localTime(latest.window.startInclusive)} — ${localTime(latest.window.endExclusive)} · 修订 ${latest.revision}`), el('div', { class: 'mini-stats' }, [['Bug', latest.counts.uniqueDefects], ['建议', latest.counts.uniqueSuggestions], ['Steam 差评', latest.steamNegativeReviews.length], ['待分析', latest.counts.pendingAnalysis]].map(([label, n]) => el('div', {}, el('strong', {}, n), el('span', {}, label)))), el('div', { class: 'button-row' }, button('打开报告 →', () => openReport(latest), 'primary'))) : el('div', { class: 'empty' }, '还没有封存的报告。', el('br'), '报告将在固定窗口结束后生成。'), latest?.coverage.some(c => c.status !== 'full') ? el('div', { class: 'notice' }, '部分来源覆盖不完整，当前统计不代表全部社区反馈。') : null), tag('已封存', 'green')), panel('需要关注的 Bug', workTable(defects.slice(0, 5), 'defect'), button('查看全部 →', () => { view = 'defect'; render(); }, 'plain'))), el('div', {}, panel('来源覆盖', el('div', { class: 'panel-body' }, sourceRows())), panel('工作节奏', el('div', { class: 'panel-body' }, el('h3', {}, '北京时间 18:00 / 00:00'), el('p', { class: 'muted' }, '报告按固定窗口归档。晚到分析进入新的修订，旧报告保持原样。'), el('div', { class: 'notice' }, '待分析不等于没有反馈；没有接入的来源不参与完整性判断。')))))]); }
 function sourceRows() { return (metrics.sources ?? []).length ? metrics.sources.map(s => el('div', { class: 'source-row' }, el('div', { class: 'source-icon' }, s.platform.includes('qq') ? 'QQ' : s.platform.includes('steam') ? 'ST' : 'DC'), el('div', { class: 'source-text' }, el('strong', {}, s.source_id), el('small', {}, s.platform)), tag(({ full: '完整', partial: '部分覆盖', unknown: '尚未确认', unavailable: '未连接' })[s.coverage], s.coverage === 'full' ? 'green' : 'amber'))) : el('div', { class: 'empty' }, '尚未配置来源'); }
 function workTable(rows, kind) {
@@ -120,6 +128,14 @@ async function openWork(kind, id, report, cursor) { try {
             notice(e.message);
         } })))) : el('p', { class: 'muted' }, '当前账号仅可查看。'))))]);
     const main=document.querySelector('.main');
+    if(kind==='defect'&&p0.enabled&&principal.role==='developer'){
+      const reason=el('textarea',{class:'rationale','aria-label':'P0 确认理由',placeholder:'说明核实的影响与证据，必填'});
+      const impact=el('select',{'aria-label':'P0 影响'},[['irreversible_save_loss','不可恢复的存档丢失'],['account_compromise','账号被接管'],['service_unavailable','全体玩家服务中断']].map(([value,label])=>el('option',{value},label)));
+      const execute=async action=>{try{const {token}=await api('/api/p0/token',{issueId:id,expectedVersion:w.version,action,impact:impact.value,reason:reason.value});await api('/api/p0/actions',{token});p0=await api('/api/p0');notice('P0 决策已归档；发送结果请查看 P0 告警。');await openWork(kind,id,report);}catch(error){notice(error.message);}};
+      main.append(panel('P0 影响核实',el('div',{class:'panel-body'},
+        el('p',{class:'muted'},'仅对核实的严重影响确认 P0；同一事件重复确认不会重发。重新告警将创建新代次。'),impact,reason,
+        el('div',{class:'action-list'},button('确认 P0',()=>execute('confirm')),button('结束事件',()=>execute('resolve')),button('明确重新告警',()=>execute('realert'))))));
+    }
     const history=await api(`/api/works/${kind}/${encodeURIComponent(id)}/history`);
     main.append(panel('处理记录 · 最近 100 条',el('div',{class:'panel-body'},history.length?history.map(h=>el('article',{class:'evidence'},el('div',{class:'evidence-meta'},localTime(h.createdAt),h.actorRef),el('p',{},actions[h.details?.action]??({'analysis_applied':'反馈分析','manual_relink':'关联纠正','manual_merge':'合并条目','remote_status':'GitHub 状态同步','developer_status':'状态操作'}[h.action]??h.action)),h.details?.from?el('p',{class:'muted'},`${names[h.details.from]??h.details.from} → ${names[h.details.to]??h.details.to}`):null,h.details?.reason||h.details?.rationale?el('p',{},h.details.reason??h.details.rationale):null)):el('p',{class:'muted'},'暂无处理记录。'))));
     if(w.mergedInto)main.append(el('div',{class:'notice'},'该条目已合并。',button('查看合并后的条目',()=>openWork(kind,w.mergedInto))));
@@ -137,6 +153,13 @@ async function correctionForm(work){
     const submit=async action=>{try{const target=alternatives.find(w=>w.id===targetSelect.value);const request={kind:work.kind,id:work.id,action,expectedVersion:work.version,reason:reason.value,...(action!=='merge'?{feedbackItemId:itemSelect.value}:{}),...(action!=='split'&&target?{targetId:target.id,targetVersion:target.version}:{})};const {token}=await api('/api/corrections/token',request);const result=await api('/api/corrections',{request,token,interactionId:crypto.randomUUID()});[defects,suggestions]=await Promise.all([api('/api/works/defect'),api('/api/works/suggestion')]);notice('关联已更正，原文和旧报告均已保留。');await openWork(work.kind,result.workId);}catch(e){notice(e.message);}};
     shell([head('纠正反馈关联',work.title,button('← 返回详情',()=>openWork(work.kind,work.id))),panel('选择反馈与目标',el('div',{class:'panel-body'},el('p',{class:'muted'},'单条移动或拆分请选择反馈项；合并会保留两边全部原文。'),el('p',{},el('label',{for:'correction-item'},'反馈项'),el('br'),itemSelect),el('p',{},el('label',{for:'correction-target'},'目标条目'),el('br'),targetSelect),reason,el('div',{class:'action-list'},button('移动该反馈',()=>submit('move')),button('拆为新条目',()=>submit('split')),button('合并到目标条目',()=>submit('merge')))))]);
   }catch(e){notice(e.message);}
+}
+function p0List(){
+  const labels={pending:'等待发送',sending:'发送中',accepted:'接口已受理',blocked:'未获发送权限',rejected:'接口拒绝',unknown:'结果未知，禁止自动重发',manual_review:'需要人工核对'};
+  shell([head('P0 告警','严重影响经证据核实后单独归档。接口受理不代表已读。',button('↻ 刷新数据',load)),
+    !p0.enabled?el('div',{class:'notice'},'即时告警当前未启用；历史记录仍可查看。'):null,
+    panel('告警历史',el('div',{class:'panel-body'},p0.alerts.length?p0.alerts.map(a=>el('article',{class:'evidence'},button(a.title,()=>openWork('defect',a.issue_id),'plain'),el('p',{},`代次 ${a.alert_generation} · ${a.incident_state==='active'?'事件进行中':'事件已结束'} · ${labels[a.delivery_status]??'等待建立投递记录'}`),el('p',{class:'muted'},localTime(a.detected_at),a.last_error?` · ${a.last_error}`:''),el('pre',{class:'original'},a.markdown))):el('p',{class:'muted'},'暂无 P0 告警。'))),
+    panel('证据复核',el('div',{class:'panel-body'},p0.assessments.length?p0.assessments.map(a=>el('article',{class:'evidence'},button(short(a.issue_id),()=>openWork('defect',a.issue_id),'plain'),el('p',{},`${a.status}${a.error_code?' · '+a.error_code:''}`),a.result_json?el('p',{},JSON.parse(a.result_json).assessment?.rationale??''):null)):el('p',{class:'muted'},'暂无需要复核的严重影响线索。')))]);
 }
 function sources() { shell([head('来源与投递', '覆盖范围、队列和发送结果分别记录。'), el('div', { class: 'cols' }, panel('来源状态', el('div', { class: 'panel-body' }, sourceRows())), panel('对外操作', el('div', { class: 'panel-body' }, (metrics.operations ?? []).length ? metrics.operations.map(o => el('div', { class: 'source-row' }, el('div', { class: 'source-text' }, names[o.state] ?? o.state), tag(String(o.count), o.state === 'succeeded' ? 'green' : 'amber'))) : el('div', { class: 'empty' }, '暂无对外操作。')))), panel('任务队列', el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, '任务'), el('th', {}, '状态'), el('th', {}, '数量'))), el('tbody', {}, (metrics.queue ?? []).map(q => el('tr', {}, el('td', {}, q.kind), el('td', {}, q.status), el('td', {}, q.count))))))), metrics.pendingCommands?.length ? panel('等待外部确认的操作', el('div', { class: 'panel-body' }, metrics.pendingCommands.map(c => el('div', { class: 'source-row' }, el('span', { class: 'source-text' }, short(c.command_id)), tag(names[c.state] ?? c.state, 'amber'))))) : null]); }
 (async () => { try {

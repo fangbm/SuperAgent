@@ -1,4 +1,6 @@
 import { parseContract } from '@superagent/contract-validation';
+export { P0Service, P0NotificationPolicy } from './p0.js';
+export type { P0Assessment, CriticalImpact } from './p0.js';
 import { SqliteStore, canonicalJSON, stableId, systemClock, timestamp, addMilliseconds, isRestrictedProject } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
 import { HybridMemory } from '@superagent/memory';

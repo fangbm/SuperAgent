@@ -1,7 +1,8 @@
 import type { JSONValue, ReportNavigationPageV1, ReportSectionV1 } from '@superagent/contracts';
 import { canonicalJSON, SqliteStore, stableId, systemClock, timestamp } from '@superagent/persistence';
 import type { Clock } from '@superagent/persistence';
-import { DomainService } from '@superagent/domain';
+import { DomainService, P0Service } from '@superagent/domain';
+import type { CriticalImpact } from '@superagent/domain';
 import type { WorkKind, WorkSnapshot } from '@superagent/memory';
 import { ReportService } from '@superagent/reporting';
 import { ControlError, hash, OperatorAuth, TokenService } from './auth.js';
@@ -14,8 +15,36 @@ const json=(v:unknown)=>canonicalJSON(v as JSONValue);
 export interface StatusCommand {kind:WorkKind;id:string;action:string;expectedVersion:number;rationale?:string}
 export interface CorrectionCommand {kind:WorkKind;id:string;action:'move'|'split'|'merge';expectedVersion:number;feedbackItemId?:string;targetId?:string;targetVersion?:number;reason:string}
 export class ControlPlane {
+  p0Enabled=false;
+  embeddingStatus:()=>{state:string;consecutiveFailures:number;lastSuccessAt:string|null;retryAt:string|null}=()=>({state:'disabled',consecutiveFailures:0,lastSuccessAt:null,retryAt:null});
   constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly reports:ReportService,readonly auth:OperatorAuth,readonly tokens:TokenService,private readonly clock:Clock=systemClock){}
   private now():string{return timestamp(this.clock());}
+  p0Alerts(principal:Principal,projectId:string){
+    this.auth.authorize(principal,projectId);
+    return {enabled:this.p0Enabled,alerts:new P0Service(this.store,this.domain,this.clock).list(projectId),assessments:this.store.all('SELECT assessment_id,issue_id,status,result_json,error_code,updated_at FROM p0_assessments WHERE project_id=? ORDER BY updated_at DESC LIMIT 100',projectId)};
+  }
+  p0Token(principal:Principal,projectId:string,request:{issueId:string;expectedVersion:number;action:string;impact:CriticalImpact;reason:string}){
+    this.auth.authorize(principal,projectId,true);
+    if(!this.p0Enabled)throw new ControlError('P0_DISABLED');
+    if(!request||!['confirm','resolve','realert'].includes(request.action)||!['irreversible_save_loss','account_compromise','service_unavailable'].includes(request.impact)||typeof request.reason!=='string'||!request.reason.trim()||request.reason.length>2000)throw new ControlError('P0_COMMAND_INVALID');
+    const work=this.work(principal,projectId,'defect',request.issueId);
+    if(work.version!==request.expectedVersion)throw new ControlError('WORK_VERSION_CONFLICT');
+    const service=new P0Service(this.store,this.domain,this.clock);
+    return this.tokens.issue(principal,projectId,'p0_action',{...request,evidenceHash:service.fingerprint(work),incidentHash:service.stateFingerprint(projectId,work.id)});
+  }
+  p0Action(principal:Principal,projectId:string,token:string){
+    this.auth.authorize(principal,projectId,true);
+    if(!this.p0Enabled)throw new ControlError('P0_DISABLED');
+    return this.store.transaction(()=>{
+      const request=this.tokens.read(principal,projectId,'p0_action',token,true) as unknown as {issueId:string;expectedVersion:number;action:string;impact:CriticalImpact;reason:string;evidenceHash:string;incidentHash:string};
+      const work=this.work(principal,projectId,'defect',request.issueId),service=new P0Service(this.store,this.domain,this.clock);
+      if(work.version!==request.expectedVersion||service.fingerprint(work)!==request.evidenceHash||service.stateFingerprint(projectId,work.id)!==request.incidentHash)throw new ControlError('WORK_VERSION_CONFLICT');
+      if(request.action==='resolve')service.resolve(projectId,work.id,principal.actorRef);
+      else service.confirm(work,service.evidence(work).slice(0,8).map(e=>({eventId:e.eventId,excerpt:e.quote.slice(0,2000)})),request.impact,principal.actorRef,request.action==='realert');
+      this.store.run("INSERT INTO work_history(project_id,work_kind,work_id,action,actor_ref,details_json,created_at) VALUES(?,'defect',?,'p0.command',?,?,?)",projectId,work.id,principal.actorRef,json(request),this.now());
+      return this.p0Alerts(principal,projectId);
+    });
+  }
   work(principal:Principal,projectId:string,kind:WorkKind,id:string):WorkSnapshot&{allowedActions:string[];mergedInto?:string}{const current=this.auth.authorize(principal,projectId);if(!['defect','suggestion'].includes(kind))throw new ControlError('INVALID_WORK_KIND');let work=this.domain.getWork(projectId,kind,id);if(!work){const table=kind==='defect'?'issues':'suggestions',key=kind==='defect'?'issue_id':'suggestion_id';const merged=this.store.get<{content_json:string;merged_into:string;status:string;version:number}>(`SELECT m.content_json,m.merged_into,t.status,t.version FROM work_metadata m JOIN ${table} t ON t.${key}=m.work_id WHERE m.project_id=? AND m.work_kind=? AND m.work_id=? AND m.merged_into IS NOT NULL`,projectId,kind,id);if(!merged)throw new ControlError('WORK_NOT_FOUND',404);return{...JSON.parse(merged.content_json) as WorkSnapshot,status:merged.status,version:merged.version,allowedActions:[],mergedInto:merged.merged_into};}return{...work,allowedActions:current.role==='developer'?this.domain.statusActions(projectId,kind,id):[]};}
   listWorks(principal:Principal,projectId:string,kind:WorkKind,query='',limit=100){this.auth.authorize(principal,projectId);if(!['defect','suggestion'].includes(kind)||query.length>200)throw new ControlError('INVALID_WORK_QUERY');const table=kind==='defect'?'issues':'suggestions',key=kind==='defect'?'issue_id':'suggestion_id';return this.store.all<{id:string}>(`SELECT t.${key} id FROM ${table} t JOIN work_metadata m ON m.work_id=t.${key} AND m.work_kind=? WHERE t.project_id=? AND m.merged_into IS NULL AND (t.title LIKE ? OR t.summary LIKE ?) ORDER BY t.updated_at DESC,t.${key} LIMIT ?`,kind,projectId,`%${query}%`,`%${query}%`,Math.max(1,Math.min(200,limit))).map(w=>this.work(principal,projectId,kind,w.id));}
   linkedItems(principal:Principal,projectId:string,kind:WorkKind,id:string){this.work(principal,projectId,kind,id);return this.store.all<{feedbackItemId:string;title:string;createdAt:string}>(`SELECT f.feedback_item_id feedbackItemId,f.title,f.created_at createdAt FROM feedback_items f JOIN work_feedback_links l USING(feedback_item_id) WHERE l.work_kind=? AND l.work_id=? AND f.active=1 ORDER BY f.created_at,f.feedback_item_id`,kind,id);}
@@ -85,5 +114,5 @@ export class ControlPlane {
     const items=ids.slice(offset,offset+limit).map(eventId=>{const e=this.domain.evidence(projectId,eventId);return{evidenceId:eventId,platform:e?.event.data.platform??'unknown',originalText:e&&!e.deleted?e.originalText:'[原文已删除或不可见]',createdAt:e?.event.time??'',visible:Boolean(e&&!e.deleted)};});
     return{total:ids.length,items,...(offset+limit<ids.length?{nextCursor:this.tokens.cursor(principal,scope,offset+limit)}:{})};
   }
-  metrics(principal:Principal,projectId:string){this.auth.authorize(principal,projectId);return{sources:this.store.all('SELECT source_id,platform,coverage,health_reason FROM sources WHERE project_id=? ORDER BY source_id',projectId),queue:this.store.all('SELECT kind,status,count(*) count FROM jobs WHERE project_id=? GROUP BY kind,status',projectId),operations:this.store.all(`SELECT o.state,count(*) count FROM external_operations o WHERE o.operation_id IN (SELECT operation_id FROM plugin_delivery_requests WHERE project_id=? UNION SELECT operation_id FROM external_operation_payloads WHERE project_id=? UNION SELECT operation_id FROM github_action_operations WHERE project_id=?) GROUP BY o.state`,projectId,projectId,projectId),pendingCommands:this.store.all('SELECT command_id,state,created_at FROM operator_commands WHERE project_id=? AND state<>? ORDER BY created_at DESC LIMIT 20',projectId,'succeeded')};}
+  metrics(principal:Principal,projectId:string){this.auth.authorize(principal,projectId);return{embeddings:this.embeddingStatus(),sources:this.store.all('SELECT source_id,platform,coverage,health_reason FROM sources WHERE project_id=? ORDER BY source_id',projectId),queue:this.store.all('SELECT kind,status,count(*) count FROM jobs WHERE project_id=? GROUP BY kind,status',projectId),operations:this.store.all(`SELECT o.state,count(*) count FROM external_operations o WHERE o.operation_id IN (SELECT operation_id FROM plugin_delivery_requests WHERE project_id=? UNION SELECT operation_id FROM external_operation_payloads WHERE project_id=? UNION SELECT operation_id FROM github_action_operations WHERE project_id=? UNION SELECT d.operation_id FROM p0_alert_deliveries d JOIN p0_delivery_requests r USING(delivery_id) WHERE r.project_id=?) GROUP BY o.state`,projectId,projectId,projectId,projectId),pendingCommands:this.store.all('SELECT command_id,state,created_at FROM operator_commands WHERE project_id=? AND state<>? ORDER BY created_at DESC LIMIT 20',projectId,'succeeded')};}
 }

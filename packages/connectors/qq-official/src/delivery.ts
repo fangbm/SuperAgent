@@ -1,4 +1,5 @@
 import type { DeliveryPluginHostV1, DeliveryPluginV1, DeliveryRequestV1, DeliveryResultV1, PluginManifestV1 } from '@superagent/plugin-sdk';
+import type { P0AlertDeliveryPluginV1, P0AlertDeliveryRequestV1 } from '@superagent/plugin-sdk';
 import { QQAPI, QQError, text } from './protocol.js';
 import type { QQAPIOptions } from './protocol.js';
 
@@ -16,7 +17,7 @@ export interface QQDeliveryOptions {
   navigationTokens?: (request: DeliveryRequestV1) => Promise<readonly string[]>;
   messageOptions?: (request: DeliveryRequestV1) => Promise<{replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons?:readonly {label:string;token:string}[];format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean}>;
 }
-export class QQC2CDelivery implements DeliveryPluginV1 {
+export class QQC2CDelivery implements P0AlertDeliveryPluginV1 {
   readonly manifest = deliveryManifest;
   private readonly clients = new WeakMap<DeliveryPluginHostV1, QQAPI>();
   constructor(private readonly options: QQDeliveryOptions) {
@@ -30,6 +31,19 @@ export class QQC2CDelivery implements DeliveryPluginV1 {
   async probe(): Promise<{ available: boolean; reason?: string }> {
     // No non-mutating QQ endpoint proves active C2C/Markdown entitlement.
     return { available: false, reason: 'QQ_C2C_PERMISSION_REQUIRES_EXPLICIT_SEND_PROBE' };
+  }
+  /** Explicit P0 capability; never adapts an alert into a fictional report. */
+  async sendP0Alert(request:P0AlertDeliveryRequestV1,host:DeliveryPluginHostV1):Promise<DeliveryResultV1>{
+    if(request.projectId!==this.options.projectId||request.recipientRef!==this.options.recipientRef)return{status:'blocked',errorCode:'QQ_RECIPIENT_NOT_AUTHORIZED'};
+    let dispatched=false;
+    try{
+      const content=`P0 紧急告警\n\n${request.title}\n\n${request.markdown}`;
+      if(!request.alertId||!content.trim()||literalMarkdown(content).length>3500)return{status:'rejected',errorCode:'QQ_CONTENT_LIMIT'};
+      const recipient=text(await host.getSecret('QQ_RECIPIENT_OPENID'),256);
+      await this.client(host).accessToken();dispatched=true;
+      const providerMessageId=await this.client(host).sendC2C(recipient,{msg_type:2,markdown:{content:literalMarkdown(content)}});
+      return{status:'accepted',providerMessageId};
+    }catch(error){return{status:error instanceof QQError?(dispatched&&error.code==='QQ_INVALID_FIELD'?'unknown':error.outcome):dispatched?'unknown':'blocked',errorCode:error instanceof QQError?error.code:'QQ_P0_DELIVERY_FAILED'};}
   }
   async probeAuthentication(host: DeliveryPluginHostV1): Promise<{ authenticated: boolean; activeSend: 'unverified' }> {
     try { await this.client(host).identity(); return { authenticated: true, activeSend: 'unverified' }; }
