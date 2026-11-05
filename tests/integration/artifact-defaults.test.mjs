@@ -13,6 +13,7 @@ test('shipped defaults enable attachment capability without starting disabled pl
  const f=appFixture(t),config=loadApplicationConfig(fileURLToPath(new URL('../../config/superagent.json',import.meta.url)));
  config.database=path.join(f.directory,'defaults.sqlite');config.artifacts.root=path.join(f.directory,'files');
  assert.equal(config.artifacts.enabled,true);assert.equal(config.sources.find(e=>e.plugin==='qq-official').config.captureAttachments,true);assert.equal(config.github.enabled,false);
+ assert.equal(config.artifacts.dnsMode,'aliyun-doh');assert.throws(()=>parseApplicationConfig({...config,artifacts:{...config.artifacts,dnsMode:'https://arbitrary.invalid'}}),/INVALID_ARTIFACT_CONFIG/);
  const app=await createApplication(config,{env:{},access:f.access});f.after(()=>app.close());await app.start();await app.tick();assert.equal(app.artifacts,undefined);assert.equal(app.artifactPublisher,undefined);assert.deepEqual(app.plugins.status(),{});
 });
 

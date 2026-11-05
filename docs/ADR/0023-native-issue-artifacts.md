@@ -29,3 +29,5 @@ WorkReportBuilder 使用可信附件状态解析器，仍与 GitHub 无依赖。
 用户要求测试后默认开启。附件子能力默认开启/继承既有 GitHub 写入授权，平台父开关不自动启用，显式 false 继续有效。全部相关父服务关闭时不实例化存储或索取闲置密钥，使用时仍要求稳定密钥，禁止静默随机替换。默认值及关闭回归见 artifact-defaults.test.mjs，未更改 M0 冻结默认策略。
 
 真实上传已证实本机 gh 凭据可发送 PNG，授权读取同哈希且匿名稳定地址 404；不再将上传凭据描述为必须是 GitHub App。GitHub 实际授权重定向到精确 S3 主机 github-production-user-asset-6210df.s3.amazonaws.com；仅补入该固定主机，禁止泛化到 *.amazonaws.com，不转发 Bearer，不保存签名 URL。纯文本上传 HTTP 422，日志直传未通过；保留本地读取及失败状态。详细证据与本机代理边界见 GITHUB-ISSUE-ASSETS.md。
+
+真实 QQ 群 JPEG 接入暴露本机 DNS 返回代理 Fake-IP 198.18.0.156；原有 SSRF 拦截正确拒绝下载。追加固定供应商的可选 DNS 模式，根配置使用 aliyun-doh，未配置时保留 system。DoH 仅查询公共 CDN 域名，仍要求公网结果并固定 TLS 地址，不放宽保留/私有地址、不更改系统代理/DNS、不重新处理失败记录或改写 Checkpoint。该选项位于可变应用配置和私有 Host 实现，不改变冻结接口。两项新增传输回归和现有套件完整通过：531 项 Node + 6 组参考验证。

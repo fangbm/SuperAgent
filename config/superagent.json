@@ -31,7 +31,7 @@
   ],
   "analysis": { "enabled": false, "allowExternalCalls": false },
   "github": { "enabled": false, "allowWrites": false },
-  "artifacts": { "enabled": true, "root": "../.artifacts/superagent/artifacts", "keyEnv": "SA_ARTIFACT_KEY" },
+  "artifacts": { "enabled": true, "root": "../.artifacts/superagent/artifacts", "keyEnv": "SA_ARTIFACT_KEY", "dnsMode": "aliyun-doh" },
   "reports": { "enabled": true },
   "notifications": { "p0Enabled": false },
   "web": { "enabled": false, "port": 8787, "accessConfig": "../.artifacts/m5-access.dpapi" },

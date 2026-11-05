@@ -62,6 +62,18 @@ test('QQ Source stages a recoverable ticket before checkpoint commit; URLs never
  assert.equal(f.runtime.store.get('SELECT count(*) n FROM source_events').n,1);assert.ok(!f.runtime.store.get('SELECT payload_json FROM source_events').payload_json.includes('TOP_SECRET'));assert.equal(f.row().state,'pending');await f.artifacts.tick(signal());assert.equal(f.row().state,'stored');
  await source.handleWebhook(...signed(payload,f.clock));await f.artifacts.tick(signal());assert.equal(f.calls(),1);
 });
+
+test('explicit fixed DoH resolves only the CDN hostname and pins a validated public address without leaking signed URLs',async()=>{
+ let dnsCalls=0,downloads=0;const transport={dnsMode:'aliyun-doh',fetch:async(input,init)=>{dnsCalls++;const u=new URL(input);assert.equal(u.origin,'https://dns.alidns.com');assert.equal(u.pathname,'/resolve');assert.equal(u.searchParams.get('name'),'multimedia.nt.qq.com.cn');assert.equal(u.searchParams.get('type'),'A');assert.equal(u.search.includes('SECRET'),false);assert.equal(init.headers.Authorization,undefined);assert.equal(init.redirect,'error');return Response.json({Status:0,Answer:[{type:5,data:'public-cdn.example'},{type:1,data:'8.8.8.8'}]});},request:(url,options,callback)=>{downloads++;assert.equal(options.family,4);options.lookup(url.hostname,{},(e,address)=>{assert.equal(e,null);assert.equal(address,'8.8.8.8');});assert.equal(options.headers.Authorization,undefined);const req=new EventEmitter();req.end=()=>{const res=new PassThrough();res.statusCode=200;res.headers={};callback(res);res.end(png);};return req;}};
+ assert.deepEqual(await downloadArtifact(new URL('https://multimedia.nt.qq.com.cn/image?rkey=SECRET'),1024,signal(),transport),png);assert.equal(dnsCalls,1);assert.equal(downloads,1);
+});
+
+test('DoH keeps private/Fake-IP rejection, bounded JSON, redirect rejection and shutdown limits',async()=>{
+ let downloads=0;const base={dnsMode:'aliyun-doh',request:()=>{downloads++;throw new Error('MUST_NOT_CONNECT');}};
+ for(const address of ['127.0.0.1','198.18.0.156','10.0.0.1'])await assert.rejects(downloadArtifact(new URL('https://gchat.qpic.cn/file'),1024,signal(),{...base,fetch:async()=>Response.json({Status:0,Answer:[{type:1,data:address}]})}),/NOT_PUBLIC/);
+ for(const response of [new Response('x'.repeat(16385)),new Response('{broken'),Response.json({Status:0,Answer:[]}),new Response(null,{status:302})])await assert.rejects(downloadArtifact(new URL('https://gchat.qpic.cn/file'),1024,signal(),{...base,fetch:async()=>response}),/ARTIFACT_DNS_/);
+ const controller=new AbortController(),pending=downloadArtifact(new URL('https://gchat.qpic.cn/file'),1024,controller.signal,{...base,fetch:()=>new Promise(()=>{})});controller.abort();await assert.rejects(pending,/ARTIFACT_ABORTED/);assert.equal(downloads,0);
+});
 test('unified managed capture and Web download require current project session; shutdown bounds an ignored abort',async t=>{
  const f=appFixture(t);for(const e of f.config.sources)e.enabled=false;for(const e of f.config.deliveries)e.enabled=false;f.config.web={enabled:true,port:0};f.config.artifacts={enabled:true,root:path.join(f.directory,'files'),keyEnv:'TEST_ARTIFACT_KEY'};
  const app=await createApplication(f.config,{access:f.access,env:{TEST_ARTIFACT_KEY:key.toString('hex')},artifactDownload:async()=>png});f.after(()=>app.close());await app.start();app.runtime.ingress.registerSource({...binding,projectId:f.config.projectId});

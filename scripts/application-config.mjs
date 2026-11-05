@@ -21,7 +21,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   c.reports ??= { enabled:true }; c.web ??= { enabled:false };
   c.notifications ??= { p0Enabled:false };
   c.artifacts??={enabled:true,root:path.join(path.dirname(c.database),'artifacts'),keyEnv:'SA_ARTIFACT_KEY'};
-  if(!exact(c.artifacts,['enabled','root','keyEnv','maxBytes','maxFilesPerMessage','maxTotalBytes','ticketTtlMs','timeoutMs'])||typeof c.artifacts.enabled!=='boolean'||c.artifacts.enabled&&(!text(c.artifacts.root)||!text(c.artifacts.keyEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.artifacts.keyEnv)))throw new Error('INVALID_ARTIFACT_CONFIG');
+  if(!exact(c.artifacts,['enabled','root','keyEnv','maxBytes','maxFilesPerMessage','maxTotalBytes','ticketTtlMs','timeoutMs','dnsMode'])||typeof c.artifacts.enabled!=='boolean'||c.artifacts.dnsMode!==undefined&&!['system','aliyun-doh'].includes(c.artifacts.dnsMode)||c.artifacts.enabled&&(!text(c.artifacts.root)||!text(c.artifacts.keyEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.artifacts.keyEnv)))throw new Error('INVALID_ARTIFACT_CONFIG');
   for(const [key,min,max] of [['maxBytes',1,10485760],['maxFilesPerMessage',1,20],['maxTotalBytes',1,1073741824],['ticketTtlMs',1000,300000],['timeoutMs',100,30000]])if(c.artifacts[key]!==undefined&&!integer(c.artifacts[key],min,max))throw new Error('INVALID_ARTIFACT_CONFIG');
   if(c.artifacts.root)c.artifacts.root=path.resolve(directory,c.artifacts.root);
   c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000,recoveryIntervalMs:900000,recoveryJitterRatio:0.2,stableResetMs:3600000, ...c.runtime };

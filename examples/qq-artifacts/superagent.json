@@ -102,6 +102,7 @@
     "maxFilesPerMessage": 5,
     "maxTotalBytes": 104857600,
     "ticketTtlMs": 120000,
-    "timeoutMs": 10000
+    "timeoutMs": 10000,
+    "dnsMode": "aliyun-doh"
   }
 }
