@@ -253,6 +253,9 @@ importers:
       '@superagent/persistence':
         specifier: workspace:*
         version: link:../persistence
+      '@superagent/reporting':
+        specifier: workspace:*
+        version: link:../reporting
 
   packages/job-queue:
     dependencies:

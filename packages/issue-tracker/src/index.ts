@@ -3,6 +3,7 @@ import { SqliteStore, stableId, canonicalJSON, systemClock, timestamp, addMillis
 import type { Clock } from '@superagent/persistence';
 import { DomainService } from '@superagent/domain';
 import type { JSONValue } from '@superagent/contracts';
+import {WorkReportBuilder,renderWorkReport} from '@superagent/reporting';
 
 export interface RemoteIssue {number:string;body:string;state:'open'|'closed';stateReason:string|null;pullRequest?:boolean}
 export interface RemoteComment {id:string;body:string;authorId:string}
@@ -127,8 +128,10 @@ export class GitHubSyncManager {
       const key=`${kind}:${row.repository}:${work.kind}:${work.id}:${kind==='github.issue.update'?work.version:'initial'}`;
       const id=stableId('external',key);const existing=this.operation(id);if(existing)return existing;
       const marker=`<!-- superagent-operation:${id} -->`;
-      const refs=[...new Set(work.evidence.map(e=>e.eventId))];
-      const body=`${marker}\n\n## ${work.kind==='defect'?'Bug':'玩家建议'}\n\n${work.summary}\n\n独立来源反馈：${work.feedbackCount}\n优先级分值：${work.priority}\n状态：${work.status}\n\n证据引用：${refs.slice(0,20).join(', ')}${refs.length>20?`（另有 ${refs.length-20} 条引用留档）`:''}\n\n原始反馈由授权渠道查询。本条由 SuperAgent 维护。`;
+      let report;
+      try{report=new WorkReportBuilder(this.store,this.domain).build(work.projectId,work.kind,work.id);}
+      catch(error){if(!(error instanceof Error)||!['WORK_REPORT_NOT_AUTHORIZED','WORK_REPORT_NO_VISIBLE_EVIDENCE'].includes(error.message))throw error;this.store.run("UPDATE github_sync_outbox SET state='held' WHERE work_kind=? AND work_id=? AND repository=?",work.kind,work.id,row.repository);return undefined;}
+      const body=`${marker}\n\n${renderWorkReport(report)}\n\n原始反馈由授权渠道查询。本条由 SuperAgent 维护。`;
       const payload:Payload={title:(this.options.titlePrefix??'')+work.title,body,marker,authorId,...(link?{issueNumber:link.external_issue_id}:{}),...(comment?{commentId:comment.comment_id,expectedHash:comment.body_hash}:{})};
       this.store.run("INSERT INTO external_operations(operation_id,kind,target_ref,idempotency_key,correlation_marker,request_hash,state,created_at,updated_at) VALUES(?,?,?,?,?,?,'prepared',?,?)",id,kind,`${work.kind}:${work.id}`,key,marker,hash(canonicalJSON(payload as unknown as JSONValue)),this.now(),this.now());
       this.store.run('INSERT INTO external_operation_payloads VALUES(?,?,?,?,?,?,?,0,?)',id,work.projectId,work.kind,work.id,row.repository,work.version,canonicalJSON(payload as unknown as JSONValue),this.now());

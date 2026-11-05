@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+export {WorkReportBuilder,renderWorkReport,workReportHash} from './work-report.js';
+export type {WorkReport,BugReportV1,SuggestionReportV1,ReportAttachment} from './work-report.js';
 import type { InternalEventId, JSONValue, NormalizedEventV1, ReportNavigationEntryV1, ReportSectionV1, ReportV2, ReportWindowV1, SteamNegativeReviewSnapshotMemberV1, SuggestionStatusV1 } from '@superagent/contracts';
 import { parseContract } from '@superagent/contract-validation';
 import { canonicalJSON, SqliteStore, stableId, systemClock, timestamp, isRestrictedProject } from '@superagent/persistence';

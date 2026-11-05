@@ -15,6 +15,7 @@
   "dependencies": {
     "@superagent/contracts": "workspace:*",
     "@superagent/persistence": "workspace:*",
-    "@superagent/domain": "workspace:*"
+    "@superagent/domain": "workspace:*",
+    "@superagent/reporting": "workspace:*"
   }
 }
