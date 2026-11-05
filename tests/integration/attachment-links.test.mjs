@@ -4,6 +4,8 @@ import path from 'node:path';
 import {ArtifactStore} from '@superagent/plugin-host';
 import {ArtifactPublisher,GitHubSyncManager} from '@superagent/issue-tracker';
 import {WorkReportBuilder} from '@superagent/reporting';
+import {DomainService} from '@superagent/domain';
+import {HybridMemory} from '@superagent/memory';
 import {OperatorAuth,TokenService,ControlPlane} from '@superagent/control-plane';
 import {ReportService} from '@superagent/reporting';
 import {m3Fixture,FixtureGitHub} from './m3-helpers.mjs';
@@ -26,6 +28,7 @@ test('unquoted same-author image is a candidate requiring confirmation; rejectio
  f.domain.attachments.review(binding.projectId,id,row.asset_ref,row.candidates[0].feedbackItemId,row.version,'确认这张是崩溃截图','developer',()=>{});assert.equal(f.domain.attachments.forWork(binding.projectId,'defect',f.workId).length,1);assert.equal(f.domain.getWork(binding.projectId,'defect',f.workId).feedbackCount,1);
  row=f.domain.attachments.list(binding.projectId).items.find(r=>r.event_id===id);f.domain.attachments.review(binding.projectId,id,row.asset_ref,null,row.version,'附件与该问题无关','developer',()=>{});f.advance(60000);f.domain.attachments.refresh(binding.projectId);assert.equal(f.domain.attachments.forWork(binding.projectId,'defect',f.workId).length,0);assert.equal(f.runtime.store.get('SELECT status FROM attachment_links WHERE event_id=?',id).status,'rejected');
  const before=f.image('image-before-text',{time:'2026-11-01T23:59:00.000Z'});f.domain.attachments.refresh(binding.projectId);assert.equal(f.runtime.store.get('SELECT status FROM attachment_links WHERE event_id=?',before).status,'review');
+ const reopened=f.open(),domain=new DomainService(reopened.store,new HybridMemory(reopened.store),{clock:f.clock});f.advance(31000);domain.attachments.refresh(binding.projectId);assert.equal(reopened.store.get('SELECT status FROM attachment_links WHERE event_id=?',id).status,'rejected');assert.equal(domain.attachments.forWork(binding.projectId,'defect',f.workId).length,0);
 });
 test('different authors, different conversations, ambiguous targets and invalidated evidence never silently attach',async t=>{
  const f=await setup(t,'Windows 1.2.0 联机崩溃，希望自动重连');const ambiguous=f.image('ambiguous',{parent:'text-feedback'}),other=f.image('other-author',{actor:'bob'}),room=f.image('other-room',{parent:'text-feedback',thread:'another'});f.domain.attachments.refresh(binding.projectId);
