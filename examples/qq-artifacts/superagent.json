@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "database": "../../.artifacts/qq-artifacts/state.sqlite",
+  "projectId": "qq-community",
+  "sources": [
+    {
+      "id": "qq-group",
+      "plugin": "qq-official",
+      "enabled": false,
+      "config": {
+        "kind": "group",
+        "sourceUri": "urn:superagent:source:qq-group",
+        "transport": "websocket",
+        "feedbackCommands": {
+          "enabled": false,
+          "allowReplyContext": true,
+          "maxDescriptionLength": 4000,
+          "rateWindowMs": 60000,
+          "perUserRateLimit": 5,
+          "perGroupRateLimit": 30,
+          "perProjectRateLimit": 60,
+          "maxModelCallsPerWindow": 120
+        },
+        "captureAttachments": false
+      },
+      "permissions": {
+        "networkHosts": [
+          "api.bot.qq.com",
+          "api.sgroup.qq.com"
+        ],
+        "secretKeys": [
+          "QQ_APP_ID",
+          "QQ_APP_SECRET",
+          "QQ_SCOPE_ID",
+          "QQ_PSEUDONYM_KEY",
+          "QQ_OPERATOR_OPENID"
+        ]
+      },
+      "secrets": {
+        "QQ_APP_ID": "SA_QQ_APP_ID",
+        "QQ_APP_SECRET": "SA_QQ_APP_SECRET",
+        "QQ_SCOPE_ID": "SA_QQ_SCOPE_ID",
+        "QQ_PSEUDONYM_KEY": "SA_QQ_PSEUDONYM_KEY",
+        "QQ_OPERATOR_OPENID": "SA_QQ_DEVELOPER_OPENID"
+      }
+    }
+  ],
+  "deliveries": [
+    {
+      "id": "qq-management",
+      "plugin": "qq-c2c",
+      "enabled": false,
+      "allowWrites": false,
+      "config": {
+        "projectId": "qq-community",
+        "recipientRef": "qq-developer",
+        "operatorMenu": {
+          "enabled": false,
+          "autoDeploy": false,
+          "defaultRecentHours": 24
+        }
+      },
+      "permissions": {
+        "networkHosts": [
+          "api.bot.qq.com"
+        ],
+        "secretKeys": [
+          "QQ_APP_ID",
+          "QQ_APP_SECRET",
+          "QQ_RECIPIENT_OPENID"
+        ]
+      },
+      "secrets": {
+        "QQ_APP_ID": "SA_QQ_APP_ID",
+        "QQ_APP_SECRET": "SA_QQ_APP_SECRET",
+        "QQ_RECIPIENT_OPENID": "SA_QQ_DEVELOPER_OPENID"
+      }
+    }
+  ],
+  "analysis": {
+    "enabled": false,
+    "allowExternalCalls": false
+  },
+  "github": {
+    "enabled": false,
+    "allowWrites": false
+  },
+  "reports": {
+    "enabled": false
+  },
+  "web": {
+    "enabled": false
+  },
+  "notifications": {
+    "p0Enabled": false
+  },
+  "artifacts": {
+    "enabled": false,
+    "root": "../../.artifacts/qq-artifacts/files",
+    "keyEnv": "SA_ARTIFACT_KEY",
+    "maxBytes": 5242880,
+    "maxFilesPerMessage": 5,
+    "maxTotalBytes": 104857600,
+    "ticketTtlMs": 120000,
+    "timeoutMs": 10000
+  }
+}

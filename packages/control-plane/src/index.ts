@@ -16,6 +16,11 @@ const json=(v:unknown)=>canonicalJSON(v as JSONValue);
 export interface StatusCommand {kind:WorkKind;id:string;action:string;expectedVersion:number;rationale?:string}
 export interface CorrectionCommand {kind:WorkKind;id:string;action:'move'|'split'|'merge';expectedVersion:number;feedbackItemId?:string;targetId?:string;targetVersion?:number;reason:string}
 export class ControlPlane {
+  artifactReader?: (projectId:string,id:string,authorize:()=>void)=>{bytes:Uint8Array;mimeType:string;sha256:string};
+  artifact(principal:Principal,projectId:string,id:string){
+    this.auth.authorize(principal,projectId);if(!this.artifactReader)throw new ControlError('ARTIFACT_NOT_FOUND',404);
+    try{return this.artifactReader(projectId,id,()=>this.auth.authorize(principal,projectId));}catch{throw new ControlError('ARTIFACT_NOT_FOUND',404);}
+  }
   p0Enabled=false;
   embeddingStatus:()=>{state:string;consecutiveFailures:number;lastSuccessAt:string|null;retryAt:string|null}=()=>({state:'disabled',consecutiveFailures:0,lastSuccessAt:null,retryAt:null});
   constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly reports:ReportService,readonly auth:OperatorAuth,readonly tokens:TokenService,private readonly clock:Clock=systemClock){}

@@ -10,7 +10,7 @@ export const readJSON = filename => JSON.parse(readFileSync(filename, 'utf8').re
 
 /** One application config; all file paths resolve against its directory, not process cwd. */
 export function parseApplicationConfig(input, directory = process.cwd(), registry=builtinSources) {
-  if (!exact(input, ['schemaVersion','database','projectId','sources','deliveries','analysis','embeddings','github','reports','web','runtime','notifications'])
+  if (!exact(input, ['schemaVersion','database','projectId','sources','deliveries','analysis','embeddings','github','reports','web','runtime','notifications','artifacts'])
     || input.schemaVersion !== 1 || !text(input.database) || !text(input.projectId)
     || !Array.isArray(input.sources) || !Array.isArray(input.deliveries)) throw new Error('INVALID_APPLICATION_CONFIG');
   const c = structuredClone(input);
@@ -20,6 +20,10 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
   c.github ??= { enabled:false, allowWrites:false };
   c.reports ??= { enabled:true }; c.web ??= { enabled:false };
   c.notifications ??= { p0Enabled:false };
+  c.artifacts??={enabled:false};
+  if(!exact(c.artifacts,['enabled','root','keyEnv','maxBytes','maxFilesPerMessage','maxTotalBytes','ticketTtlMs','timeoutMs'])||typeof c.artifacts.enabled!=='boolean'||c.artifacts.enabled&&(!text(c.artifacts.root)||!text(c.artifacts.keyEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.artifacts.keyEnv)))throw new Error('INVALID_ARTIFACT_CONFIG');
+  for(const [key,min,max] of [['maxBytes',1,10485760],['maxFilesPerMessage',1,20],['maxTotalBytes',1,1073741824],['ticketTtlMs',1000,300000],['timeoutMs',100,30000]])if(c.artifacts[key]!==undefined&&!integer(c.artifacts[key],min,max))throw new Error('INVALID_ARTIFACT_CONFIG');
+  if(c.artifacts.root)c.artifacts.root=path.resolve(directory,c.artifacts.root);
   c.runtime = { pollMs:1000, probeIntervalMs:30000, healthGraceMs:60000, maxRestarts:3, backoffMs:1000, maxBackoffMs:30000, stopTimeoutMs:10000,recoveryIntervalMs:900000,recoveryJitterRatio:0.2,stableResetMs:3600000, ...c.runtime };
   if (!exact(c.analysis, ['enabled','allowExternalCalls','baseURL','model','baseURLEnv','modelEnv','apiKeyEnv','allowLoopbackHTTP','timeoutMs','maxCalls','maxInputCharacters'])
     || typeof c.analysis.enabled !== 'boolean' || typeof c.analysis.allowExternalCalls !== 'boolean'
@@ -79,6 +83,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
       if(menu.webURL){const url=new URL(menu.webURL);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('QQ_MENU_INVALID_WEB_URL');}
     }
     entry.config=platform;
+    if(source&&platform.captureAttachments===true&&!c.artifacts.enabled)throw new Error('ARTIFACT_STORE_REQUIRED');
   }
   // Existing M5 supports one approved developer C2C binding per application project.
   if(c.deliveries.filter(e=>e.enabled).length>1)throw new Error('MULTIPLE_DELIVERY_BINDINGS_NOT_SUPPORTED');

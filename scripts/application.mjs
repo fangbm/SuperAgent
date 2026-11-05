@@ -21,6 +21,7 @@ import { acquireApplicationOwner } from './application-owner.mjs';
 import { createM3Services } from './m3-services.mjs';
 import { createP0Services } from './p0-services.mjs';
 import { createM5 } from './m5-runtime.mjs';
+import {ArtifactStore} from '@superagent/plugin-host';
 import { loadM5Access } from './m5-local-access.mjs';
 import { readFileSync } from 'node:fs';
 import { prepareDiscordModules } from './discord-modules.mjs';
@@ -48,7 +49,7 @@ export async function createApplication(input,options={}) {
   const config=parseApplicationConfig(input,options.directory,registry),env=options.env??process.env,clock=options.clock,log=options.log??(()=>{});
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
-  let runtime,owner,m5,manager,m3,webServer,processor,closePromise,started=false,ticking=false;
+  let runtime,owner,m5,manager,m3,artifacts,webServer,processor,closePromise,started=false,ticking=false;
   const servers=[];let menuDenial=async()=>{};
   const close=()=>closePromise??=(async()=>{
     controller.abort();
@@ -87,7 +88,7 @@ export async function createApplication(input,options={}) {
     }}:undefined;
     const delivery=config.deliveries.find(e=>e.enabled);
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
-    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,
+    manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,...(config.artifacts.enabled?{artifacts:{stage:request=>artifacts.stage(request)}}:{}),
       ...(delivery?{operator:{receive:request=>m5.qq.receive(request),reject:request=>menuDenial(request)}}:{})});
     const discordTokens=new Set();
     for(const entry of config.sources.filter(e=>e.enabled&&e.plugin==='discord')){
@@ -96,6 +97,7 @@ export async function createApplication(input,options={}) {
     }
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
+    if(config.artifacts.enabled){const key=required(config.artifacts.keyEnv);if(!/^[a-f0-9]{64}$/i.test(key))throw new Error('ARTIFACT_KEY_REQUIRED');artifacts=new ArtifactStore(runtime.store,{...config.artifacts,key:Buffer.from(key,'hex'),clock,assertOwner:()=>owner.assert(),...(options.artifactDownload?{download:options.artifactDownload}:{})});}
     manager.context.discord=prepareDiscordModules(runtime,config,owner);
     const restricted=runtime.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='restricted_projects'");
     if(runtime.store.get(`SELECT 1 FROM projects WHERE project_id<>? ${restricted?'AND project_id NOT IN (SELECT project_id FROM restricted_projects WHERE owner_project_id=?)':''} LIMIT 1`,config.projectId,...(restricted?[config.projectId]:[])))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');
@@ -119,6 +121,7 @@ export async function createApplication(input,options={}) {
     const p0=config.notifications.p0Enabled?createP0Services(runtime,{projectId:config.projectId,domain,model:m3.model,delivery:m5.p0Delivery,clock,timeoutMs:config.notifications.evaluationTimeoutMs??10000}):null;
     m5.control.p0Enabled=!!p0;
     m5.control.embeddingStatus=()=>({...embeddingState});
+    if(artifacts)m5.control.artifactReader=(project,id,authorize)=>artifacts.read(project,id,authorize);
     manager.runtime=runtime;manager.owner=owner;
     const tick=async()=>{
       if(processor)throw new Error('APPLICATION_MANAGED_WORKERS_RUNNING');
@@ -127,7 +130,8 @@ export async function createApplication(input,options={}) {
         const ingress=runtime.tick(),analysis=await m3.tick(signal),reports=await m5.tick();
         const p0Result=p0?{evaluation:await p0.evaluate(signal),delivery:await p0.deliver(signal)}:{state:'disabled'};
         const embeddingResult=embeddings?await memory.drainEmbeddings(signal,embeddingConfig.batchSize??8).catch(()=>0):0;
-        return {ingress,...analysis,m5:reports,p0:p0Result,embeddings:embeddingResult};
+        const artifactResult=artifacts?await artifacts.tick(signal):{processed:false};
+        return {ingress,...analysis,m5:reports,p0:p0Result,embeddings:embeddingResult,artifacts:artifactResult};
       }finally{ticking=false;}
     };
     const start=async()=>{
@@ -156,11 +160,11 @@ export async function createApplication(input,options={}) {
       // must not delay archive admission or fixed-window report scheduling.
       const embed=async()=>{if(Date.now()<embeddingRetryAt)return{};try{return{embeddings:await memory.drainEmbeddings(signal,embeddingConfig.batchSize??8)};}catch{return{};}};
       processor=Promise.all([loop('m1',()=>runtime.tick()),loop('m3',()=>m3.tick(signal)),loop('m5',()=>m5.tick()),...(embeddings?[loop('embeddings',embed)]:[]),
-        ...(p0?[loop('p0-urgent-analysis',()=>m3.urgent.tick(signal)),loop('p0-evaluate',()=>p0.evaluate(signal)),loop('p0-deliver',()=>p0.deliver(signal))]:[])]).then(()=>{if(failure)throw failure;});
+        ...(p0?[loop('p0-urgent-analysis',()=>m3.urgent.tick(signal)),loop('p0-evaluate',()=>p0.evaluate(signal)),loop('p0-deliver',()=>p0.deliver(signal))]:[]),...(artifacts?[loop('artifacts',()=>artifacts.tick(signal))]:[])]).then(()=>{if(failure)throw failure;});
       try{await processor;}catch(error){log({kind:'application',state:'failed',error:safeError(error)});throw error;}
       finally{await close();}
     };
-    return {config,runtime,memory,domain,m3,m5,p0,plugins:manager,signal,tick,start,run,close,
+    return {config,runtime,memory,domain,m3,m5,p0,artifacts,plugins:manager,signal,tick,start,run,close,
       status:()=>({plugins:manager.status(),delivery:deliveryState,webPort:webServer?.address()?.port,
         sourcePorts:Object.fromEntries(servers.filter(s=>s.sourceId&&s.listening).map(s=>[s.sourceId,s.address().port])),metrics:runtime.metrics(),p0:p0?'enabled':'disabled',embeddings:{...embeddingState}})};
   }catch(error){await close();throw error;}

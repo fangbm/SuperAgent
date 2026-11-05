@@ -18,8 +18,8 @@ export function sourceFailure(error,fallback='PLUGIN_FAILED') {
 
 /** One supervisor, one bound Host per live instance. Registry owns platform construction. */
 export class ApplicationPlugins {
-  constructor(runtime,config,owner,{env=process.env,factories={},operator,log=()=>{},registry=builtinSources,timing={},context={}}={}) {
-    Object.assign(this,{runtime,config,owner,env,factories,operator,log,registry,context});
+  constructor(runtime,config,owner,{env=process.env,factories={},operator,artifacts,log=()=>{},registry=builtinSources,timing={},context={}}={}) {
+    Object.assign(this,{runtime,config,owner,env,factories,operator,artifacts,log,registry,context});
     this.timing={now:()=>Date.now(),random:Math.random,wait:(ms,signal)=>delay(ms,undefined,{signal}),...timing};
     this.elapsed=timing.monotonicNow??timing.now??(()=>performance.now());
     this.controller=new AbortController();this.tasks=[];this.instances=new Map();this.states=new Map();this.prepared=new Map();this.closed=false;
@@ -30,7 +30,7 @@ export class ApplicationPlugins {
   }
   make(entry) {
     const definition=this.registry.get(entry.plugin),factory=this.factories[entry.plugin]??definition.factory;
-    const config=definition.configure?definition.configure(entry.config,{operator:this.operator}):entry.config;
+    const config=definition.configure?definition.configure(entry.config,{operator:this.operator,artifacts:this.artifacts}):entry.config;
     return validatePlugin(factory(config),entry,{id:definition.id,kind:'source'});
   }
   status() {return Object.fromEntries([...this.states].map(([id,state])=>[id,{...structuredClone(state),...(this.instances.get(id)?.plugin.moduleStatus?{modules:this.instances.get(id).plugin.moduleStatus()}:{})}]));}
