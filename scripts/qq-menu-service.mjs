@@ -12,7 +12,26 @@ export function createQQMenuManager({store,api,appRef,clock=()=>new Date().toISO
     if(rows.length>=(method==='PUT'?4:30)||method==='PUT'&&rows[0]&&Date.parse(now)-Date.parse(rows[0].created_at)<15000)throw new Error('QQ_MENU_RATE_LIMITED');
     store.run('INSERT INTO qq_menu_calls VALUES(?,?,?)',appRef,method,now);
   });
-  const current=async()=>{slot('GET');const response=await api.getMenu();if(!Number.isInteger(response.version)||response.version<0)throw new Error('QQ_MENU_INVALID_RESPONSE');return{version:response.version,menu:validateQQMenu(response.menu??{items:[]})};};
+  const current=async()=>{
+    slot('GET');const response=await api.getMenu();
+    // An untouched real Bot returns {menu:{}} without a version. Only this
+    // empty baseline may be unversioned; configured menus still require one.
+    const empty=response.menu==null||typeof response.menu==='object'&&!Array.isArray(response.menu)&&Object.keys(response.menu).length===0;
+    const unversioned=response.version===undefined&&Object.hasOwn(response,'menu')&&empty;
+    const version=unversioned?null:response.version;
+    if(version!==null&&(!Number.isInteger(version)||version<0))throw new Error('QQ_MENU_INVALID_RESPONSE');
+    if(version===null&&!unversioned)throw new Error('QQ_MENU_INVALID_RESPONSE');
+    // QQ adds read-only icons to GET results even though they are not part of
+    // the documented writable menu. Ignore that decoration, not other fields.
+    const item=value=>{
+      if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('QQ_MENU_INVALID_RESPONSE');
+      const {icon,...rest}=value;
+      if(icon!==undefined&&typeof icon!=='string')throw new Error('QQ_MENU_INVALID_RESPONSE');
+      return{...rest,...(Array.isArray(rest.sub_menu_items)?{sub_menu_items:rest.sub_menu_items.map(item)}:{})};
+    };
+    const menu=!empty&&Array.isArray(response.menu?.items)?{...response.menu,items:response.menu.items.map(item)}:response.menu;
+    return{version,menu:validateQQMenu(empty?{items:[]}:menu)};
+  };
   const plan=async desired=>{
     desired=validateQQMenu(desired);const before=await current(),createdAt=clock();
     const value={appRef,before,desired,createdAt,expiresAt:new Date(Date.parse(createdAt)+600000).toISOString()};
