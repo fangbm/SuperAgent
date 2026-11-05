@@ -62,4 +62,4 @@ QQ 使用已绑定开发者 OpenID，控制请求不进入玩家反馈。点击�
 
 状态动作共用 ControlPlane/DomainService，检查角色、项目、一次性令牌、版本和交互幂等身份，记录审计。拒绝/忽略须有理由；QQ 使用明确选择动作的固定审计理由，详细说明可在 Web 填写。GitHub 关联 Bug 的修复、忽略、重新打开先存为 pending_remote，只 PATCH state/state_reason，读回确认后才更新本地。并发远端状态冲突进入人工复核。启用另需 `SA_GITHUB_REPOSITORY`、`SA_GITHUB_TOKEN` 和 `--github-write`，目标必须为私有仓库。模型没有收件人或发送权限。
 
-M5 包本身不负责来源采集或模型执行，这些由统一应用的 Source 与 M3 负责。P0 实时调度、多租户公网部署仍未交付；相关历史验收见 [M5 验收](M5-ACCEPTANCE.md)，当前跨模块状态见 [项目状态](PROJECT-STATUS.md)。
+M5 包本身不负责来源采集或模型执行，这些由统一应用的 Source 与 M3 负责。本分支的 P0 独立循环复用既有队列、Domain 与批准 C2C 绑定；Web 展示独立告警，报告仍包含已告警 Bug 及当时投递状态，见 [运行说明](P0-AND-EMBEDDING.md)。多租户公网部署未交付；相关历史验收见 [M5 验收](M5-ACCEPTANCE.md)，当前跨模块状态见 [项目状态](PROJECT-STATUS.md)。

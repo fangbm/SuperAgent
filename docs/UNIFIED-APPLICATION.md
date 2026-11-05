@@ -36,7 +36,7 @@ pnpm start --config config/superagent.json
 
 `examples/steam-public/superagent.json` 显式启用三项 Steam Source 和 M3 外部模型调用，需配置上述三个 SA_LLM_* 环境值；GitHub、Delivery、报告和 Web 仍关闭。只采集时在本地配置副本中设 `analysis:{"enabled":false,"allowExternalCalls":false}`，已归档候选会等待后续分析。运行与真实有界读取证据见 [Steam 运行说明](STEAM-PUBLIC-FEEDBACK.md)。
 
-正式入口目前创建不带 Embedding provider 的 HybridMemory，使用 FTS5/BM25；SA_EMBED_* 的自动装配仅在独立调试 worker:m3 中实现，不能据环境变量存在推断正式入口已启用向量检索，也不要为此另开 worker 与正式进程争用同库。
+正式入口默认使用 FTS5/BM25；顶层 `embeddings` 可显式启用独立 provider，并由同一进程增量索引。未配置或接口故障时检索退回 lexical，模型/文本哈希隔离及故障冷却见 [P0 与 Embedding](P0-AND-EMBEDDING.md)。SA_EMBED_* 只有被配置引用才生效，不要另开 worker 与正式进程争用同库。
 
 Source 在主配置中设置 `enabled:true` 后自动运行。其 `permissions.networkHosts/secretKeys` 必须与 Manifest 一致；`secrets` 将声明键映射到环境变量名。QQ 可改用显式 `protectedConfig`，并清空相应 `secrets` 映射以选用既有 DPAPI 文件。真实用户群与验收群文件必须由操作员明确选择，不自动混用或自动发现旧凭据。QQ WebSocket 无需回调地址；选择 webhook 时还必须在实例配置 `port`，应用监听本机 `/qq/events`。
 
@@ -46,7 +46,7 @@ Delivery 目前为既有 QQ 开发者 C2C 绑定，`enabled:true` 自动加载�
 
 Web 设置 `enabled:true`、`port` 与既有 DPAPI accessConfig，或使用 `accessKeyEnv` / `signingKeyEnv`（访问密钥至少 32 字符）。默认只绑定 `127.0.0.1`。HTTP token、CSRF、角色与密钥轮换仍使用既有实现。
 
-北京 18:00/00:00 固定窗口、3 分钟 grace、补报、修订封存、旧原文锚点和普通逐消息 archive_only Admission 不变。`notifications.p0Enabled:true` 明确报 P0_SCHEDULER_NOT_IMPLEMENTED；P0 实时调度仍未交付。
+北京 18:00/00:00 固定窗口、3 分钟 grace、补报、修订封存、旧原文锚点和普通逐消息 archive_only Admission 不变。`notifications.p0Enabled:true` 启用独立的证据评估和高优先级告警，必须同时启用 analysis。发送仍需已有批准 QQ Delivery 和 allowWrites，缺失则保留 Web blocked 记录。P0 仍计入半日报，unknown 不重发，详见 [运行说明](P0-AND-EMBEDDING.md)。
 
 默认 auditSampleRate=0.02，少量普通消息会成为 audit_sample，在启用 M3 时仍进入模型分析；不能承诺所有问候/感谢都零调用。实质反馈撤回、待处理版本链、新附件和有意义的主题标题保持分析资格。主题标题与正文分别用于模型证据，QQ/Web 原文展示保留两者；移动/拆分/合并纠错由 Web 提供，QQ 继续提供导航和状态动作。
 
@@ -58,7 +58,7 @@ Web 设置 `enabled:true`、`port` 与既有 DPAPI accessConfig，或使用 `acc
 4. 加载启用的 Delivery 并执行非发送 probe，启动已配置的 Web / QQ webhook 监听。
 5. 为启用 Source 注册身份，各自注入冻结 Host；supervisor 持有 probe/start 及长期任务。主程序同时运行受管理的 M1、M3、M5 循环，外部模型等待不会阻塞 Archive Admission 或报告调度。
 
-应用入口仅组装、注入和管理生命周期，没有另建 Agent、领域逻辑、队列或数据库。平台无关包通过依赖检查禁止引入平台实现；应用组装脚本可以加载具体插件。
+应用入口组装并管理既有服务及新增 P0/Embedding 循环；P0 领域规则在 domain，任务调度在 p0-services。没有另建 Agent、队列或数据库。平台无关包通过依赖检查禁止引入平台实现；应用组装脚本可以加载具体插件。
 
 ## 生命周期、健康与恢复
 
@@ -88,6 +88,6 @@ SQLite application_owner 以事务互斥取得 token，同机原 PID 存活则�
 
 PR #6 回滚 #4、PR #7 统一主程序与恢复机制、PR #8 Steam 采集及标题证据修正均已合入 main。#8 按当前 Registry/Host 集成公开 Steam 来源；#4 的 Discord 工单、临时语音房、服务器配置和部署实现未恢复。PR #5 保留参考，不作为运行依赖。本入口面向已授权公开反馈；私有工单的独立 ACL/披露策略未交付，不应将私有来源接入并向外部模型或 GitHub 披露。后续 PR 默认 Draft，不自动合并或部署，除非用户明确授权。
 
-用户已明确无真实数据，因此没有旧 PR #4 库的迁移兼容。运行时新增 012 仅管理主程序 owner；既有 001–011 不变，原 #4 升级库会被哈希账本检查拒绝，不可篡改账本打开。原工作区与其数据、凭据未被覆盖。
+用户已明确无真实数据，因此没有旧 PR #4 库的迁移兼容。运行时 012 管理主程序 owner，本分支新增 013 管理 P0 评估/影响/投递请求；既有 001–012 不改写。原 #4 升级库会被哈希账本检查拒绝，不可篡改账本打开。原工作区与其数据、凭据未被覆盖。
 
 测试与实际证据见 [统一入口验收](UNIFIED-APPLICATION-ACCEPTANCE.md)。

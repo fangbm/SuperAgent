@@ -36,6 +36,9 @@ export function createConsoleServer(control:ControlPlane,options:{demo?:boolean;
       const projectId=url.searchParams.get('project')??'';control.auth.authorize(principal,projectId,method==='POST');
       const path=url.pathname;
       if(path==='/api/metrics'&&method==='GET'){send(200,control.metrics(principal,projectId));return;}
+      if(path==='/api/p0'&&method==='GET'){send(200,control.p0Alerts(principal,projectId));return;}
+      if(path==='/api/p0/token'&&method==='POST'){const body=await readJSON(req);send(200,{token:control.p0Token(principal,projectId,body as unknown as Parameters<ControlPlane['p0Token']>[2])});return;}
+      if(path==='/api/p0/actions'&&method==='POST'){const body=await readJSON(req);send(200,control.p0Action(principal,projectId,String(body.token)));return;}
       if(path==='/api/reports'&&method==='GET'){send(200,control.reports.list(projectId));return;}
       if(path==='/api/reports/generate'&&method==='POST'){send(200,control.reports.generate(latestClosedWindow(projectId,(options.now??(()=>new Date().toISOString()))())));return;}
       if(path==='/api/reports/revise-token'&&method==='POST'){

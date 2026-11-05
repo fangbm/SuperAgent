@@ -20,9 +20,9 @@ flowchart LR
   Buffer --> Agent[Agent Runtime]
   Agent --> Domain[Issues / Suggestions / Evidence]
   Domain --> Reports[Sealed Report Revisions]
-  Domain -. 规划路径，调度未实现 .-> P0[P0 Alert Queue]
+  Domain --> P0[Confirmed P0 Alert Queue]
   Reports --> Delivery[Approved Delivery]
-  P0 -. 未启用 .-> Delivery
+  P0 --> Delivery
 ```
 
 M1 实现 Ingress、SQLite Store、outbox/jobs、轻量 Admission、持久 Feedback Buffer 和定时扫描。M3 新增 `agent-workers → llm + memory + domain` 与独立 `issue-tracker → domain`。模型通过受限 AgentContext 形成结构化提案，领域服务校验后原子提交；GitHub Provider 不进入 Agent Core，模型不持有凭据或发送方法。
@@ -31,7 +31,7 @@ M1 实现 Ingress、SQLite Store、outbox/jobs、轻量 Admission、持久 Feedb
 
 QQ 官方插件通过 SDK Host 入库，支持 WebSocket 和签名回调；独立 C2C Delivery 由 plugin-host 持久发送意图。指定真实用户群与验收群的普通消息已验证，不能推断其他群权限；无历史/编辑对账，coverage 仍为 partial。可信 Registry 还可加载 Discord、Steam Reviews（默认负评，可选 all）、独立评价评论，以及 Discussions 的 public/snapshot 模式；Discussions 默认仍为 unavailable。匿名公开页面采集与本地快照是不同验证范围，均不承诺完整历史。见 [Steam 运行说明](STEAM-PUBLIC-FEEDBACK.md)。
 
-M5 新增 `reporting → domain + job-queue`，在独立 report 队列生成固定窗口和封存修订；`control-plane → reporting + domain` 为 Web 与 QQ 共享查询、鉴权、状态动作及关联纠错；`web-console → control-plane` 仅提供本机 HTTP。QQ Source 只调用注入的持久收件箱回调，实际查询和投递由 Host 异步执行。可信启动脚本组合平台插件，Core 不导入它们。GitHub 状态操作先远端确认再改变本地状态。P0 实时调度仍未安装。
+M5 新增 `reporting → domain + job-queue`，在独立 report 队列生成固定窗口和封存修订；`control-plane → reporting + domain` 为 Web 与 QQ 共享查询、鉴权、状态动作及关联纠错；`web-console → control-plane` 仅提供本机 HTTP。QQ Source 只调用注入的持久收件箱回调，实际查询和投递由 Host 异步执行。可信启动脚本组合平台插件，Core 不导入它们。GitHub 状态操作先远端确认再改变本地状态。本分支通过既有 p0_alert lane 与冻结 sendP0Alert 扩展补齐证据确认和独立告警；Embedding 复用同库 outbox，均默认关闭，详见 [ADR 0017](ADR/0017-p0-and-managed-embeddings.md)。
 
 M0 参考 SQL 回归继续保留。M1 集成测试另行通过真实文件数据库和子进程终止测试运行实际 TypeScript 实现，不能将其表述为真实 QQ/GitHub 联调。
 

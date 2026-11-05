@@ -20,7 +20,7 @@
 
 ## 检索与重分析
 
-默认 FTS5/BM25，中文使用字串分词以避免整句成为一个 token。底层库和独立调试 worker:m3 可配置 Embedding endpoint/model/key；调试 worker 读取 SA_EMBED_BASE_URL、SA_EMBED_MODEL 和可选 SA_EMBED_API_KEY。统一正式入口目前没有 Embedding provider 的配置装配，设置这些变量不会让正式进程启用向量检索。向量按模型版本、文本哈希保存；语义候选扫描有上限并暴露截断标记。未配置向量时不声称实现了已实测的跨语言语义召回。
+默认 FTS5/BM25，中文使用字串分词以避免整句成为一个 token。统一正式入口通过顶层 embeddings 显式配置独立 endpoint/model/key，并管理增量索引；仅设置 SA_EMBED_* 环境变量不自动启用。调试 worker:m3 继续读取这些环境变量，但不能与正式进程同时操作同库。向量按模型版本、文本哈希保存；语义候选扫描有上限并暴露截断标记。接口失败回退 lexical，并共用故障冷却。实现与本地验证见 [运行说明](P0-AND-EMBEDDING.md)，不等于真实跨语言召回质量已验收。
 
 每项最多取 3 个候选，向模型提供每个候选最多 5 条历史主证据，并说明截断；完整证据继续在本地留档。相似度不直接合并。Bug Matcher 和 Suggestion Matcher 使用不同的关系输出，并保存支持、冲突和缺失信息。
 
