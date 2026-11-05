@@ -9,10 +9,11 @@ import type { StatusCommand } from './index.js';
 import { qqReport,qqList,qqWork,qqFeedback,qqEvidence,qqNotice,qqStatus,qqActionLabel } from '@superagent/reporting';
 import {QQLiveQueries} from './qq-live.js';
 import type {QQMenuOptions} from './qq-live.js';
+import type {ReportHistoryKey} from '@superagent/reporting';
 export interface QQOperatorRequest {interactionId:string;kind:'command'|'button';content:string;reply:{messageId?:string;eventId?:string}}
 export interface QQButton {label:string;token:string}
 export interface QQReplyOptions {replyTo?:{messageId?:string;eventId?:string;sequence:number};requireReplyContext?:boolean;buttons:QQButton[];format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean;retainMessage?:boolean;card?:{kind:'defect'|'suggestion';workId:string;version:number}}
-interface Navigation {route:'report'|'browse'|'section'|'work'|'evidence'|'live'|'live_work'|'live_evidence'|'menu'|'history'|'web';reportId:string;revision:number;section?:ReportSectionV1;entryOffset?:number;kind?:'defect'|'suggestion';workId?:string;cursor?:string;sectionOffset?:number;itemOffset?:number;charOffset?:number;steamOrdinal?:number;snapshotId?:string;mode?:'pending'|'recent'|'all-bugs'|'all-suggestions'}
+interface Navigation {route:'report'|'browse'|'section'|'work'|'evidence'|'live'|'live_work'|'live_evidence'|'menu'|'history'|'web';reportId:string;revision:number;section?:ReportSectionV1;entryOffset?:number;kind?:'defect'|'suggestion';workId?:string;cursor?:string;sectionOffset?:number;itemOffset?:number;charOffset?:number;steamOrdinal?:number;snapshotId?:string;mode?:'pending'|'recent'|'all-bugs'|'all-suggestions';historyCutoff?:number;historyAfter?:ReportHistoryKey;historyBefore?:ReportHistoryKey}
 interface Message {title:string;text:string;buttons:QQButton[];report?:ReportV2;format?:'markdown'|'text';literalText?:boolean;bodyIncludesTitle?:boolean;retainMessage?:boolean;card?:QQReplyOptions['card']}
 export class QQOperatorService {
   constructor(readonly control:ControlPlane,private readonly options:{projectId:string;actorRef:string;recipientRef:string;clock?:Clock;menu?:QQMenuOptions}){
@@ -182,11 +183,14 @@ export class QQOperatorService {
       return{...qqNotice('Web 工作台',url??'尚未配置工作台地址。',url?'打开后仍需登录并通过项目授权。':''),buttons:[home]};
     }
     if(nav.route==='history'){
-      const reports=this.control.reports.list(this.options.projectId,100),offset=nav.entryOffset??0;
-      if(!Number.isInteger(offset)||offset<0||offset>reports.length)throw new ControlError('INVALID_FEEDBACK_PAGE');
-      const buttons=reports.slice(offset,offset+3).map(r=>({label:`${r.window.endExclusive.slice(5,16)} 修订${r.revision}`,token:this.navToken(principal,{route:'report',reportId:r.reportId,revision:r.revision})}));
-      if(offset)buttons.push(button('上一页','history',{entryOffset:Math.max(0,offset-3)}));if(offset+3<reports.length)buttons.push(button('下一页','history',{entryOffset:offset+3}));buttons.push(home);
-      return{...qqNotice('历史报告',reports.length?`最近 ${reports.length} 份封存报告及修订。`:'暂无正式报告。'),buttons};
+      const offset=nav.entryOffset??0;
+      if(!Number.isSafeInteger(offset)||offset<0)throw new ControlError('INVALID_FEEDBACK_PAGE');
+      if(offset&&!nav.historyAfter&&!nav.historyBefore)throw new ControlError('TOKEN_EXPIRED_OR_USED');
+      const page=this.control.reports.historyPage(this.options.projectId,{limit:3,...(nav.historyCutoff!==undefined?{cutoff:nav.historyCutoff}:{}),...(nav.historyAfter?{after:nav.historyAfter}:{}),...(nav.historyBefore?{before:nav.historyBefore}:{})});
+      const buttons=page.items.map(r=>({label:`${r.windowEnd.slice(5,16)} 修订${r.revision}`,token:this.navToken(principal,{route:'report',reportId:r.reportId,revision:r.revision})}));
+      if(page.hasPrevious)buttons.push(button('上一页','history',{historyCutoff:page.cutoff,historyBefore:page.items[0]!,entryOffset:Math.max(0,offset-3)}));
+      if(page.hasNext)buttons.push(button('下一页','history',{historyCutoff:page.cutoff,historyAfter:page.items.at(-1)!,entryOffset:offset+3}));buttons.push(button('刷新历史','history'),home);
+      return{...qqNotice('历史报告',page.items.length?`第 ${Math.floor(offset/3)+1} 页 · 已封存报告及修订。`:'暂无正式报告。','按首次打开时的封存范围分页；刷新可查看新报告。'),buttons};
     }
     const queries=new QQLiveQueries(this.control),project=this.options.projectId;
     const snapshot=nav.snapshotId?queries.read(principal,project,nav.snapshotId,this.now()):queries.create(principal,project,nav.mode??'pending',this.now(),this.options.menu?.defaultRecentHours??24);
@@ -197,7 +201,7 @@ export class QQOperatorService {
       const entries=queries.page(principal,project,snapshot.id,this.now(),page),buttons:QQButton[]=[];
       entries.forEach((e,i)=>{if(e.kind!=='task')buttons.push(button(`详情 ${i+1}`,'live_work',{...nav,route:'live_work',kind:e.kind,workId:e.id}));});
       if(page)buttons.push(button('上一页','live',{...nav,entryOffset:Math.max(0,page-3)}));if(page+3<snapshot.total)buttons.push(button('下一页','live',{...nav,entryOffset:page+3}));buttons.push(button('刷新','live',{mode:nav.mode??'pending'}),home);
-      const text=[`查询时间：${snapshot.end}`,`窗口：${snapshot.start} → ${snapshot.end}`,snapshot.summary,...entries.map((e,i)=>`${page+i+1}. [${e.category}] ${e.title.slice(0,100)}\n状态：${e.kind==='task'?({pending:'等待分析',running:'分析中',retry:'等待重试',failed:'失败待人工介入',rate_limited:'限流未分析'} as Record<string,string>)[e.status]:qqStatus(e.status)}${e.count!==undefined?` · 独立反馈 ${e.count} 条`:''}${e.last?`\n最近反馈：${e.last}`:''}${e.github?` · GitHub #${e.github}`:''}`),...(!entries.length?['暂无记录。']:[])].join('\n\n');
+      const text=[`查询时间：${snapshot.end}`,`窗口：${snapshot.start} → ${snapshot.end}`,snapshot.summary,...entries.map((e,i)=>`${page+i+1}. [${e.category}] ${e.title.slice(0,100)}\n状态：${e.kind==='task'?({pending:'等待分析',running:'分析中',retry:'等待重试',failed:'失败待人工介入',rate_limited:'限流未分析'} as Record<string,string>)[e.status]:qqStatus(e.status)}${e.count!==undefined?` · 独立反馈 ${e.count} 条`:''}${e.last?`\n最近反馈接收：${e.last}`:''}${e.createdAt?`\n工作项创建：${e.createdAt}`:''}${e.github?` · GitHub #${e.github}`:''}`),...(!entries.length?['暂无记录。']:[])].join('\n\n');
       return{...qqNotice(snapshot.title,text,'未生成或推测 P0/P1/P2 等级；待分析消息不是已确认 Bug。'),buttons};
     }
     const entry=queries.entry(principal,project,snapshot.id,this.now(),nav.kind??'',nav.workId??'');if(!entry||entry.kind==='task')throw new ControlError('WORK_NOT_FOUND',404);

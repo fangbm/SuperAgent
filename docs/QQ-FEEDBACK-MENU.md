@@ -12,9 +12,13 @@ feedbackCommands 默认关闭。启用后默认：最大正文 4000 UTF-16 单�
 
 operatorMenu 默认关闭，autoDeploy 只允许 false。开启后支持 `/pending` 待办、`/recent` 新增、`/menu` 或 `/more`、`/all-bugs`、`/all-suggestions`、`/history` 和 `/web`。原 `/reports`、`/bugs`、`/suggestions`、`/steam-negative`、`/open` 保留；旧报告查询仍是冻结窗口语义。
 
-待办将 fixed 单列待验证，只列 candidate/reviewing 建议为待复核。待分析区分 pending/running/retry/failed/限流归档，不提前算作 Bug。新增显示明确窗口，也包含既有问题的新独立来源反馈；重复投递、重新匹配不新增计数。显示反馈条数，非玩家人数。
+待办将 fixed 单列待验证，只列 candidate/reviewing 建议为待复核。全部 Bug 的总计、未处理、待验证、已终结分别按实际状态计数；全部建议将待复核与其他状态分开。待分析区分 pending/running/retry/failed/限流归档，不提前算作 Bug。新增显示明确窗口，只纳入该窗口内首次归档接收的有效来源反馈，也包含既有问题的新反馈；工作项晚创建、重复投递、重新匹配都不会将旧消息变成新反馈。最近反馈接收时间与工作项创建时间分别展示。显示反馈条数，非玩家人数。
 
 列表/原文分页使用一小时有效的持久查询成员快照；详情状态与按钮现场授权、版本检查，读者没有写按钮。无新菜单 API 时仍能使用旧 C2C 命令；应用启动和查询不部署菜单。`webURL` 只允许无凭据、无 query/hash 的 HTTPS 公共工作台地址，打开后仍需 Web 自身登录和 CSRF。
+
+历史报告采用数据库双向游标分页，无 100 份上限。首次打开时固定已封存范围，即使新报告或旧窗口的新修订在翻页期间写入，也不会挤动现有页面；“刷新历史”获取最新范围。旧版本仅带页码、没有新游标的历史按钮安全失效，可重新发送 `/history`，不修改任何报告快照。
+
+历史分页索引通过同库特性迁移 workbench-v2 增加；已提交的 workbench-v1 SQL、哈希及主 Migration Ledger 不变，旧库保留数据并自动追加新索引。
 
 ## 原生菜单管理（需单独批准）
 
@@ -45,4 +49,6 @@ pnpm qq:menu --config config/superagent.json --delivery qq-developer-delivery --
 
 官方核对：[菜单概览](https://bot.q.qq.com/wiki/develop/api-v2/server-inter/menu-panel/)、[GET /v2/menu](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_menu.get.html)、[PUT /v2/menu](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_menu.put.html)。接口支持 C2C 全局菜单，一级最多 10 项、二级最多 5 项且不再嵌套；中文计 2 字符，一级名最多 10、二级最多 14。
 
-本地最终验收：`pnpm install --frozen-lockfile`、完整 `pnpm check`（408 项 Node 测试、6 组参考验证、构建/类型/边界/45 个冻结文件）、`pnpm test:m6`（76 项）通过。新增 53 项计数含子测试；实际 SIGKILL 覆盖归档后、Admission/Batch 事务中、已入队及 Worker 调用中。关闭示例 `--check-config` 通过。远端 Windows/Linux CI 结果以本功能 Draft PR 的当前 Head 为准。
+本地最终验收：`pnpm install --frozen-lockfile`、完整 `pnpm check`（414 项 Node 测试、6 组参考验证、构建/类型/边界/45 个冻结文件）、`pnpm test:m6`（76 项）通过。新增 59 项计数含子测试；实际 SIGKILL 覆盖归档后、Admission/Batch 事务中、已入队及 Worker 调用中。关闭示例 `--check-config` 通过。远端 Windows/Linux CI 结果以本功能 Draft PR 的当前 Head 为准。
+
+2026-11-05 审查回归另覆盖：截止前接收/截止后分析、恰好截止边界的新反馈、全部列表真实状态计数、112 份历史报告双向翻页、翻页期间新增报告/修订的稳定范围、撤权/跨项目拒绝，以及 v1 → v2 索引升级不改旧账本。

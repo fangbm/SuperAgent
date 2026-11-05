@@ -4,7 +4,7 @@ import type {JSONValue} from '@superagent/contracts';
 import type {ControlPlane} from './index.js';
 import {ControlError} from './auth.js';
 import type {Principal} from './auth.js';
-export interface QQLiveEntry {kind:'defect'|'suggestion'|'task';id:string;title:string;status:string;category:string;count?:number;last?:string;github?:string;evidenceIds?:string[]}
+export interface QQLiveEntry {kind:'defect'|'suggestion'|'task';id:string;title:string;status:string;category:string;count?:number;last?:string;createdAt?:string;github?:string;evidenceIds?:string[]}
 export interface QQLiveSnapshot {id:string;start:string;end:string;title:string;summary:string;entries:QQLiveEntry[];total:number}
 export interface QQMenuOptions {enabled:boolean;autoDeploy?:false;defaultRecentHours?:number;webURL?:string}
 type Mode='pending'|'recent'|'all-bugs'|'all-suggestions';
@@ -16,7 +16,7 @@ export class QQLiveQueries {
     return this.control.store.transaction(()=>{
       const id=randomUUID(),store=this.control.store,last=this.control.reports.list(project,1)[0];
       const start=mode==='recent'?(last?.window.endExclusive??addMilliseconds(now,-hours*3600000)):now;
-      const counts:Record<string,number>={bugs:0,suggestions:0,verify:0,pending:0,running:0,retry:0,failed:0,rate_limited:0};let total=0;
+      const counts:Record<string,number>={bugs:0,bugs_total:0,bugs_closed:0,suggestions:0,suggestions_total:0,verify:0,new_works:0,existing_updates:0,pending:0,running:0,retry:0,failed:0,rate_limited:0};let total=0;
       const append=(entry:QQLiveEntry)=>store.run('INSERT INTO qq_query_members VALUES(?,?,?,?,?)',id,total++,entry.kind,entry.id,canonicalJSON(entry as unknown as JSONValue));
       // Bounded keyset reads materialize members once. Navigation later uses
       // ordinal PK seeks, never changing live OFFSET pages or truncating all-work lists.
@@ -31,12 +31,18 @@ export class QQLiveQueries {
           for(const row of rows){
             const evidence=store.all<{received_at:string}>(`SELECT min((SELECT min(first.received_at) FROM source_events first WHERE first.source_id=p.source_id AND json_extract(first.payload_json,'$.data.object.externalId')=p.external_id)) received_at FROM work_feedback_links l JOIN feedback_items f USING(feedback_item_id) JOIN feedback_primary_objects p USING(feedback_item_id) JOIN source_events e ON e.event_id=p.event_id AND e.project_id=? WHERE l.work_kind=? AND l.work_id=? AND f.active=1 GROUP BY p.source_id,p.external_id ORDER BY received_at DESC`,project,kind,row.id);
             const fresh=evidence.filter(e=>e.received_at>=start&&e.received_at<=now);
-            if(mode==='recent'&&row.created_at<start&&!fresh.length)continue;
+            // Work creation is analysis time, not feedback arrival time. Delayed
+            // extraction/matching never makes pre-window source messages new.
+            if(mode==='recent'&&!fresh.length)continue;
             const github=store.get<{external_issue_id:string}>('SELECT external_issue_id FROM external_work_links WHERE work_kind=? AND work_id=? AND provider=\'github\' LIMIT 1',kind,row.id);
             const anchors=(JSON.parse(row.content_json) as {evidence:{role:string;eventId:string}[]}).evidence;
             const evidenceIds=[...new Set(anchors.filter(e=>e.role==='primary').map(e=>e.eventId))].sort();
-            append({kind,id:row.id,title:row.title,status:row.status,evidenceIds,category:mode==='recent'?(row.created_at>=start?'新增工作项':'已有问题新增反馈'):row.status==='fixed'?'待验证':kind==='suggestion'?'待复核建议':'Bug',count:mode==='recent'?fresh.length:evidence.length,...(evidence[0]?{last:evidence[0].received_at}:{}),...(github?{github:github.external_issue_id}:{})});
-            if(kind==='suggestion')counts.suggestions!++;else if(row.status==='fixed')counts.verify!++;else counts.bugs!++;
+            const unprocessed=['candidate','open','investigating'].includes(row.status),review=['candidate','reviewing'].includes(row.status);
+            const category=mode==='recent'?(row.created_at>=start?'新增工作项':'已有问题新增反馈'):kind==='defect'?(row.status==='fixed'?'待验证':unprocessed?'未处理 Bug':'已终结 Bug'):review?'待复核建议':'建议';
+            append({kind,id:row.id,title:row.title,status:row.status,evidenceIds,createdAt:row.created_at,category,count:mode==='recent'?fresh.length:evidence.length,...(evidence[0]?{last:evidence[0].received_at}:{}),...(github?{github:github.external_issue_id}:{})});
+            if(kind==='suggestion'){counts.suggestions_total!++;if(review)counts.suggestions!++;}
+            else{counts.bugs_total!++;if(row.status==='fixed')counts.verify!++;else if(unprocessed)counts.bugs!++;else counts.bugs_closed!++;}
+            if(mode==='recent')counts[row.created_at>=start?'new_works':'existing_updates']!++;
           }
           afterTime=rows.at(-1)!.updated_at;afterId=rows.at(-1)!.id;
         }
@@ -53,7 +59,9 @@ export class QQLiveQueries {
           afterTime=tasks.at(-1)!.received_at;afterId=tasks.at(-1)!.event_id;
         }
       }
-      const snapshot:QQLiveSnapshot={id,start,end:now,title:mode==='pending'?'实时待办':mode==='recent'?'实时新增':mode==='all-bugs'?'全部 Bug':'全部建议',summary:`未处理 Bug ${counts.bugs} · 待复核建议 ${counts.suggestions} · 待验证 ${counts.verify}\n待分析 ${counts.pending} · 运行中 ${counts.running} · 等待重试 ${counts.retry} · 失败 ${counts.failed} · 限流未分析 ${counts.rate_limited}`,entries:[],total};
+      const workSummary=mode==='all-bugs'?`Bug 总计 ${counts.bugs_total} · 未处理 Bug ${counts.bugs} · 待验证 ${counts.verify} · 已终结 ${counts.bugs_closed}`:mode==='all-suggestions'?`建议总计 ${counts.suggestions_total} · 待复核建议 ${counts.suggestions} · 其他状态 ${counts.suggestions_total!-counts.suggestions!}`:mode==='recent'?`窗口内有新反馈的 Bug ${counts.bugs_total} · 建议 ${counts.suggestions_total}\n新增工作项 ${counts.new_works} · 已有工作项新增反馈 ${counts.existing_updates}`:`未处理 Bug ${counts.bugs} · 待复核建议 ${counts.suggestions} · 待验证 ${counts.verify}`;
+      const taskSummary=mode==='pending'||mode==='recent'?`\n待分析 ${counts.pending} · 运行中 ${counts.running} · 等待重试 ${counts.retry} · 失败 ${counts.failed} · 限流未分析 ${counts.rate_limited}`:'';
+      const snapshot:QQLiveSnapshot={id,start,end:now,title:mode==='pending'?'实时待办':mode==='recent'?'实时新增':mode==='all-bugs'?'全部 Bug':'全部建议',summary:workSummary+taskSummary,entries:[],total};
       store.run('DELETE FROM qq_query_snapshots WHERE expires_at<?',now);
       store.run('INSERT INTO qq_query_snapshots VALUES(?,?,?,?,?,?)',id,project,principal.actorRef,now,addMilliseconds(now,3600000),canonicalJSON(snapshot as unknown as JSONValue));
       return{...snapshot,entries:this.page(principal,project,id,now,0)};

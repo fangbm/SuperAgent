@@ -134,5 +134,5 @@ test('bug command may become only a suggestion and fabricated evidence cannot cr
 test('QQ feature migrations are idempotent and coexist with a later main migration without rewriting either ledger',t=>{
   const f=fixture(t),prefix=f.runtime.store.all('SELECT * FROM schema_migrations ORDER BY name');
   const store=new SqliteStore(f.filename,{migrations:[...bundledMigrations(),{name:'013_parallel_feature.sql',sql:'CREATE TABLE parallel_013_fixture(id TEXT PRIMARY KEY);'}]});
-  try{ensureQQFeatures(store);ensureQQFeatures(store);assert.deepEqual(store.all('SELECT * FROM schema_migrations ORDER BY name').slice(0,prefix.length),prefix);assert.equal(store.get('SELECT count(*) n FROM qq_feature_migrations').n,1);assert.ok(store.get("SELECT 1 FROM sqlite_master WHERE name='parallel_013_fixture'"));}finally{store.close();}
+  try{ensureQQFeatures(store);ensureQQFeatures(store);assert.deepEqual(store.all('SELECT * FROM schema_migrations ORDER BY name').slice(0,prefix.length),prefix);assert.equal(store.get('SELECT count(*) n FROM qq_feature_migrations').n,2);assert.ok(store.get("SELECT 1 FROM sqlite_master WHERE name='parallel_013_fixture'"));}finally{store.close();}
 });
