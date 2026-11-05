@@ -29,7 +29,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
     || typeof c.analysis.enabled !== 'boolean' || typeof c.analysis.allowExternalCalls !== 'boolean'
     || c.analysis.enabled && (!c.analysis.allowExternalCalls || !(text(c.analysis.baseURL)||text(c.analysis.baseURLEnv)) || !(text(c.analysis.model)||text(c.analysis.modelEnv)))
     || ['baseURLEnv','modelEnv','apiKeyEnv'].some(key=>c.analysis[key]!==undefined&&(!text(c.analysis[key])||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.analysis[key])))
-    || !exact(c.github, ['enabled','allowWrites','repository','tokenEnv','baseURL','allowLoopbackHTTP'])
+    || !exact(c.github, ['enabled','allowWrites','repository','tokenEnv','baseURL','allowLoopbackHTTP','attachmentUploads'])
     || typeof c.github.enabled !== 'boolean' || typeof c.github.allowWrites !== 'boolean'
     || c.github.allowWrites && !c.github.enabled
     || c.github.enabled && (!/^[\w.-]+\/[\w.-]+$/.test(c.github.repository??'') || !text(c.github.tokenEnv))
@@ -54,6 +54,7 @@ export function parseApplicationConfig(input, directory = process.cwd(), registr
     if(c.analysis[key]!==undefined&&!integer(c.analysis[key],a,b))throw new Error('INVALID_ANALYSIS_PARAMETERS');
   }
   const ids = new Set(), uris = new Set();
+  if(c.github.attachmentUploads!==undefined){const upload=c.github.attachmentUploads;if(!exact(upload,['enabled','allowWrites','tokenEnv'])||typeof upload.enabled!=='boolean'||typeof upload.allowWrites!=='boolean'||upload.allowWrites&&(!upload.enabled||!c.github.allowWrites)||upload.enabled&&(!c.github.enabled||!c.artifacts.enabled)||upload.tokenEnv!==undefined&&(!text(upload.tokenEnv)||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(upload.tokenEnv)))throw new Error('INVALID_GITHUB_ATTACHMENT_CONFIG');}
   for (const entry of [...c.sources,...c.deliveries]) {
     const source = c.sources.includes(entry);
     if (!exact(entry,['id','plugin','enabled','config','permissions','secrets','protectedConfig','port','allowWrites'])

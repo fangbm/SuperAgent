@@ -3,7 +3,10 @@ import { SqliteStore, stableId, canonicalJSON, systemClock, timestamp, addMillis
 import type { Clock } from '@superagent/persistence';
 import { DomainService } from '@superagent/domain';
 import type { JSONValue } from '@superagent/contracts';
-import {WorkReportBuilder,renderWorkReport} from '@superagent/reporting';
+import {WorkReportBuilder,renderWorkReport,workReportHash} from '@superagent/reporting';
+import {installIssueAssets} from './issue-assets.js';
+export {ArtifactPublisher,GitHubIssueAssets,IssueAssetError,issueAssetURL} from './issue-assets.js';
+export type {IssueAssetPort} from './issue-assets.js';
 
 export interface RemoteIssue {number:string;body:string;state:'open'|'closed';stateReason:string|null;pullRequest?:boolean}
 export interface RemoteComment {id:string;body:string;authorId:string}
@@ -111,7 +114,13 @@ export class GitHubActionWorker {
 interface OperationRow {operation_id:string;kind:string;state:string;attempt:number;lease_owner:string|null;lease_until:string|null;project_id:string;work_kind:'defect'|'suggestion';work_id:string;repository:string;work_version:number;payload_json:string;reconcile_attempt:number;next_attempt_at:string}
 interface Payload {title:string;body:string;marker:string;authorId:string;issueNumber?:string;commentId?:string;expectedHash?:string}
 export class GitHubSyncManager {
-  constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly port:GitHubPort,private readonly options:{clock?:Clock;maxReconciliations?:number;maxPages?:number;leaseMs?:number;allowWrites?:boolean;titlePrefix?:string}={}){}
+  constructor(readonly store:SqliteStore,readonly domain:DomainService,readonly port:GitHubPort,private readonly options:{clock?:Clock;maxReconciliations?:number;maxPages?:number;leaseMs?:number;allowWrites?:boolean;titlePrefix?:string;reportBuilder?:WorkReportBuilder}={}){installIssueAssets(store);}
+  artifactChanged(eventId:string):void{
+    this.store.transaction(()=>{
+      const works=this.store.all<{work_kind:string;work_id:string}>(`SELECT DISTINCT l.work_kind,l.work_id FROM work_feedback_links l JOIN feedback_items f USING(feedback_item_id) JOIN feedback_item_evidence e USING(feedback_item_id) JOIN github_sync_outbox g ON g.work_kind=l.work_kind AND g.work_id=l.work_id AND g.repository=? WHERE f.active=1 AND e.event_id=? AND e.role='primary'`,this.port.repository,eventId);
+      for(const work of works){this.store.run('INSERT INTO github_report_revisions(work_kind,work_id,repository,revision) VALUES(?,?,?,1) ON CONFLICT(work_kind,work_id,repository) DO UPDATE SET revision=revision+1',work.work_kind,work.work_id,this.port.repository);this.store.run("UPDATE github_sync_outbox SET state=CASE WHEN state='held' THEN state ELSE 'pending' END,available_at=min(available_at,?) WHERE work_kind=? AND work_id=? AND repository=?",this.now(),work.work_kind,work.work_id,this.port.repository);}
+    });
+  }
   private now():string{return timestamp((this.options.clock??systemClock)());}
   private operation(id:string):OperationRow|undefined{return this.store.get<OperationRow>('SELECT o.*,p.* FROM external_operations o JOIN external_operation_payloads p USING(operation_id) WHERE operation_id=?',id);}
   private mark(op:OperationRow,state:string,code:string|null=null):void{this.store.run('UPDATE external_operations SET state=?,last_error=?,lease_owner=NULL,lease_until=NULL,updated_at=? WHERE operation_id=?',state,code,this.now(),op.operation_id);
@@ -125,16 +134,23 @@ export class GitHubSyncManager {
       const link=this.store.get<{external_issue_id:string}>('SELECT external_issue_id FROM external_work_links WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);
       const comment=this.store.get<{comment_id:string;body_hash:string;author_id:string}>('SELECT * FROM github_stats_comments WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);
       const kind=!link?'github.issue.create':!comment?'github.comment.create':'github.issue.update';
-      const key=`${kind}:${row.repository}:${work.kind}:${work.id}:${kind==='github.issue.update'?work.version:'initial'}`;
-      const id=stableId('external',key);const existing=this.operation(id);if(existing)return existing;
-      const marker=`<!-- superagent-operation:${id} -->`;
       let report;
-      try{report=new WorkReportBuilder(this.store,this.domain).build(work.projectId,work.kind,work.id);}
+      try{report=(this.options.reportBuilder??new WorkReportBuilder(this.store,this.domain)).build(work.projectId,work.kind,work.id);}
       catch(error){if(!(error instanceof Error)||!['WORK_REPORT_NOT_AUTHORIZED','WORK_REPORT_NO_VISIBLE_EVIDENCE'].includes(error.message))throw error;this.store.run("UPDATE github_sync_outbox SET state='held' WHERE work_kind=? AND work_id=? AND repository=?",work.kind,work.id,row.repository);return undefined;}
+      const reportHash=workReportHash(report),revision=this.store.get<{revision:number}>('SELECT revision FROM github_report_revisions WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository)?.revision??0;
+      this.store.run('INSERT INTO github_report_revisions(work_kind,work_id,repository) VALUES(?,?,?) ON CONFLICT DO NOTHING',work.kind,work.id,row.repository);
+      if(kind==='github.issue.update'&&this.store.get<{synced_hash:string|null}>('SELECT synced_hash FROM github_report_revisions WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository)?.synced_hash===reportHash){this.store.run('UPDATE github_report_revisions SET synced_revision=revision WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);this.store.run("UPDATE github_sync_outbox SET state='idle' WHERE work_kind=? AND work_id=? AND repository=? AND desired_version<=?",work.kind,work.id,row.repository,work.version);return undefined;}
+      const key=`${kind}:${row.repository}:${work.kind}:${work.id}:${kind==='github.issue.update'?`${work.version}:${reportHash}`:'initial'}`;
+      const id=stableId('external',key);const existing=this.operation(id);if(existing){
+        if(kind==='github.issue.update'&&existing.state==='succeeded'){this.store.run('UPDATE github_report_revisions SET synced_revision=revision WHERE work_kind=? AND work_id=? AND repository=?',work.kind,work.id,row.repository);this.store.run("UPDATE github_sync_outbox SET state='idle' WHERE work_kind=? AND work_id=? AND repository=? AND desired_version<=?",work.kind,work.id,row.repository,work.version);return undefined;}
+        return existing;
+      }
+      const marker=`<!-- superagent-operation:${id} -->`;
       const body=`${marker}\n\n${renderWorkReport(report)}\n\n原始反馈由授权渠道查询。本条由 SuperAgent 维护。`;
       const payload:Payload={title:(this.options.titlePrefix??'')+work.title,body,marker,authorId,...(link?{issueNumber:link.external_issue_id}:{}),...(comment?{commentId:comment.comment_id,expectedHash:comment.body_hash}:{})};
       this.store.run("INSERT INTO external_operations(operation_id,kind,target_ref,idempotency_key,correlation_marker,request_hash,state,created_at,updated_at) VALUES(?,?,?,?,?,?,'prepared',?,?)",id,kind,`${work.kind}:${work.id}`,key,marker,hash(canonicalJSON(payload as unknown as JSONValue)),this.now(),this.now());
       this.store.run('INSERT INTO external_operation_payloads VALUES(?,?,?,?,?,?,?,0,?)',id,work.projectId,work.kind,work.id,row.repository,work.version,canonicalJSON(payload as unknown as JSONValue),this.now());
+      this.store.run('INSERT INTO github_report_operations VALUES(?,?,?)',id,reportHash,revision);
       this.store.run("UPDATE github_sync_outbox SET state='processing' WHERE work_kind=? AND work_id=? AND repository=?",work.kind,work.id,row.repository);
       return this.operation(id);
     });
@@ -150,7 +166,9 @@ export class GitHubSyncManager {
       if(result.issue){if(result.issue.pullRequest)throw new GitHubError('REMOTE_OBJECT_IS_PR','manual_review');this.store.run("INSERT INTO external_work_links VALUES(?,?,'github',?,?,?)",op.work_kind,op.work_id,op.repository,result.issue.number,op.operation_id);}
       if(result.comment)this.store.run('INSERT INTO github_stats_comments VALUES(?,?,?,?,?,?) ON CONFLICT(work_kind,work_id,repository) DO UPDATE SET comment_id=excluded.comment_id,body_hash=excluded.body_hash,author_id=excluded.author_id',op.work_kind,op.work_id,op.repository,result.comment.id,hash(result.comment.body),result.comment.authorId);
       this.store.run("UPDATE external_operations SET state='succeeded',provider_object_id=?,lease_owner=NULL,lease_until=NULL,updated_at=? WHERE operation_id=?",result.issue?.number??result.comment?.id??null,this.now(),op.operation_id);
-      this.store.run(`UPDATE github_sync_outbox SET synced_version=?,state=CASE WHEN desired_version>? THEN 'pending' ELSE 'idle' END,available_at=? WHERE work_kind=? AND work_id=? AND repository=?`,op.work_version,op.work_version,addMilliseconds(this.now(),60_000),op.work_kind,op.work_id,op.repository);
+      const sentReport=this.store.get<{revision:number;report_hash:string}>('SELECT revision,report_hash FROM github_report_operations WHERE operation_id=?',op.operation_id),sent=sentReport?.revision??0,current=this.store.get<{revision:number}>('SELECT revision FROM github_report_revisions WHERE work_kind=? AND work_id=? AND repository=?',op.work_kind,op.work_id,op.repository)?.revision??0;
+      this.store.run('UPDATE github_report_revisions SET synced_revision=max(synced_revision,?),synced_hash=coalesce(?,synced_hash) WHERE work_kind=? AND work_id=? AND repository=?',sent,sentReport?.report_hash??null,op.work_kind,op.work_id,op.repository);
+      this.store.run(`UPDATE github_sync_outbox SET synced_version=?,state=CASE WHEN desired_version>? OR ?>? THEN 'pending' ELSE 'idle' END,available_at=? WHERE work_kind=? AND work_id=? AND repository=?`,op.work_version,op.work_version,current,sent,addMilliseconds(this.now(),60000),op.work_kind,op.work_id,op.repository);
     });
   }
   async tick():Promise<{processed:boolean;state?:string;operationId?:string}>{

@@ -3,13 +3,13 @@ import { AnalysisWorker } from '@superagent/agent-workers';
 import { GitHubSyncManager } from '@superagent/issue-tracker';
 
 /** Same workers as worker:m3; application supplies the shared runtime/domain/memory. */
-export function createM3Services(runtime,{projectId,analysis:config,model:providedModel,memory,domain,github,githubWrite=false,clock,p0Enabled=false}) {
+export function createM3Services(runtime,{projectId,analysis:config,model:providedModel,memory,domain,github,githubWrite=false,clock,p0Enabled=false,reportBuilder}) {
   const model=config.enabled?(providedModel??new CompatibleChatModel({baseURL:config.baseURL,model:config.model,
     ...(config.apiKey?{apiKey:config.apiKey}:{}),thinking:'disabled',allowLoopbackHTTP:config.allowLoopbackHTTP===true})):null;
   const timeoutMs=config.timeoutMs??30000;
   const analysis=model?new AnalysisWorker(runtime.store,runtime.queue,domain,memory,model,{timeoutMs,leaseMs:timeoutMs+30000,
     ...(clock?{clock}:{}),...(config.maxCalls?{maxCalls:config.maxCalls}:{}),...(config.maxInputCharacters?{maxInputCharacters:config.maxInputCharacters}:{})}):null;
-  const sync=github?new GitHubSyncManager(runtime.store,domain,github,{allowWrites:githubWrite,...(clock?{clock}:{})}):null;
+  const sync=github?new GitHubSyncManager(runtime.store,domain,github,{allowWrites:githubWrite,...(clock?{clock}:{}),...(reportBuilder?{reportBuilder}:{})}):null;
   const urgent=p0Enabled&&model?new AnalysisWorker(runtime.store,runtime.queue,domain,memory,model,{urgentOnly:true,timeoutMs,leaseMs:timeoutMs+30000,...(clock?{clock}:{}),...(config.maxCalls?{maxCalls:config.maxCalls}:{}),...(config.maxInputCharacters?{maxInputCharacters:config.maxInputCharacters}:{})}):null;
   let lastStatus=0;
   return {analysis,sync,urgent,model,async tick(signal){

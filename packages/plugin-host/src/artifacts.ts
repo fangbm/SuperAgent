@@ -53,7 +53,7 @@ const view=(r:Row):StoredArtifact=>({artifactId:r.artifact_id,projectId:r.projec
 /** Private Host capability, outside frozen Source/Delivery APIs. Raw signed URLs are encrypted tickets only. */
 export class ArtifactStore {
   private readonly root:string;private readonly key:Buffer;
-  constructor(readonly store:SqliteStore,private readonly options:{root:string;key:Buffer;clock?:()=>string;assertOwner?:()=>void;maxBytes?:number;maxFilesPerMessage?:number;maxTotalBytes?:number;ticketTtlMs?:number;timeoutMs?:number;download?:(url:URL,maxBytes:number,signal:AbortSignal)=>Promise<Buffer>}){
+  constructor(readonly store:SqliteStore,private readonly options:{root:string;key:Buffer;clock?:()=>string;assertOwner?:()=>void;maxBytes?:number;maxFilesPerMessage?:number;maxTotalBytes?:number;ticketTtlMs?:number;timeoutMs?:number;download?:(url:URL,maxBytes:number,signal:AbortSignal)=>Promise<Buffer>;onChanged?:(eventId:string)=>void}){
     if(options.key.length!==32)throw new Error('ARTIFACT_KEY_REQUIRED');this.key=Buffer.from(options.key);mkdirSync(options.root,{recursive:true,mode:0o700});this.root=realpathSync(options.root);
     const sql=readFileSync(new URL('../migrations/artifacts-v1.sql',import.meta.url),'utf8'),hash=digest(sql);
     store.transaction(()=>{
@@ -81,18 +81,18 @@ export class ArtifactStore {
     const event=this.store.get<{event_id:string;payload_json:string}>('SELECT event_id,payload_json FROM source_events WHERE project_id=? AND source_id=? AND source_uri=? AND external_event_id=?',row.project_id,row.source_id,row.source_uri,row.external_event_id);if(!event)return false;
     const value=JSON.parse(event.payload_json) as NormalizedEventV1;
     if(value.type!=='com.superagent.feedback.message.created.v1'||!value.data.content?.attachments?.some(a=>a.assetRef===row.asset_ref))throw new ArtifactError('ARTIFACT_SOURCE_MISMATCH');
-    row.source_event_id=event.event_id;this.store.run('UPDATE artifacts SET source_event_id=? WHERE artifact_id=?',event.event_id,row.artifact_id);return true;
+    const changed=row.source_event_id!==event.event_id;row.source_event_id=event.event_id;this.store.run('UPDATE artifacts SET source_event_id=? WHERE artifact_id=?',event.event_id,row.artifact_id);if(changed)this.options.onChanged?.(event.event_id);return true;
   }
   private visible(row:Row):boolean{return !!row.source_event_id&&!!this.store.get('SELECT 1 FROM source_objects WHERE event_id=? AND deleted=0',row.source_event_id);}
   private saved(row:Row):Buffer{if(!row.storage_key||!row.sha256)throw new Error('ARTIFACT_NOT_STORED');const bytes=this.open(readFileSync(this.file(row.storage_key)),`content:${row.artifact_id}`);if(digest(bytes)!==row.sha256||bytes.length!==row.size)throw new Error('ARTIFACT_INTEGRITY');return bytes;}
-  private finish(id:string,state:string,code:string|null=null,token?:string){this.store.run('UPDATE artifacts SET state=?,error_code=?,ticket_cipher=NULL,lease_token=NULL,lease_until=NULL,captured_at=CASE WHEN ?=\'stored\' THEN ? ELSE captured_at END WHERE artifact_id=?'+(token?' AND lease_token=?':''),state,code,state,this.now(),id,...(token?[token]:[]));}
+  private finish(id:string,state:string,code:string|null=null,token?:string){const result=this.store.run('UPDATE artifacts SET state=?,error_code=?,ticket_cipher=NULL,lease_token=NULL,lease_until=NULL,captured_at=CASE WHEN ?=\'stored\' THEN ? ELSE captured_at END WHERE artifact_id=?'+(token?' AND lease_token=?':''),state,code,state,this.now(),id,...(token?[token]:[]));if(result.changes){const row=this.store.get<{source_event_id:string|null}>('SELECT source_event_id FROM artifacts WHERE artifact_id=?',id);if(row?.source_event_id)this.options.onChanged?.(row.source_event_id);}}
   async tick(signal:AbortSignal):Promise<{processed:boolean;state?:string}>{
     this.options.assertOwner?.();signal.throwIfAborted();
     const bindings=this.store.all<Row>(`SELECT a.* FROM artifacts a JOIN source_events e ON e.project_id=a.project_id AND e.source_id=a.source_id AND e.source_uri=a.source_uri AND e.external_event_id=a.external_event_id WHERE a.source_event_id IS NULL AND coalesce(a.error_code,'')<>'ARTIFACT_SOURCE_MISMATCH' LIMIT 100`);
     for(const row of bindings)try{this.bind(row);}catch{this.finish(row.artifact_id,'rejected','ARTIFACT_SOURCE_MISMATCH');}
     const expired=this.store.all<Row>("SELECT * FROM artifacts WHERE state='capturing' AND lease_until<=?",this.now());
     for(const row of expired){try{if(row.storage_key){this.saved(row);this.finish(row.artifact_id,'stored');continue;}}catch{/* An incomplete file never becomes stored. */}this.store.run("UPDATE artifacts SET state='pending',lease_token=NULL,lease_until=NULL WHERE artifact_id=?",row.artifact_id);}
-    this.store.run("UPDATE artifacts SET state='unavailable',error_code='ARTIFACT_URL_EXPIRED',ticket_cipher=NULL WHERE state='pending' AND ticket_expires_at<=?",this.now());
+    for(const row of this.store.all<Row>("SELECT * FROM artifacts WHERE state='pending' AND ticket_expires_at<=? LIMIT 100",this.now()))this.finish(row.artifact_id,'unavailable','ARTIFACT_URL_EXPIRED');
     const row=this.store.get<Row>("SELECT * FROM artifacts WHERE state='pending' AND source_event_id IS NOT NULL AND next_attempt_at<=? ORDER BY created_at,artifact_id LIMIT 1",this.now());if(!row)return{processed:false};
     if(row.attempt>=3){this.finish(row.artifact_id,'unavailable','ARTIFACT_RETRY_BUDGET');return{processed:true,state:'unavailable'};}
     try{if(!this.bind(row))return{processed:false};if(!this.visible(row)){this.finish(row.artifact_id,'unavailable','ARTIFACT_SOURCE_NOT_VISIBLE');return{processed:true,state:'unavailable'};}}catch(e){this.finish(row.artifact_id,'rejected',e instanceof ArtifactError?e.code:'ARTIFACT_SOURCE_INVALID');return{processed:true,state:'rejected'};}

@@ -7,7 +7,8 @@ import { M1Runtime } from '@superagent/agent-core';
 import { HybridMemory } from '@superagent/memory';
 import { CompatibleEmbeddings } from '@superagent/llm';
 import { DomainService } from '@superagent/domain';
-import { GitHubREST } from '@superagent/issue-tracker';
+import { GitHubREST,GitHubIssueAssets,ArtifactPublisher } from '@superagent/issue-tracker';
+import {WorkReportBuilder} from '@superagent/reporting';
 import { deliveryHost } from '@superagent/plugin-host';
 import { createConsoleServer } from '@superagent/web-console';
 import { parseApplicationConfig } from './application-config.mjs';
@@ -49,7 +50,7 @@ export async function createApplication(input,options={}) {
   const config=parseApplicationConfig(input,options.directory,registry),env=options.env??process.env,clock=options.clock,log=options.log??(()=>{});
   const controller=new AbortController(),signal=options.signal?AbortSignal.any([controller.signal,options.signal]):controller.signal;
   const policy=options.policy??JSON.parse(readFileSync(new URL('../config/batching.default.json',import.meta.url),'utf8')).feedbackBatching;
-  let runtime,owner,m5,manager,m3,artifacts,webServer,processor,closePromise,started=false,ticking=false;
+  let runtime,owner,m5,manager,m3,artifacts,artifactPublisher,webServer,processor,closePromise,started=false,ticking=false;
   const servers=[];let menuDenial=async()=>{};
   const close=()=>closePromise??=(async()=>{
     controller.abort();
@@ -97,14 +98,16 @@ export async function createApplication(input,options={}) {
     }
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
-    if(config.artifacts.enabled){const key=required(config.artifacts.keyEnv);if(!/^[a-f0-9]{64}$/i.test(key))throw new Error('ARTIFACT_KEY_REQUIRED');artifacts=new ArtifactStore(runtime.store,{...config.artifacts,key:Buffer.from(key,'hex'),clock,assertOwner:()=>owner.assert(),...(options.artifactDownload?{download:options.artifactDownload}:{})});}
+    if(config.artifacts.enabled){const key=required(config.artifacts.keyEnv);if(!/^[a-f0-9]{64}$/i.test(key))throw new Error('ARTIFACT_KEY_REQUIRED');artifacts=new ArtifactStore(runtime.store,{...config.artifacts,key:Buffer.from(key,'hex'),clock,assertOwner:()=>owner.assert(),onChanged:id=>m3?.sync?.artifactChanged(id),...(options.artifactDownload?{download:options.artifactDownload}:{})});}
     manager.context.discord=prepareDiscordModules(runtime,config,owner);
     const restricted=runtime.store.get("SELECT 1 FROM sqlite_master WHERE type='table' AND name='restricted_projects'");
     if(runtime.store.get(`SELECT 1 FROM projects WHERE project_id<>? ${restricted?'AND project_id NOT IN (SELECT project_id FROM restricted_projects WHERE owner_project_id=?)':''} LIMIT 1`,config.projectId,...(restricted?[config.projectId]:[])))throw new Error('APPLICATION_PROJECT_SCOPE_MISMATCH');
     const memory=new HybridMemory(runtime.store,embeddingSource);
     const domain=new DomainService(runtime.store,memory,{authorizedActors:['web-developer','qq-developer'],...(clock?{clock}:{}),
       ...(config.github.enabled?{repositories:{[config.projectId]:config.github.repository}}:{})});
-    m3=createM3Services(runtime,{projectId:config.projectId,analysis:analysisConfig,model:options.model,memory,domain,github,githubWrite:config.github.allowWrites,clock,p0Enabled:config.notifications.p0Enabled});
+    const artifactAuthorization=(project,write=false)=>{owner.assert();m5.auth.authorize(m5.auth.principal('web-developer'),project,write);};
+    const reportBuilder=artifacts?new WorkReportBuilder(runtime.store,domain,{artifacts:(project,event,ref)=>{if(artifactPublisher)return artifactPublisher.attachment(project,event,ref);const a=artifacts.list(project,event,()=>artifactAuthorization(project)).find(a=>a.assetRef===ref);return a?{state:a.state,mimeType:a.mimeType,...(a.sha256?{sha256:a.sha256}:{}),...(a.size!==null?{size:a.size}:{})}:undefined;}}):undefined;
+    m3=createM3Services(runtime,{projectId:config.projectId,analysis:analysisConfig,model:options.model,memory,domain,github,githubWrite:config.github.allowWrites,clock,p0Enabled:config.notifications.p0Enabled,reportBuilder});
     let access=options.access;
     if(!access){
       if(config.web.accessKeyEnv){const accessKey=required(config.web.accessKeyEnv);if(accessKey.length<32)throw new Error('WEB_ACCESS_KEY_TOO_SHORT');access={accessKey,signingKey:config.web.signingKeyEnv?required(config.web.signingKeyEnv):accessKey};}
@@ -122,6 +125,7 @@ export async function createApplication(input,options={}) {
     m5.control.p0Enabled=!!p0;
     m5.control.embeddingStatus=()=>({...embeddingState});
     if(artifacts)m5.control.artifactReader=(project,id,authorize)=>artifacts.read(project,id,authorize);
+    if(config.github.attachmentUploads?.enabled){const upload=config.github.attachmentUploads,port=options.assetPort??new GitHubIssueAssets({repository:config.github.repository,token:required(upload.tokenEnv??config.github.tokenEnv)});if(port.repository!==config.github.repository)throw new Error('GITHUB_ASSET_REPOSITORY_MISMATCH');artifactPublisher=new ArtifactPublisher(runtime.store,artifacts,port,{allowWrites:upload.allowWrites,authorize:p=>artifactAuthorization(p,true),clock,onChanged:id=>m3.sync.artifactChanged(id)});}
     manager.runtime=runtime;manager.owner=owner;
     const tick=async()=>{
       if(processor)throw new Error('APPLICATION_MANAGED_WORKERS_RUNNING');
@@ -131,7 +135,8 @@ export async function createApplication(input,options={}) {
         const p0Result=p0?{evaluation:await p0.evaluate(signal),delivery:await p0.deliver(signal)}:{state:'disabled'};
         const embeddingResult=embeddings?await memory.drainEmbeddings(signal,embeddingConfig.batchSize??8).catch(()=>0):0;
         const artifactResult=artifacts?await artifacts.tick(signal):{processed:false};
-        return {ingress,...analysis,m5:reports,p0:p0Result,embeddings:embeddingResult,artifacts:artifactResult};
+        const publication=artifactPublisher?await artifactPublisher.tick(signal):{processed:false};
+        return {ingress,...analysis,m5:reports,p0:p0Result,embeddings:embeddingResult,artifacts:artifactResult,publication};
       }finally{ticking=false;}
     };
     const start=async()=>{
@@ -160,11 +165,11 @@ export async function createApplication(input,options={}) {
       // must not delay archive admission or fixed-window report scheduling.
       const embed=async()=>{if(Date.now()<embeddingRetryAt)return{};try{return{embeddings:await memory.drainEmbeddings(signal,embeddingConfig.batchSize??8)};}catch{return{};}};
       processor=Promise.all([loop('m1',()=>runtime.tick()),loop('m3',()=>m3.tick(signal)),loop('m5',()=>m5.tick()),...(embeddings?[loop('embeddings',embed)]:[]),
-        ...(p0?[loop('p0-urgent-analysis',()=>m3.urgent.tick(signal)),loop('p0-evaluate',()=>p0.evaluate(signal)),loop('p0-deliver',()=>p0.deliver(signal))]:[]),...(artifacts?[loop('artifacts',()=>artifacts.tick(signal))]:[])]).then(()=>{if(failure)throw failure;});
+        ...(p0?[loop('p0-urgent-analysis',()=>m3.urgent.tick(signal)),loop('p0-evaluate',()=>p0.evaluate(signal)),loop('p0-deliver',()=>p0.deliver(signal))]:[]),...(artifacts?[loop('artifacts',()=>artifacts.tick(signal))]:[]),...(artifactPublisher?[loop('artifact-publish',()=>artifactPublisher.tick(signal))]:[])]).then(()=>{if(failure)throw failure;});
       try{await processor;}catch(error){log({kind:'application',state:'failed',error:safeError(error)});throw error;}
       finally{await close();}
     };
-    return {config,runtime,memory,domain,m3,m5,p0,artifacts,plugins:manager,signal,tick,start,run,close,
+    return {config,runtime,memory,domain,m3,m5,p0,artifacts,artifactPublisher,plugins:manager,signal,tick,start,run,close,
       status:()=>({plugins:manager.status(),delivery:deliveryState,webPort:webServer?.address()?.port,
         sourcePorts:Object.fromEntries(servers.filter(s=>s.sourceId&&s.listening).map(s=>[s.sourceId,s.address().port])),metrics:runtime.metrics(),p0:p0?'enabled':'disabled',embeddings:{...embeddingState}})};
   }catch(error){await close();throw error;}

@@ -16,6 +16,9 @@
     },
     {
       "path": "../reporting"
+    },
+    {
+      "path": "../plugin-host"
     }
   ],
   "include": [

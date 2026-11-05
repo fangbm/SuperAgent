@@ -34,3 +34,7 @@ test('issue initial report and robot-owned updates preserve manual body and huma
   f.add('two',text);await f.worker.tick();f.advance(60001);await sync.tick();assert.match(port.commentsMap.get('1').body,/实际表现/);port.commentsMap.get('1').body+='\nHuman comment';
   f.add('three',text);await f.worker.tick();f.advance(60001);assert.equal((await sync.tick()).state,'manual_review');assert.equal(port.patches,0);assert.equal(port.issuesMap.get('1').body,original);
 });
+test('long Unicode report truncation stays within provider limit without broken surrogate pairs',async t=>{
+  const f=await m3Fixture(t);f.add('unicode','联机加载崩溃');await f.worker.tick();const id=f.runtime.store.get('SELECT issue_id FROM issues').issue_id,report=new WorkReportBuilder(f.runtime.store,f.domain).build(binding.projectId,'defect',id);
+  report.summary='😀'.repeat(40000);const body=renderWorkReport(report);assert.ok(body.length<55000);assert.match(body,/达到输出长度上限/);assert.equal(Buffer.from(body,'utf8').toString('utf8'),body);
+});
