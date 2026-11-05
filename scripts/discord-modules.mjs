@@ -16,6 +16,11 @@ export function prepareDiscordModules(runtime,config,owner){
       });
       specs.set(entry.id,{tickets:binding});
     }
+    if(entry.config.voice?.enabled){
+      const binding={namespace:stableId('discord-voice',config.projectId,entry.id),kind:'voice',guildId:entry.config.guildId,projectId:config.projectId,publicProjectId:config.projectId,sourceId:entry.id+':voice',sourceUri:'urn:superagent:module:discord-voice:'+encodeURIComponent(entry.id)};
+      if(config.sources.some(e=>e.id===binding.sourceId))throw new Error('DISCORD_MODULE_SOURCE_CONFLICT');
+      const host=new DiscordModuleHost(runtime.store,binding,{assertOwner:()=>owner.assert()});host.revoke();specs.set(entry.id,{...specs.get(entry.id),voice:binding});
+    }
   }
   return {bind(entry,plugin){
     const definitions=specs.get(entry.id);if(!definitions)return;
@@ -23,7 +28,7 @@ export function prepareDiscordModules(runtime,config,owner){
     const modules={};
     for(const [name,binding] of Object.entries(definitions)){
       const scope={projectId:binding.projectId,sourceId:binding.sourceId};
-      const host=new DiscordModuleHost(runtime.store,binding,{assertOwner:()=>owner.assert(),commit:events=>runtime.ingress.commitBatch(scope,events),getEvent:id=>runtime.ingress.getEvent(binding.projectId,id)?.event});
+      const host=new DiscordModuleHost(runtime.store,binding,{assertOwner:()=>owner.assert(),...(binding.kind==='tickets'?{commit:events=>runtime.ingress.commitBatch(scope,events),getEvent:id=>runtime.ingress.getEvent(binding.projectId,id)?.event}:{})});
       modules[name]={port:host.port(),receive:p=>host.receive(p),next:()=>host.next(),fail:(...args)=>host.fail(...args),revoke:()=>host.revoke()};
     }
     plugin.bindModules(modules);

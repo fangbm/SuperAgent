@@ -65,7 +65,11 @@ export class DiscordModuleHost {
     });
   }
   next():{key:string;packet:Packet}|null{this.assert();const r=this.store.get<{event_id:string;payload_json:string}>("SELECT * FROM discord_module_inbox WHERE namespace=? AND status='pending' AND retry_at<=? ORDER BY rowid LIMIT 1",this.binding.namespace,this.now());return r?{key:r.event_id,packet:JSON.parse(r.payload_json) as Packet}:null;}
-  fail(key:string,code:string,permanent=false):void{this.assert();this.store.run("UPDATE discord_module_inbox SET attempt=attempt+1,status=CASE WHEN ? OR attempt>=4 THEN 'failed' ELSE 'pending' END,retry_at=?,error_code=? WHERE namespace=? AND event_id=? AND status='pending'",permanent?1:0,addMilliseconds(this.now(),30000),/^[A-Z0-9_]{1,100}$/.test(code)?code:'DISCORD_MODULE_FAILED',this.binding.namespace,key);}
+  fail(key:string,code:string,permanent=false):void{this.assert();this.store.transaction(()=>{
+    const row=this.store.get<{payload_json:string}>("SELECT payload_json FROM discord_module_inbox WHERE namespace=? AND event_id=? AND status='pending'",this.binding.namespace,key);
+    this.store.run("UPDATE discord_module_inbox SET attempt=attempt+1,status=CASE WHEN ? OR attempt>=4 THEN 'failed' ELSE 'pending' END,retry_at=?,error_code=? WHERE namespace=? AND event_id=? AND status='pending'",permanent?1:0,addMilliseconds(this.now(),30000),/^[A-Z0-9_]{1,100}$/.test(code)?code:'DISCORD_MODULE_FAILED',this.binding.namespace,key);
+    if(row&&this.binding.kind==='voice'&&['VOICE_STATE_UPDATE','GUILD_CREATE','READY','RESUMED'].includes((JSON.parse(row.payload_json) as Packet).type))this.store.run("UPDATE discord_module_state SET value_json=json_set(value_json,'$.valid',json('false')),version=version+1,updated_at=? WHERE namespace=? AND state_key='snapshot'",this.now(),this.binding.namespace);
+  });}
   ownsChannel(id:string):boolean{return this.list('ticket:').some(r=>typeof r.value==='object'&&r.value!==null&&!Array.isArray(r.value)&&r.value.channelId===id);}
   submit(packetKey:string,event:NormalizedEventV1,initial:JSONValue):DiscordStateRow{
     this.assert();if(this.binding.kind!=='tickets'||!this.options.commit||!this.options.getEvent||event.data.projectId!==this.binding.projectId||event.data.sourceId!==this.binding.sourceId||event.source!==this.binding.sourceUri||event.type!=='com.superagent.feedback.message.created.v1')throw new Error('DISCORD_TICKET_ARCHIVE_SCOPE');

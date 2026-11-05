@@ -88,6 +88,11 @@ export async function createApplication(input,options={}) {
     if(delivery)validateDelivery((options.deliveryFactory??createDelivery)(delivery.config),delivery);
     manager=new ApplicationPlugins(null,config,null,{env,factories:options.sourceFactories,log,registry,timing:options.supervisorTiming,
       ...(delivery?{operator:{receive:request=>m5.qq.receive(request)}}:{})});
+    const discordTokens=new Set();
+    for(const entry of config.sources.filter(e=>e.enabled&&e.plugin==='discord')){
+      let token;try{token=await secretReader(entry,env)(entry.config.tokenSecret??'DISCORD_BOT_TOKEN');}catch{continue;}
+      if(discordTokens.has(token))throw new Error('DISCORD_DUPLICATE_GATEWAY_CREDENTIAL');discordTokens.add(token);
+    }
     mkdirSync(path.dirname(config.database),{recursive:true});
     runtime=new M1Runtime(config.database,{policy,...(clock?{clock}:{})});owner=acquireApplicationOwner(runtime.store);
     manager.context.discord=prepareDiscordModules(runtime,config,owner);
